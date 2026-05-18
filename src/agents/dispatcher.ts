@@ -78,19 +78,16 @@ async function dispatchWithRetry<T>(
     try {
       const data = parseYaml<T>(result.text);
       if (validator(data)) {
+        if (attempt > 0) console.log(`  [${role}] YAML recovered on attempt ${attempt + 1}`);
         return { data, usage: totalUsage, rawText: result.text };
       }
-      console.warn(`[${role}] YAML structurally invalid (attempt ${attempt + 1})`);
-      if (process.env.FOUNDRY_DEBUG) {
-        console.warn(`[${role}] Parsed data keys:`, data ? Object.keys(data as any) : "null");
-        console.warn(`[${role}] Raw response (first 500):`, result.text.slice(0, 500));
-      }
+      const keys = data ? Object.keys(data as any).join(", ") : "null";
+      console.warn(`  [${role}] YAML parsed but structurally invalid (attempt ${attempt + 1}). Keys: ${keys}`);
+      console.warn(`  [${role}] First 200 chars: ${result.text.slice(0, 200).replace(/\n/g, "\\n")}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[${role}] YAML parse error (attempt ${attempt + 1}): ${msg}`);
-      if (process.env.FOUNDRY_DEBUG) {
-        console.warn(`[${role}] Raw response (first 500):`, result.text.slice(0, 500));
-      }
+      console.warn(`  [${role}] YAML parse error (attempt ${attempt + 1}): ${msg}`);
+      console.warn(`  [${role}] First 200 chars: ${result.text.slice(0, 200).replace(/\n/g, "\\n")}`);
     }
   }
 

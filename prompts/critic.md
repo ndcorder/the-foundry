@@ -41,10 +41,10 @@ For each proposal, assess:
 Respond with ONLY valid YAML:
 
 ```yaml
-decisions:
+evaluations:
   - title: "..."
-    verdict: "approve|reject|revise"
-    reason: "..."
+    decision: "approve|reject|revise"
+    reasons: "..."
     sharpening_notes: "..."
 selected: "title of the approved idea to build"
 ```
@@ -107,7 +107,7 @@ Ship threshold: mean of 3.0+, no dimension below 2.
 Respond with ONLY valid YAML:
 
 ```yaml
-verdict: "ship|revise|kill"
+decision: "ship|revise|kill"
 ratings:
   originality: 0
   specificity: 0
@@ -116,7 +116,6 @@ ratings:
   coherence: 0
   portfolio_fit: 0
   technical_quality: 0
-mean_rating: 0.0
 review: |
   3-5 sentence review for the portfolio.
 revision_notes: null

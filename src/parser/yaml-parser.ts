@@ -9,22 +9,69 @@ import type {
   CuratorFullResponse,
 } from "../types/index.js";
 
+function stripWrappers(text: string): string {
+  // Strip thinking/reasoning/output tags that GLM models sometimes emit
+  let cleaned = text
+    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
+    .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, "")
+    .replace(/<output>([\s\S]*?)<\/output>/gi, "$1")
+    .replace(/<response>([\s\S]*?)<\/response>/gi, "$1")
+    .replace(/<answer>([\s\S]*?)<\/answer>/gi, "$1")
+    .trim();
+  return cleaned;
+}
+
 function extractYamlBlock(text: string): string {
-  // Prefer explicit YAML code fence
-  const fenced = text.match(/```(?:ya?ml)?\s*\n([\s\S]*?)```/);
+  const cleaned = stripWrappers(text);
+
+  // Strategy 1: explicit YAML code fence (most reliable)
+  const fenced = cleaned.match(/```(?:ya?ml)?\s*\n([\s\S]*?)```/);
   if (fenced) return fenced[1].trim();
 
-  // Look for raw YAML (line starting with a key: or list item)
-  const lines = text.split("\n");
-  const start = lines.findIndex((l) => /^\s*[a-z_][a-z0-9_-]*\s*:|^\s*- /.test(l));
-  if (start >= 0) return lines.slice(start).join("\n").trim();
+  // Strategy 2: any code fence at all
+  const anyFence = cleaned.match(/```\w*\s*\n([\s\S]*?)```/);
+  if (anyFence) {
+    const inner = anyFence[1].trim();
+    // Only use if it looks like YAML (has key: value patterns)
+    if (/^[a-z_][a-z0-9_-]*\s*:/m.test(inner)) return inner;
+  }
 
-  return text.trim();
+  // Strategy 3: find the first YAML-like line and take everything from there
+  const lines = cleaned.split("\n");
+  const start = lines.findIndex((l) => /^[a-z_][a-z0-9_-]*\s*:/.test(l));
+  if (start >= 0) {
+    // Find end: stop at lines that are clearly not YAML (markdown headers, etc.)
+    let end = lines.length;
+    for (let i = start + 1; i < lines.length; i++) {
+      const l = lines[i];
+      if (/^```/.test(l) || /^#{1,3}\s/.test(l)) { end = i; break; }
+    }
+    return lines.slice(start, end).join("\n").trim();
+  }
+
+  return cleaned;
 }
 
 export function parseYaml<T>(text: string): T {
   const block = extractYamlBlock(text);
-  return yaml.parse(block) as T;
+
+  try {
+    return yaml.parse(block) as T;
+  } catch (firstError) {
+    // Retry with light cleanup: tabs → spaces, trailing whitespace
+    const fixedBlock = block.replace(/\t/g, "  ").replace(/[ \t]+$/gm, "");
+    if (fixedBlock !== block) {
+      try { return yaml.parse(fixedBlock) as T; } catch { /* fall through */ }
+    }
+
+    // Retry: if the block starts with `---`, strip the document marker
+    if (block.startsWith("---")) {
+      const stripped = block.replace(/^---\s*\n/, "").replace(/\n---\s*$/, "");
+      try { return yaml.parse(stripped) as T; } catch { /* fall through */ }
+    }
+
+    throw firstError;
+  }
 }
 
 export function buildCorrectionPrompt(rawResponse: string, error: string): string {

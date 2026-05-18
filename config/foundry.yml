@@ -1,0 +1,42 @@
+foundry:
+  name: "The Foundry"
+  version: "0.2.0"
+
+iteration:
+  max_idea_retries: 3
+  max_revision_rounds: 2
+  max_test_fix_cycles: 2
+  curator_interval: 15
+  domain_cooldown: 10
+  novelty_window: 20
+
+projects:
+  max_active: 2
+  max_iterations_per_project: 12
+  allow_standalone_interrupts: true
+
+stimuli:
+  enabled: true
+  stimuli_ttl: 30
+  skills_per_context: 2
+  mcp_timeout_seconds: 30
+
+context:
+  journal_compressed_max_tokens: 4000
+  portfolio_index_max_entries: 30
+  critic_review_history: 8
+  critic_gate1_history: 5
+
+intervention:
+  requests_file: "requests.md"
+  stop_file: "STOP"
+
+logging:
+  log_all_prompts: true
+  log_token_usage: true
+  log_decisions: true
+  log_test_reports: true
+
+recovery:
+  checkpoint_every: 5
+  resume_on_crash: true

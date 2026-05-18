@@ -1,0 +1,25 @@
+agents:
+  ideator:
+    model: "glm-5.1"
+    temperature: 0.9
+    max_tokens: 4096
+
+  creator:
+    model: "glm-5.1"
+    temperature: 0.7
+    max_tokens: 16384
+
+  tester:
+    model: "glm-5.1"
+    temperature: 0.2
+    max_tokens: 8192
+
+  critic:
+    model: "glm-5.1"
+    temperature: 0.3
+    max_tokens: 4096
+
+  curator:
+    model: "glm-5.1"
+    temperature: 0.5
+    max_tokens: 8192

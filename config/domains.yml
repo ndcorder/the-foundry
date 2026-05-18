@@ -1,0 +1,36 @@
+domains:
+  - name: fiction
+    description: "Short stories, flash fiction, novel chapters, vignettes"
+    weight: 1.0
+
+  - name: poetry
+    description: "Poems, spoken word, experimental verse"
+    weight: 0.8
+
+  - name: essay
+    description: "Opinion pieces, analysis, personal essays, criticism"
+    weight: 0.8
+
+  - name: code-tool
+    description: "CLI tools, utilities, scripts that solve a real problem"
+    weight: 1.0
+
+  - name: code-game
+    description: "Games — text adventures, puzzles, arcade, simulations"
+    weight: 0.8
+
+  - name: code-art
+    description: "Generative art, visualizations, creative coding"
+    weight: 0.7
+
+  - name: music
+    description: "Compositions, sound design (Strudel.js, Tone.js, etc.)"
+    weight: 0.5
+
+  - name: experiment
+    description: "Anything that doesn't fit. Weird formats, hybrid media, provocations."
+    weight: 0.6
+
+  - name: worldbuilding
+    description: "Lore, maps, cultures, histories, fictional reference material"
+    weight: 0.5

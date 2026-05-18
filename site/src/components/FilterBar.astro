@@ -1,0 +1,63 @@
+---
+import { DOMAIN_COLORS } from '@lib/types';
+
+interface Props {
+  domains: string[];
+}
+
+const { domains } = Astro.props;
+---
+
+<div class="flex flex-wrap gap-2 mb-6" id="filter-bar">
+  <button
+    class="filter-chip active text-xs px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] cursor-pointer transition-colors"
+    data-domain="all"
+  >
+    All
+  </button>
+  {domains.map(domain => {
+    const color = DOMAIN_COLORS[domain] ?? 'var(--text-muted)';
+    return (
+      <button
+        class="filter-chip text-xs px-3 py-1.5 rounded-full border border-[var(--border)] text-[var(--text-muted)] cursor-pointer transition-colors"
+        data-domain={domain}
+        style={`--chip-color: ${color}`}
+      >
+        {domain}
+      </button>
+    );
+  })}
+</div>
+
+<script>
+  const chips = document.querySelectorAll<HTMLButtonElement>('.filter-chip');
+  const cards = document.querySelectorAll<HTMLElement>('[data-artifact-domain]');
+
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      const domain = chip.dataset.domain!;
+      chips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+
+      cards.forEach(card => {
+        if (domain === 'all' || card.dataset.artifactDomain === domain) {
+          card.style.display = '';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+  });
+</script>
+
+<style>
+  .filter-chip.active {
+    background: var(--chip-color, var(--text-primary));
+    color: var(--bg-primary);
+    border-color: transparent;
+  }
+  .filter-chip:hover:not(.active) {
+    border-color: var(--chip-color, var(--text-muted));
+    color: var(--chip-color, var(--text-primary));
+  }
+</style>

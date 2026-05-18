@@ -1,0 +1,30 @@
+---
+import Base from '../../layouts/Base.astro';
+import ArtifactCard from '@components/ArtifactCard.astro';
+import FilterBar from '@components/FilterBar.astro';
+import { loadPortfolio } from '@lib/portfolio';
+
+const allArtifacts = await loadPortfolio();
+const artifacts = allArtifacts
+  .filter(a => !a.killed)
+  .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+
+const domains = [...new Set(artifacts.map(a => a.domain))].sort();
+---
+
+<Base title="Portfolio">
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold">Portfolio</h1>
+    <p class="text-[var(--text-secondary)] text-sm mt-1">{artifacts.length} artifacts across {domains.length} domains</p>
+  </div>
+
+  <FilterBar domains={domains} />
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {artifacts.map(artifact => (
+      <div data-artifact-domain={artifact.domain}>
+        <ArtifactCard artifact={artifact} />
+      </div>
+    ))}
+  </div>
+</Base>

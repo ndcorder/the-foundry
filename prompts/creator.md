@@ -35,8 +35,23 @@ At each stage, briefly note what you're doing and why.
 
 {manifesto_quality_standards}
 
-## Output
+## Output Format
 
-Deliver the completed artifact, ready for testing and review. If it's code, it must be complete and runnable — the Tester will verify this. If it's prose, it must be finished. If it's a tool, it must be usable.
+Deliver the completed artifact as structured YAML. Every file must be complete and self-contained.
 
-Respond with the artifact content. For code artifacts, include all files with clear path markers. For prose/poetry/essays, deliver the finished text.
+Respond with ONLY valid YAML:
+
+```yaml
+title: "The title of your artifact"
+files:
+  - path: "main.py"  # or story.md, poem.txt, etc.
+    content: |
+      # Full content of the file goes here
+      # For code: complete, runnable source
+      # For prose: the finished text
+  - path: "README.md"  # optional additional files
+    content: |
+      ...
+notes: |
+  Brief notes on key creative/technical decisions.
+```

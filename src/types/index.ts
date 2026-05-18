@@ -1,3 +1,5 @@
+export * from "./agents.js";
+
 export type {
   FoundryConfig,
   AgentModelConfig,

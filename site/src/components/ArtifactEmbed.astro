@@ -1,0 +1,27 @@
+---
+interface Props {
+  src: string;
+  title: string;
+}
+
+const { src, title } = Astro.props;
+---
+
+<div class="relative border border-[var(--border)] rounded-lg overflow-hidden">
+  <iframe
+    src={src}
+    sandbox="allow-scripts"
+    title={title}
+    class="w-full bg-white"
+    style="height: 600px; border: none;"
+    loading="lazy"
+  ></iframe>
+  <a
+    href={src}
+    target="_blank"
+    rel="noopener"
+    class="absolute top-2 right-2 text-xs bg-[var(--bg-primary)] border border-[var(--border)] rounded px-2 py-1 text-[var(--text-muted)] hover:text-white no-underline"
+  >
+    View fullscreen ↗
+  </a>
+</div>

@@ -1,0 +1,61 @@
+---
+import Base from '../../layouts/Base.astro';
+import RatingSidebar from '@components/RatingSidebar.astro';
+import ArtifactEmbed from '@components/ArtifactEmbed.astro';
+import { loadPortfolio, getInteractiveFiles } from '@lib/portfolio';
+import { marked } from 'marked';
+import fs from 'node:fs';
+import path from 'node:path';
+
+export async function getStaticPaths() {
+  const artifacts = await loadPortfolio();
+  const shipped = artifacts.filter(a => !a.killed);
+
+  const interactiveFiles = getInteractiveFiles();
+  for (const { id, sourcePath, fileName } of interactiveFiles) {
+    const destDir = path.join(process.cwd(), 'public', 'artifacts', id);
+    fs.mkdirSync(destDir, { recursive: true });
+    fs.copyFileSync(sourcePath, path.join(destDir, fileName));
+  }
+
+  return shipped.map((artifact, index) => ({
+    params: { id: artifact.id },
+    props: {
+      artifact,
+      prev: index > 0 ? { id: shipped[index - 1].id, title: shipped[index - 1].title } : null,
+      next: index < shipped.length - 1 ? { id: shipped[index + 1].id, title: shipped[index + 1].title } : null,
+    },
+  }));
+}
+
+const { artifact, prev, next } = Astro.props;
+
+const ext = artifact.contentFile.split('.').pop() ?? '';
+const isMarkdown = ['md', 'txt'].includes(ext);
+const isCode = ['py', 'js', 'ts', 'rules'].includes(ext);
+const contentHtml = isMarkdown
+  ? await marked.parse(artifact.contentRaw)
+  : null;
+---
+
+<Base title={artifact.title}>
+  <div class="mb-6">
+    <h1 class="text-xl font-bold leading-tight">{artifact.title}</h1>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-8">
+    <div>
+      {artifact.hasInteractive ? (
+        <ArtifactEmbed src={artifact.interactivePath} title={artifact.title} />
+      ) : isCode ? (
+        <pre class="bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg p-6 overflow-x-auto text-sm leading-relaxed"><code>{artifact.contentRaw}</code></pre>
+      ) : contentHtml ? (
+        <div class="prose-artifact" set:html={contentHtml} />
+      ) : (
+        <pre class="whitespace-pre-wrap font-serif text-[var(--text-primary)] leading-relaxed">{artifact.contentRaw}</pre>
+      )}
+    </div>
+
+    <RatingSidebar artifact={artifact} prev={prev} next={next} />
+  </div>
+</Base>

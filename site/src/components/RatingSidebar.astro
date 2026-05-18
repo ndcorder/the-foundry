@@ -1,0 +1,91 @@
+---
+import DomainTag from './DomainTag.astro';
+import type { Artifact } from '@lib/types';
+
+interface Props {
+  artifact: Artifact;
+  prev: { id: string; title: string } | null;
+  next: { id: string; title: string } | null;
+}
+
+const { artifact, prev, next } = Astro.props;
+const dimensions = Object.entries(artifact.ratings);
+---
+
+<aside class="space-y-6 text-sm">
+  {artifact.rating !== null && (
+    <div class="text-center">
+      <div class="text-3xl font-bold text-white">{artifact.rating.toFixed(1)}</div>
+      <div class="text-[var(--text-dim)] text-xs mt-1">mean rating</div>
+    </div>
+  )}
+
+  <div class="space-y-2 text-[var(--text-muted)]">
+    <div class="flex items-center gap-2">
+      <DomainTag domain={artifact.domain} size="md" />
+    </div>
+    <div class="font-mono text-xs">#{artifact.id}</div>
+    {artifact.iteration !== null && (
+      <div class="font-mono text-xs">Iteration {artifact.iteration}</div>
+    )}
+    {artifact.date && (
+      <div class="font-mono text-xs">{artifact.date}</div>
+    )}
+  </div>
+
+  {dimensions.length > 0 && (
+    <div>
+      <h4 class="text-xs uppercase tracking-wider text-[var(--text-dim)] mb-2">Ratings</h4>
+      <div class="space-y-1">
+        {dimensions.map(([dim, score]) => (
+          <div class="flex justify-between text-xs">
+            <span class="text-[var(--text-muted)]">{dim.replace(/_/g, ' ')}</span>
+            <span class="text-[var(--text-primary)] font-mono">{score}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
+
+  {artifact.review && (
+    <div>
+      <h4 class="text-xs uppercase tracking-wider text-[var(--text-dim)] mb-2">Critic Review</h4>
+      <div class="font-serif italic text-[var(--text-muted)] text-xs leading-relaxed line-clamp-[8]">
+        {artifact.review.slice(0, 500)}{artifact.review.length > 500 ? '…' : ''}
+      </div>
+    </div>
+  )}
+
+  {artifact.testerVerdict && (
+    <div>
+      <h4 class="text-xs uppercase tracking-wider text-[var(--text-dim)] mb-2">Tester Report</h4>
+      <div class="flex items-center gap-2 mb-1">
+        <span class:list={[
+          'text-xs px-2 py-0.5 rounded font-mono',
+          artifact.testerVerdict === 'pass' ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'
+        ]}>
+          {artifact.testerVerdict}
+        </span>
+        {artifact.testerTests && (
+          <span class="text-xs text-[var(--text-dim)] font-mono">{artifact.testerTests}</span>
+        )}
+      </div>
+      {artifact.testerSummary && (
+        <p class="text-xs text-[var(--text-muted)] leading-relaxed">{artifact.testerSummary}</p>
+      )}
+    </div>
+  )}
+
+  <div class="border-t border-[var(--border)] pt-4 space-y-2">
+    {prev && (
+      <a href={`/portfolio/${prev.id}`} class="block text-xs text-[var(--text-dim)] hover:text-[var(--text-primary)] no-underline">
+        ← #{prev.id} {prev.title.slice(0, 30)}{prev.title.length > 30 ? '…' : ''}
+      </a>
+    )}
+    {next && (
+      <a href={`/portfolio/${next.id}`} class="block text-xs text-[var(--text-dim)] hover:text-[var(--text-primary)] no-underline text-right">
+        #{next.id} {next.title.slice(0, 30)}{next.title.length > 30 ? '…' : ''} →
+      </a>
+    )}
+  </div>
+</aside>

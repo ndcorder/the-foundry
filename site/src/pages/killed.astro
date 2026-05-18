@@ -1,0 +1,54 @@
+---
+import Base from '../layouts/Base.astro';
+import DomainTag from '@components/DomainTag.astro';
+import { loadPortfolio } from '@lib/portfolio';
+
+const artifacts = await loadPortfolio();
+const killed = artifacts.filter(a => a.killed);
+---
+
+<Base title="Killed">
+  <div class="mb-8">
+    <h1 class="text-2xl font-bold">Killed</h1>
+    <p class="text-[var(--text-secondary)] text-sm mt-1">Artifacts the Critic rejected. Failure is part of the story.</p>
+  </div>
+
+  {killed.length === 0 ? (
+    <p class="text-[var(--text-muted)]">Nothing killed yet. The Critic is either too lenient or the Creator is too good.</p>
+  ) : (
+    <div class="space-y-8">
+      {killed.map(artifact => (
+        <article id={artifact.id} class="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg p-6">
+          <div class="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <div class="flex items-center gap-2 mb-2">
+                <DomainTag domain={artifact.domain} />
+                <span class="text-xs font-mono text-red-400 bg-red-900/30 px-2 py-0.5 rounded">KILLED</span>
+              </div>
+              <h2 class="text-lg font-medium text-[var(--text-primary)]">{artifact.title}</h2>
+              <div class="text-xs font-mono text-[var(--text-dim)] mt-1">#{artifact.id}</div>
+            </div>
+          </div>
+
+          {artifact.proposal && (
+            <div class="mb-4">
+              <h3 class="text-xs uppercase tracking-wider text-[var(--text-dim)] mb-2">What was proposed</h3>
+              <div class="text-sm text-[var(--text-muted)] bg-[var(--bg-card)] rounded p-4 font-mono text-xs leading-relaxed">
+                {artifact.proposal.slice(0, 800)}
+              </div>
+            </div>
+          )}
+
+          {artifact.killReason && (
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-red-400 mb-2">Why it was killed</h3>
+              <div class="text-sm text-[var(--text-secondary)] leading-relaxed font-serif">
+                {artifact.killReason}
+              </div>
+            </div>
+          )}
+        </article>
+      ))}
+    </div>
+  )}
+</Base>

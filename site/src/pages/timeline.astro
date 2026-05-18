@@ -1,0 +1,69 @@
+---
+import Base from '../layouts/Base.astro';
+import DomainTag from '@components/DomainTag.astro';
+import { loadJournal } from '@lib/journal';
+
+const entries = await loadJournal();
+---
+
+<Base title="Timeline">
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold">Timeline</h1>
+    <p class="text-[var(--text-secondary)] text-sm mt-1">Every iteration, chronologically</p>
+  </div>
+
+  <div class="space-y-1">
+    {entries.map(entry => (
+      <div class:list={[
+        'flex items-center gap-4 px-4 py-3 rounded-lg',
+        entry.status === 'failed' ? 'opacity-40' : '',
+        entry.status === 'killed' ? 'opacity-60' : '',
+      ]}>
+        <!-- Iteration number -->
+        <div class="w-16 text-right font-mono text-xs text-[var(--text-dim)] shrink-0">
+          iter {entry.iteration}
+        </div>
+
+        <!-- Status dot -->
+        <div class:list={[
+          'w-2 h-2 rounded-full shrink-0',
+          entry.status === 'shipped' ? 'bg-green-500' : '',
+          entry.status === 'killed' ? 'bg-red-500' : '',
+          entry.status === 'failed' ? 'bg-[var(--text-dim)]' : '',
+        ]} />
+
+        <!-- Content -->
+        <div class="flex-1 min-w-0">
+          {entry.status === 'failed' ? (
+            <span class="text-sm text-[var(--text-dim)]">Failed</span>
+          ) : (
+            <div class="flex items-center gap-2">
+              {entry.domain && <DomainTag domain={entry.domain} />}
+              {entry.artifactId ? (
+                <a href={entry.status === 'shipped' ? `/portfolio/${entry.artifactId}` : undefined}
+                   class="text-sm text-[var(--text-primary)] hover:text-white no-underline truncate">
+                  {entry.title}
+                </a>
+              ) : (
+                <span class="text-sm text-[var(--text-muted)] truncate">{entry.title}</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <!-- Rating -->
+        {entry.rating !== null && (
+          <span class="text-xs font-mono text-[var(--text-muted)] shrink-0">★ {entry.rating.toFixed(1)}</span>
+        )}
+        {entry.status === 'killed' && (
+          <span class="text-xs font-mono text-red-400 shrink-0">KILLED</span>
+        )}
+
+        <!-- Date -->
+        <div class="text-[0.6rem] font-mono text-[var(--text-dim)] shrink-0 w-20 text-right">
+          {new Date(entry.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        </div>
+      </div>
+    ))}
+  </div>
+</Base>

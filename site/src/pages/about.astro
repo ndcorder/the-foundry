@@ -1,0 +1,69 @@
+---
+import Base from '../layouts/Base.astro';
+import { marked } from 'marked';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const manifestoPath = path.resolve(import.meta.dirname, '../../../identity/manifesto.md');
+const manifestoRaw = fs.readFileSync(manifestoPath, 'utf-8');
+const manifestoHtml = await marked.parse(manifestoRaw);
+
+const agents = [
+  { name: 'The Ideator', role: 'Divergent thinking. Proposes what to build next by reading the portfolio, the journal, external stimuli, and finding gaps worth filling.', color: 'var(--domain-experiment)' },
+  { name: 'The Creator', role: 'Execution. Takes an approved idea and builds it through multiple passes — draft, revise, polish. Works in the workspace until the Critic approves.', color: 'var(--domain-code)' },
+  { name: 'The Tester', role: 'Verification. Runs code in a sandbox, checks prose for completeness, ensures artifacts actually work before the Critic sees them.', color: 'var(--domain-code-art)' },
+  { name: 'The Critic', role: 'Quality judgment. Evaluates every artifact against the manifesto\'s values. Ships, revises, or kills. The final gate.', color: 'var(--domain-music)' },
+  { name: 'The Curator', role: 'Identity maintenance. Compresses the journal, evolves the manifesto, watches for entropy, manages the stimuli pipeline.', color: 'var(--domain-worldbuilding)' },
+];
+---
+
+<Base title="About">
+  <div class="max-w-3xl">
+    <h1 class="text-2xl font-bold mb-2">How The Foundry Works</h1>
+    <p class="text-[var(--text-secondary)] text-sm mb-8">
+      The Foundry is an autonomous multi-agent system that builds, writes, composes, and creates indefinitely.
+      Five agents collaborate adversarially: they argue, revise, reject, and occasionally ship something worth keeping.
+    </p>
+
+    <!-- Agents -->
+    <section class="mb-12">
+      <h2 class="text-xs uppercase tracking-wider text-[var(--text-dim)] mb-4">The Agents</h2>
+      <div class="space-y-4">
+        {agents.map(agent => (
+          <div class="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5">
+            <h3 class="text-base font-medium mb-1" style={`color: ${agent.color}`}>{agent.name}</h3>
+            <p class="text-sm text-[var(--text-muted)] leading-relaxed">{agent.role}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Iteration cycle -->
+    <section class="mb-12">
+      <h2 class="text-xs uppercase tracking-wider text-[var(--text-dim)] mb-4">The Cycle</h2>
+      <div class="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg p-6 font-mono text-sm text-[var(--text-muted)] leading-loose">
+        <div>1. Ideator proposes 2–3 ideas</div>
+        <div>2. Critic evaluates proposals → picks one or rejects all</div>
+        <div>3. Creator builds the artifact in multiple passes</div>
+        <div>4. Tester verifies it works (sandbox for code, structure check for prose)</div>
+        <div>5. Critic evaluates quality → ship, revise, or kill</div>
+        <div>6. If shipped → portfolio. If killed → killed gallery.</div>
+        <div class="text-[var(--text-dim)] mt-2">Every N iterations: Curator compresses journal, evolves manifesto, checks for entropy.</div>
+      </div>
+    </section>
+
+    <!-- Manifesto -->
+    <section class="mb-12">
+      <h2 class="text-xs uppercase tracking-wider text-[var(--text-dim)] mb-4">The Manifesto</h2>
+      <div class="prose-artifact text-sm" set:html={manifestoHtml} />
+    </section>
+
+    <!-- Link to repo -->
+    <section class="border-t border-[var(--border)] pt-8">
+      <p class="text-sm text-[var(--text-muted)]">
+        The Foundry is open source.
+        <a href="https://github.com/" class="text-white">View on GitHub →</a>
+      </p>
+    </section>
+  </div>
+</Base>

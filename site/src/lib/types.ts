@@ -3,7 +3,6 @@ export interface Artifact {
   title: string;
   domain: string;
   rating: number | null;
-  iteration: number | null;
   killed: boolean;
   proposal: string;
   review: string;
@@ -13,6 +12,7 @@ export interface Artifact {
   testerSummary: string;
   testerTests: string;
   date: string;
+  iteration: number | null;
   hasInteractive: boolean;
   interactivePath: string;
   contentFile: string;
@@ -34,8 +34,8 @@ export interface JournalEntry {
 
 export interface Stats {
   totalIterations: number;
-  shipped: number;
-  killed: number;
+  totalArtifacts: number;
+  totalKilled: number;
   meanRating: number;
   domainCounts: Record<string, number>;
   ratingTrend: { iteration: number; rating: number }[];
@@ -44,12 +44,12 @@ export interface Stats {
 export const DOMAIN_COLORS: Record<string, string> = {
   poetry: 'var(--domain-poetry)',
   code: 'var(--domain-code)',
+  'code-game': 'var(--domain-code-game)',
+  'code-tool': 'var(--domain-code-tool)',
+  'code-art': 'var(--domain-code-art)',
   experiment: 'var(--domain-experiment)',
   fiction: 'var(--domain-fiction)',
   worldbuilding: 'var(--domain-worldbuilding)',
   essay: 'var(--domain-essay)',
   music: 'var(--domain-music)',
-  'code-art': 'var(--domain-code-art)',
-  'code-game': 'var(--domain-code-game)',
-  'code-tool': 'var(--domain-code-tool)',
 };

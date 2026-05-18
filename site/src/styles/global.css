@@ -1,0 +1,77 @@
+@import 'tailwindcss';
+
+:root {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-card: #1a1a1a;
+  --border: #2a2a2a;
+  --text-primary: #e0e0e0;
+  --text-secondary: #999999;
+  --text-muted: #666666;
+  --text-dim: #444444;
+
+  --domain-poetry: #7ab87a;
+  --domain-code: #e8c87a;
+  --domain-experiment: #c87ae8;
+  --domain-fiction: #7ab8e8;
+  --domain-worldbuilding: #7ae8c8;
+  --domain-essay: #e8a87a;
+  --domain-music: #e87aaa;
+  --domain-code-art: #7ae8e8;
+  --domain-code-game: #e8c87a;
+  --domain-code-tool: #e8c87a;
+}
+
+html {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+.font-serif { font-family: Georgia, 'Times New Roman', serif; }
+.font-mono { font-family: 'SF Mono', 'Fira Code', monospace; }
+
+.prose-artifact {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.05rem;
+  line-height: 1.8;
+  color: var(--text-primary);
+}
+.prose-artifact h1, .prose-artifact h2, .prose-artifact h3 {
+  font-family: system-ui, sans-serif;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+.prose-artifact p { margin-bottom: 1rem; }
+.prose-artifact pre {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.85rem;
+}
+.prose-artifact code {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.9em;
+}
+.prose-artifact blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 1rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.prose-artifact ul, .prose-artifact ol {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+.prose-artifact li { margin-bottom: 0.25rem; }
+.prose-artifact strong { color: white; }
+
+a { color: var(--text-primary); text-decoration: underline; text-underline-offset: 3px; }
+a:hover { color: white; }

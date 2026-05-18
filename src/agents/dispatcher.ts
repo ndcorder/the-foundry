@@ -32,6 +32,7 @@ import {
   pickRandomSkills,
   formatDecisions,
   formatTestReports,
+  selectDiverseReviews,
   safeRead,
 } from "../context/index.js";
 import { loadPrompt, loadCriticGate1Prompt, loadCriticGate2Prompt, injectVars } from "./prompt.js";
@@ -194,9 +195,11 @@ export async function dispatchCreator(
   const shared = await buildSharedContext(config);
   const decisions = await readDecisions();
   const testReports = await readTestReports();
-  const recentReviews = decisions
-    .filter((d) => d.gate === "gate2")
-    .slice(-config.context.critic_review_history);
+  const gate2Reviews = decisions.filter((d) => d.gate === "gate2");
+  const recentReviews = selectDiverseReviews(
+    gate2Reviews,
+    config.context.critic_review_history,
+  );
   const recentTests = testReports.slice(-config.context.critic_review_history);
 
   const manifesto = await safeRead(resolve("identity", "manifesto.md"));

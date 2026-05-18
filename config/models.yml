@@ -23,3 +23,12 @@ agents:
     model: "glm-5.1"
     temperature: 0.5
     max_tokens: 8192
+
+# A/B test: uncomment to run ideator on glm-4.5 for iterations 51-70
+# Compare idea quality and Critic approval rates against baseline.
+# overrides:
+#   - agent: ideator
+#     model: "glm-4.5"
+#     start_iteration: 51
+#     end_iteration: 70
+#     label: "ideator-glm45-test"

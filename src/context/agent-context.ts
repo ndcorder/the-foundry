@@ -13,7 +13,9 @@ import {
   formatTestReports,
   readLiveStimuli,
   pickRandomSkills,
+  selectDiverseReviews,
 } from "./data.js";
+import { getActiveProjects } from "../files/projects.js";
 
 function resolve(...segments: string[]): string {
   return path.join(process.cwd(), ...segments);
@@ -31,25 +33,42 @@ export async function buildIdeatorContext(
   shared: string,
   config: FoundryConfig
 ): Promise<ContextBlock> {
-  const [decisions, liveStimuli, skills] = await Promise.all([
+  const [decisions, liveStimuli, skills, curatorRecs, activeProjects] = await Promise.all([
     readDecisions(),
     readLiveStimuli(),
     pickRandomSkills(config.stimuli.skills_per_context),
+    safeRead(resolve("curator-recommendations.md")),
+    getActiveProjects(),
   ]);
 
   const gate1Decisions = decisions
     .filter((d) => d.gate === "gate1")
     .slice(-config.context.critic_gate1_history);
 
+  const projectSummary = activeProjects.length > 0
+    ? activeProjects.map((p) =>
+        `- **${p.project_id}** "${p.name}" — ${p.completed_iterations}/${p.estimated_iterations} iterations done`
+      ).join("\n")
+    : "*No active projects.*";
+
   const sections = [
     "## Critic's Recent Gate 1 Decisions\n",
     formatDecisions(gate1Decisions),
+  ];
+
+  if (curatorRecs.trim()) {
+    sections.push("\n## Curator's Recommendations\n", curatorRecs);
+  }
+
+  sections.push(
+    "\n## Active Projects\n",
+    projectSummary,
     "\n## External Stimuli\n",
     "### Live\n",
     liveStimuli,
     "\n### Reference Skills\n",
     skills,
-  ];
+  );
 
   return assembleBlock(shared, sections.join("\n"));
 }
@@ -65,9 +84,11 @@ export async function buildCreatorContext(
     readTestReports(),
   ]);
 
-  const recentReviews = decisions
-    .filter((d) => d.gate === "gate2")
-    .slice(-config.context.critic_review_history);
+  const gate2Reviews = decisions.filter((d) => d.gate === "gate2");
+  const recentReviews = selectDiverseReviews(
+    gate2Reviews,
+    config.context.critic_review_history,
+  );
 
   const recentTests = testReports.slice(-config.context.critic_review_history);
 

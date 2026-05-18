@@ -42,12 +42,24 @@ export interface FoundryConfig {
     checkpoint_every: number;
     resume_on_crash: boolean;
   };
+  loop: {
+    cooldown_seconds: number;
+    disk_space_min_gb: number;
+  };
 }
 
 export interface AgentModelConfig {
   model: string;
   temperature: number;
   max_tokens: number;
+}
+
+export interface ModelTierOverride {
+  agent: string;
+  model: string;
+  start_iteration: number;
+  end_iteration: number;
+  label: string;
 }
 
 export interface ModelsConfig {
@@ -58,6 +70,7 @@ export interface ModelsConfig {
     critic: AgentModelConfig;
     curator: AgentModelConfig;
   };
+  overrides?: ModelTierOverride[];
 }
 
 export interface DomainEntry {

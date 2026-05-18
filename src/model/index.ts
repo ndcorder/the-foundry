@@ -1,1 +1,1 @@
-export { callModel, type ModelCallResult } from "./client.js";
+export { callModel, setModelOverrides, resolveAgentConfig, type ModelCallResult } from "./client.js";

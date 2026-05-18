@@ -1,9 +1,11 @@
 export * from "./agents.js";
+export * from "./state.js";
 
 export type {
   FoundryConfig,
   AgentModelConfig,
   ModelsConfig,
+  ModelTierOverride,
   DomainEntry,
   DomainsConfig,
 } from "./config.js";

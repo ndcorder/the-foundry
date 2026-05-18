@@ -22,8 +22,7 @@ export async function safeReadAbsolute(absPath: string): Promise<string> {
   }
 }
 
-export async function readJsonlEntries<T>(filePath: string): Promise<T[]> {
-  const raw = await safeRead(filePath);
+function parseJsonlLines<T>(raw: string): T[] {
   if (!raw.trim()) return [];
   const entries: T[] = [];
   for (const line of raw.split("\n")) {
@@ -36,6 +35,34 @@ export async function readJsonlEntries<T>(filePath: string): Promise<T[]> {
     }
   }
   return entries;
+}
+
+export async function readJsonlEntries<T>(filePath: string): Promise<T[]> {
+  // Read current file + any rotated archives (e.g., iterations.2026-05-18T....jsonl)
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath, ".jsonl");
+  let allEntries: T[] = [];
+
+  try {
+    const files = await readdir(dir);
+    // Rotated files sort chronologically before the current file
+    const rotated = files
+      .filter((f) => f.startsWith(base + ".") && f.endsWith(".jsonl") && f !== path.basename(filePath))
+      .sort();
+
+    for (const f of rotated) {
+      const raw = await safeReadAbsolute(path.join(dir, f));
+      allEntries.push(...parseJsonlLines<T>(raw));
+    }
+  } catch {
+    // dir doesn't exist yet
+  }
+
+  // Current file
+  const raw = await safeRead(filePath);
+  allEntries.push(...parseJsonlLines<T>(raw));
+
+  return allEntries;
 }
 
 export async function readDecisions(): Promise<DecisionLogEntry[]> {
@@ -81,6 +108,47 @@ export async function readLiveStimuli(): Promise<string> {
     if (text.trim()) contents.push(text.trim());
   }
   return contents.length > 0 ? contents.join("\n\n---\n\n") : "*No live stimuli available.*";
+}
+
+export function selectDiverseReviews(
+  reviews: DecisionLogEntry[],
+  maxCount: number,
+): DecisionLogEntry[] {
+  if (reviews.length <= maxCount) return reviews;
+
+  const selected = new Map<number, DecisionLogEntry>();
+  const byDomain = new Map<string, DecisionLogEntry[]>();
+
+  for (const r of reviews) {
+    const domain = r.proposal_title?.split(" ")[0] ?? "unknown";
+    const existing = byDomain.get(domain) ?? [];
+    existing.push(r);
+    byDomain.set(domain, existing);
+  }
+
+  // Round-robin across domains to get diversity
+  const domains = [...byDomain.keys()];
+  let idx = 0;
+  while (selected.size < maxCount && selected.size < reviews.length) {
+    const domain = domains[idx % domains.length];
+    const pool = byDomain.get(domain)!;
+    if (pool.length > 0) {
+      const entry = pool.shift()!;
+      const key = reviews.indexOf(entry);
+      selected.set(key, entry);
+    }
+    idx++;
+    // Remove exhausted domains
+    if (pool.length === 0) {
+      domains.splice(idx % domains.length, 1);
+      if (domains.length === 0) break;
+    }
+  }
+
+  // Return in original order
+  return [...selected.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, v]) => v);
 }
 
 export async function pickRandomSkills(count: number): Promise<string> {

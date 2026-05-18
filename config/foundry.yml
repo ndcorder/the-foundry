@@ -1,6 +1,6 @@
 foundry:
   name: "The Foundry"
-  version: "0.2.0"
+  version: "0.3.0"
 
 iteration:
   max_idea_retries: 3
@@ -38,5 +38,9 @@ logging:
   log_test_reports: true
 
 recovery:
-  checkpoint_every: 5
+  checkpoint_every: 1
   resume_on_crash: true
+
+loop:
+  cooldown_seconds: 2
+  disk_space_min_gb: 1

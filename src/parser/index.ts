@@ -7,6 +7,7 @@ export {
   validateTester,
   validateCriticGate2,
   validateCuratorRedirect,
+  validateCuratorFull,
   getValidator,
   type Validator,
 } from "./yaml-parser.js";

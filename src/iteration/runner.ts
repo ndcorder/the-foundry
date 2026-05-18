@@ -34,6 +34,11 @@ import { appendJournal } from "../files/journal.js";
 import { checkStopFile, readRequests, clearRequests } from "../files/intervention.js";
 import { logIteration, logTestReport } from "../logging/index.js";
 import { createSandbox, type SandboxSession } from "../sandbox/index.js";
+import { execFile as execFileCb } from "node:child_process";
+import { promisify } from "node:util";
+import { updateProjectStatus, linkArtifactToProject, getActiveProjects } from "../files/projects.js";
+
+const execFile = promisify(execFileCb);
 
 interface IterationContext {
   config: FoundryConfig;
@@ -55,6 +60,79 @@ function computeMeanRating(ratings: CriticRatings): string {
   const vals = Object.values(ratings).filter((v): v is number => v !== undefined);
   if (vals.length === 0) return "N/A";
   return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
+}
+
+// ────────────────────────────────────────────────────────────
+// Disk space check
+// ────────────────────────────────────────────────────────────
+
+async function checkDiskSpace(minGb: number): Promise<boolean> {
+  try {
+    const { stdout } = await execFile("df", ["-k", "."]);
+    const lines = stdout.trim().split("\n");
+    if (lines.length < 2) return false;
+    // df -k output: Filesystem 1K-blocks Used Available Use% Mounted
+    const cols = lines[1].split(/\s+/);
+    const availableKb = parseInt(cols[3], 10);
+    if (isNaN(availableKb)) return false;
+    return availableKb >= minGb * 1024 * 1024;
+  } catch {
+    // If the check itself fails, don't block the iteration
+    return false;
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// Curator deadlock override
+// ────────────────────────────────────────────────────────────
+
+async function dispatchCuratorDeadlockOverride(
+  config: FoundryConfig,
+  models: ModelsConfig,
+  iteration: number,
+  lastRejectionContext: string,
+): Promise<{ proposal: IdeatorProposal; notes: string } | null> {
+  try {
+    const prompt = `## Your Role
+
+You are the Curator intervening in an ideation deadlock. The Ideator and Critic have failed to agree on any proposal after ${config.iteration.max_idea_retries} rounds.
+
+## Rejected Proposals and Reasons
+
+${lastRejectionContext}
+
+## Your Task
+
+Pick the BEST rejected idea — the one closest to being viable. Sharpen it: fix the Critic's objections, tighten the pitch, raise the ambition. Force it through.
+
+Tag the title with [FORCED] at the end.
+
+## Output Format
+
+Respond with ONLY valid YAML:
+
+\`\`\`yaml
+proposal:
+  title: "... [FORCED]"
+  domain: "..."
+  pitch: "..."
+  complexity: "S|M|L"
+  why: "Curator override — ..."
+  project_id: null
+  stimulus_ref: null
+\`\`\`
+`;
+
+    const result = await dispatchCuratorRedirect(config, models, iteration, prompt);
+    const proposal = result.data.proposal;
+    if (!proposal.title.includes("[FORCED]")) {
+      proposal.title = `${proposal.title} [FORCED]`;
+    }
+    return { proposal, notes: "Curator deadlock override — evaluate charitably." };
+  } catch (err) {
+    console.warn("  ⚠ Curator deadlock override failed:", err instanceof Error ? err.message : String(err));
+    return null;
+  }
 }
 
 // ────────────────────────────────────────────────────────────
@@ -200,6 +278,21 @@ export async function runIteration(
     };
   }
 
+  if (config.loop?.disk_space_min_gb) {
+    const ok = await checkDiskSpace(config.loop.disk_space_min_gb);
+    if (!ok) {
+      console.log("  ⚠ Disk space below threshold — halting.");
+      await appendJournal(`**Iteration ${iteration}:** Halted — disk space below ${config.loop.disk_space_min_gb}GB.`);
+      return {
+        iteration,
+        outcome: "halted",
+        reason: "Low disk space",
+        token_usage: totalUsage,
+        duration_ms: Date.now() - startMs,
+      };
+    }
+  }
+
   // Check for human redirect
   let approvedProposal: IdeatorProposal | null = null;
   let approvedNotes = "";
@@ -268,9 +361,22 @@ export async function runIteration(
     }
 
     if (!approvedProposal) {
-      // Deadlock after max retries
+      // Curator deadlock override — try to force an idea through
+      console.log("\n  ⚠ Ideation deadlock — invoking Curator override.");
+      const curatorForced = await dispatchCuratorDeadlockOverride(config, models, iteration, approvedNotes);
+      if (curatorForced) {
+        approvedProposal = curatorForced.proposal;
+        approvedNotes = curatorForced.notes;
+        addUsage({ input: 0, output: 0 }); // usage already tracked inside dispatch
+        await appendJournal(`**Iteration ${iteration}:** [FORCED] Curator override after ideation deadlock. Forced: "${approvedProposal.title}"`);
+        console.log(`  ✓ Curator forced: "${approvedProposal.title}"`);
+      }
+    }
+
+    if (!approvedProposal) {
+      // Deadlock after max retries AND curator override failed
       console.log("\n  ⚠ Ideation deadlock — skipping iteration.");
-      const reason = `Ideation deadlock after ${config.iteration.max_idea_retries} attempts. Last rejection reasons: ${approvedNotes}`;
+      const reason = `Ideation deadlock after ${config.iteration.max_idea_retries} attempts. Curator override also failed. Last rejection reasons: ${approvedNotes}`;
       await appendJournal(`**Iteration ${iteration}:** Skipped. ${reason}`);
       await logIteration({
         timestamp: new Date().toISOString(),
@@ -498,6 +604,23 @@ export async function runIteration(
 
   const mean = computeMeanRating(gate2!.ratings);
   await updatePortfolioIndex(artifactId, proposal.title, proposal.domain, mean);
+
+  // Project bookkeeping
+  if (proposal.project_id) {
+    try {
+      await linkArtifactToProject(proposal.project_id, artifactId, proposal.title);
+      const activeProjects = await getActiveProjects();
+      const projectStatus = activeProjects.find((p) => p.project_id === proposal.project_id);
+      const completedIterations = (projectStatus?.completed_iterations ?? 0) + 1;
+      await updateProjectStatus(proposal.project_id, {
+        completed_iterations: completedIterations,
+        last_iteration: iteration,
+      });
+      await appendJournal(`**Iteration ${iteration}:** Project ${proposal.project_id}: iteration ${iteration} completed.`);
+    } catch (err) {
+      console.warn(`  ⚠ Project bookkeeping failed for ${proposal.project_id}:`, err instanceof Error ? err.message : String(err));
+    }
+  }
 
   await appendJournal(
     `**Iteration ${iteration} — SHIPPED:** "${proposal.title}" [${proposal.domain}] as ${artifactId}. ` +

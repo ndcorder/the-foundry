@@ -20,3 +20,14 @@ export {
   writeWorkspaceFile,
   readWorkspaceFiles,
 } from "./workspace.js";
+
+export {
+  generateProjectId,
+  createProject,
+  getActiveProjects,
+  countActiveProjects,
+  getProjectContext,
+  updateProjectStatus,
+  linkArtifactToProject,
+  updateProjectsIndex,
+} from "./projects.js";

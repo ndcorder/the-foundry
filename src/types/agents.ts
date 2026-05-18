@@ -99,6 +99,37 @@ export interface CuratorRedirectResponse {
   proposal: IdeatorProposal;
 }
 
+// ── Curator full cycle ────────────────────────────────────────
+
+export interface ManifestoChange {
+  section: string;
+  old: string;
+  new: string;
+  reason: string;
+}
+
+export interface ProjectDecision {
+  project_id: string;
+  action: "continue" | "complete" | "abandon" | "extend";
+  reason: string;
+}
+
+export interface StimuliAction {
+  action: "refresh" | "commission_skill";
+  target: string;
+  content?: string;
+}
+
+export interface CuratorFullResponse {
+  retrospective: string;
+  compressed_journal: string;
+  manifesto_changes: ManifestoChange[];
+  domain_recommendations: string;
+  project_decisions: ProjectDecision[];
+  stimuli_actions: StimuliAction[];
+  human_redirect: null | { proposal: IdeatorProposal };
+}
+
 // ── Iteration result ─────────────────────────────────────────────
 
 export interface IterationResult {

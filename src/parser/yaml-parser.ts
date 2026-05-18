@@ -6,6 +6,7 @@ import type {
   TesterResponse,
   CriticGate2Response,
   CuratorRedirectResponse,
+  CuratorFullResponse,
 } from "../types/index.js";
 
 function extractYamlBlock(text: string): string {
@@ -117,6 +118,13 @@ export function validateCuratorRedirect(data: unknown): data is CuratorRedirectR
   return typeof p.title === "string" && typeof p.domain === "string";
 }
 
+export function validateCuratorFull(data: unknown): data is CuratorFullResponse {
+  if (!isObj(data)) return false;
+  if (typeof data.retrospective !== "string") return false;
+  if (typeof data.compressed_journal !== "string") return false;
+  return true;
+}
+
 export type Validator<T> = (data: unknown) => data is T;
 
 const validators: Record<string, Validator<any>> = {
@@ -126,6 +134,7 @@ const validators: Record<string, Validator<any>> = {
   tester: validateTester,
   "critic-gate2": validateCriticGate2,
   "curator-redirect": validateCuratorRedirect,
+  "curator-full": validateCuratorFull,
 };
 
 export function getValidator<T>(key: string): Validator<T> | undefined {

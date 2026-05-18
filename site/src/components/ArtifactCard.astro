@@ -1,0 +1,30 @@
+---
+import DomainTag from './DomainTag.astro';
+import type { Artifact } from '@lib/types';
+
+interface Props {
+  artifact: Artifact;
+  killed?: boolean;
+}
+
+const { artifact, killed = false } = Astro.props;
+const href = killed ? `/killed#${artifact.id}` : `/portfolio/${artifact.id}`;
+---
+
+<a href={href} class="block bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 no-underline hover:border-[var(--text-dim)] transition-colors group">
+  <div class="flex items-start justify-between gap-3 mb-2">
+    <DomainTag domain={artifact.domain} />
+    {artifact.rating !== null && (
+      <span class="text-xs text-[var(--text-muted)] font-mono">★ {artifact.rating.toFixed(1)}</span>
+    )}
+  </div>
+  <h3 class:list={[
+    'text-sm font-medium leading-snug group-hover:text-white transition-colors',
+    killed ? 'text-[var(--text-muted)] line-through' : 'text-[var(--text-primary)]'
+  ]}>
+    {artifact.title}
+  </h3>
+  <div class="mt-2 text-[0.65rem] text-[var(--text-dim)] font-mono">
+    #{artifact.id}{artifact.iteration !== null ? ` · iter ${artifact.iteration}` : ''}
+  </div>
+</a>

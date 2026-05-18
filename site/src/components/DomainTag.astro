@@ -1,0 +1,21 @@
+---
+import { DOMAIN_COLORS } from '@lib/types';
+
+interface Props {
+  domain: string;
+  size?: 'sm' | 'md';
+}
+
+const { domain, size = 'sm' } = Astro.props;
+const color = DOMAIN_COLORS[domain] ?? 'var(--text-muted)';
+const sizeClasses = size === 'sm'
+  ? 'text-[0.65rem] px-2 py-0.5'
+  : 'text-xs px-2.5 py-1';
+---
+
+<span
+  class:list={['uppercase tracking-wider font-medium rounded', sizeClasses]}
+  style={`color: ${color}; background: color-mix(in srgb, ${color} 15%, transparent)`}
+>
+  {domain}
+</span>

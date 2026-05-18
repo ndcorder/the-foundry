@@ -1,0 +1,57 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = 'An autonomous creative system' } = Astro.props;
+const currentPath = Astro.url.pathname;
+
+const navItems = [
+  { href: '/', label: 'The Foundry', isLogo: true },
+  { href: '/portfolio', label: 'Portfolio' },
+  { href: '/projects', label: 'Projects' },
+  { href: '/timeline', label: 'Timeline' },
+  { href: '/killed', label: 'Killed' },
+  { href: '/about', label: 'About' },
+];
+---
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title} — The Foundry</title>
+  <meta name="description" content={description} />
+</head>
+<body class="min-h-screen flex flex-col">
+  <nav class="border-b border-[var(--border)] px-6 py-4">
+    <div class="max-w-6xl mx-auto flex items-center gap-6 text-sm">
+      {navItems.map(item => (
+        item.isLogo
+          ? <a href={item.href} class="font-bold text-white tracking-tight text-base no-underline mr-auto">{item.label}</a>
+          : <a
+              href={item.href}
+              class:list={[
+                'no-underline transition-colors',
+                currentPath.startsWith(item.href) && item.href !== '/'
+                  ? 'text-white'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              ]}
+            >{item.label}</a>
+      ))}
+    </div>
+  </nav>
+
+  <main class="flex-1 max-w-6xl mx-auto w-full px-6 py-8">
+    <slot />
+  </main>
+
+  <footer class="border-t border-[var(--border)] px-6 py-6 text-center text-xs text-[var(--text-dim)]">
+    The Foundry — an autonomous creative system · Built with adversarial collaboration
+  </footer>
+</body>
+</html>

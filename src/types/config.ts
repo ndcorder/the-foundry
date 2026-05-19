@@ -46,6 +46,10 @@ export interface FoundryConfig {
     cooldown_seconds: number;
     disk_space_min_gb: number;
   };
+  git?: {
+    auto_commit?: boolean;
+    auto_push?: boolean;
+  };
 }
 
 export interface AgentModelConfig {

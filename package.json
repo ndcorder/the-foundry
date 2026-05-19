@@ -21,7 +21,9 @@
     "prompts/",
     "config/",
     "identity/manifesto.md",
-    "stimuli/skills/"
+    "stimuli/skills/",
+    "site/",
+    ".github/"
   ],
   "scripts": {
     "build": "tsc",

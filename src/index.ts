@@ -20,12 +20,44 @@ import { runAllDetectors, type MonitorWarning } from "./monitor/index.js";
 import { readJsonlEntries } from "./context/index.js";
 import type { CheckpointState, StimuliRefreshState } from "./types/index.js";
 import type { FoundryConfig, ModelsConfig } from "./types/index.js";
+import { execSync } from "node:child_process";
 import { readFile, appendFile } from "node:fs/promises";
 import path from "node:path";
-import { resolve, setRootDir } from "./root.js";
+import { resolve, getRootDir, setRootDir } from "./root.js";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function autoCommitAndPush(
+  iteration: number,
+  outcome: string,
+  artifactId: string | null,
+  title: string,
+  domain: string,
+  rating: number | null,
+  autoGitPush: boolean,
+): void {
+  const rootDir = getRootDir();
+  const ratingStr = rating !== null ? ` ★${rating.toFixed(1)}` : "";
+  let msg: string;
+  if (outcome === "shipped") {
+    msg = `feat: ship #${artifactId} — ${title} [${domain}]${ratingStr}`;
+  } else if (outcome === "killed") {
+    msg = `chore: kill #${artifactId} — ${title} [${domain}]`;
+  } else {
+    msg = `chore: iteration ${iteration} failed`;
+  }
+
+  try {
+    execSync("git add portfolio/ identity/ logs/iterations.jsonl logs/decisions.jsonl", { cwd: rootDir, stdio: "pipe" });
+    execSync(`git commit -m "${msg.replace(/"/g, '\\"')}"`, { cwd: rootDir, stdio: "pipe" });
+    if (autoGitPush) {
+      execSync("git push", { cwd: rootDir, stdio: "pipe", timeout: 30000 });
+    }
+  } catch {
+    console.warn("[git] auto-commit/push failed, will retry next iteration");
+  }
 }
 
 async function getLastIterationFromLog(): Promise<number> {
@@ -46,8 +78,13 @@ export async function startFoundry(opts?: { rootDir?: string }): Promise<void> {
   const config = await loadConfig();
   const models = await loadModelsConfig();
 
+  const autoGitCommit = config.git?.auto_commit !== false;
+  const autoGitPush = config.git?.auto_push !== false;
+
   console.log(`The Foundry v${config.foundry.version} — Phase 3`);
-  console.log(`Mode: infinite loop with crash recovery + observability\n`);
+  console.log(`Mode: infinite loop with crash recovery + observability`);
+  if (autoGitCommit) console.log(`Git: auto-commit${autoGitPush ? " + push" : ""} enabled`);
+  console.log();
 
   // Load model tier overrides for A/B testing
   if (models.overrides && models.overrides.length > 0) {
@@ -129,11 +166,32 @@ export async function startFoundry(opts?: { rootDir?: string }): Promise<void> {
         await saveState(config, iteration, lastCuratorRun, stats, stimuliRefreshStates);
         break;
       }
+
+      // ── Auto-commit after successful iteration ──────────────
+      if (autoGitCommit && (result.outcome === "shipped" || result.outcome === "killed")) {
+        const meanRating = result.ratings
+          ? Object.values(result.ratings).reduce((a, b) => a + b, 0) / Object.values(result.ratings).length
+          : null;
+        autoCommitAndPush(
+          iteration,
+          result.outcome,
+          result.artifact_id ?? null,
+          result.title ?? "untitled",
+          result.domain ?? "unknown",
+          meanRating,
+          autoGitPush,
+        );
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`\n  ✘ Iteration ${iteration} failed: ${msg}`);
       await appendJournal(`**Iteration ${iteration}:** Failed: ${msg}`);
       stats.recordOutcome(iteration, "skipped");
+
+      // Auto-commit failed iterations too
+      if (autoGitCommit) {
+        autoCommitAndPush(iteration, "skipped", null, "", "", null, autoGitPush);
+      }
     }
 
     // ── Curator full cycle ──────────────────────────────────────

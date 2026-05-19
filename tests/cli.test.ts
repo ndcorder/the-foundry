@@ -156,6 +156,28 @@ describe('run', () => {
     consoleSpy.mockRestore();
   });
 
+  it('prints version for version command', async () => {
+    const { run } = await import('../src/cli.js');
+    const origArgv = process.argv;
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    process.argv = ['node', 'cli.js', 'version'];
+    await run();
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringMatching(/^the-foundry v\d+\.\d+\.\d+/));
+    process.argv = origArgv;
+    consoleSpy.mockRestore();
+  });
+
+  it('prints version for --version flag', async () => {
+    const { run } = await import('../src/cli.js');
+    const origArgv = process.argv;
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    process.argv = ['node', 'cli.js', '--version'];
+    await run();
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringMatching(/^the-foundry v\d+\.\d+\.\d+/));
+    process.argv = origArgv;
+    consoleSpy.mockRestore();
+  });
+
   it('calls stopFoundry for stop command', async () => {
     const mockStop = vi.fn();
     vi.doMock('../src/index.js', () => ({ stopFoundry: mockStop }));

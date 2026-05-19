@@ -211,6 +211,15 @@ export async function run(): Promise<void> {
   const command = args[0];
 
   switch (command) {
+    case "version":
+    case "--version":
+    case "-v": {
+      const { readFileSync } = await import("node:fs");
+      const pkg = JSON.parse(readFileSync(path.join(import.meta.dirname, "..", "package.json"), "utf-8"));
+      console.log(`the-foundry v${pkg.version}`);
+      break;
+    }
+
     case "init": {
       const target = args[1];
       if (!target) {
@@ -268,6 +277,7 @@ export async function run(): Promise<void> {
       console.log(`  start         Run the iteration loop`);
       console.log(`  stop          Create STOP file to halt after current iteration`);
       console.log(`  status        Show current state (iteration, stats, checkpoint)`);
+      console.log(`  version       Show installed version`);
       console.log(`  dashboard     Start the dashboard server`);
       console.log(`\nOptions:`);
       console.log(`  --workdir <path>   Set the foundry data directory (default: cwd)`);

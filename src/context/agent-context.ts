@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import type {
   FoundryConfig,
   ContextBlock,
@@ -16,10 +14,7 @@ import {
   selectDiverseReviews,
 } from "./data.js";
 import { getActiveProjects } from "../files/projects.js";
-
-function resolve(...segments: string[]): string {
-  return path.join(process.cwd(), ...segments);
-}
+import { resolve } from "../root.js";
 
 function assembleBlock(shared: string, agentSpecific: string): ContextBlock {
   return {

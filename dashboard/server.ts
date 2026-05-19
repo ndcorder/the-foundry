@@ -1,10 +1,10 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { resolve } from "../src/root.js";
 
 const PORT = parseInt(process.env.PORT || "3333", 10);
-const CWD = process.cwd();
-const PUBLIC_DIR = path.join(CWD, "dashboard", "public");
+const PUBLIC_DIR = resolve("dashboard", "public");
 
 // ── JSONL / file readers ─────────────────────────────────────────
 
@@ -17,7 +17,7 @@ function parseJsonlContent(raw: string): unknown[] {
 }
 
 function readJsonl(filename: string): unknown[] {
-  const logsDir = path.join(CWD, "logs");
+  const logsDir = resolve("logs");
   const base = filename.replace(".jsonl", "");
   let entries: unknown[] = [];
 
@@ -41,7 +41,7 @@ function readJsonl(filename: string): unknown[] {
 
 function readTextFile(relativePath: string): string {
   try {
-    return fs.readFileSync(path.join(CWD, relativePath), "utf-8");
+    return fs.readFileSync(resolve(relativePath), "utf-8");
   } catch {
     return "";
   }

@@ -39,7 +39,8 @@ async function run(): Promise<void> {
     }
 
     case "dashboard": {
-      const serverPath = path.resolve(process.cwd(), "dashboard", "server.ts");
+      const { resolve: foundryResolve } = await import("./root.js");
+      const serverPath = foundryResolve("dashboard", "server.ts");
       const { execSync } = await import("node:child_process");
       execSync(`npx tsx ${serverPath}`, { stdio: "inherit" });
       break;

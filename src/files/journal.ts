@@ -1,9 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-
-function resolve(...segs: string[]): string {
-  return path.join(process.cwd(), ...segs);
-}
+import { resolve } from "../root.js";
 
 export async function appendJournal(entry: string): Promise<void> {
   const journalPath = resolve("identity", "journal.md");

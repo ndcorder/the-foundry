@@ -1,11 +1,7 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import yaml from "yaml";
 import type { FoundryConfig, ModelsConfig, DomainsConfig } from "../types/index.js";
-
-function resolve(...segments: string[]): string {
-  return path.join(process.cwd(), ...segments);
-}
+import { resolve } from "../root.js";
 
 async function readYaml<T>(filePath: string): Promise<T> {
   const raw = await readFile(filePath, "utf-8");

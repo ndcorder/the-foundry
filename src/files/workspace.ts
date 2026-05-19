@@ -1,9 +1,6 @@
 import { rm, mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-
-function resolve(...segs: string[]): string {
-  return path.join(process.cwd(), ...segs);
-}
+import { resolve } from "../root.js";
 
 export async function clearWorkspace(): Promise<void> {
   const dir = resolve("workspace", "current");

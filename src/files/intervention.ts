@@ -1,10 +1,6 @@
 import { readFile, writeFile, access } from "node:fs/promises";
-import path from "node:path";
 import type { FoundryConfig } from "../types/index.js";
-
-function resolve(...segs: string[]): string {
-  return path.join(process.cwd(), ...segs);
-}
+import { resolve } from "../root.js";
 
 export async function checkStopFile(config: FoundryConfig): Promise<boolean> {
   try {

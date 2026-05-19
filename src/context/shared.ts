@@ -1,11 +1,7 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import type { FoundryConfig } from "../types/index.js";
 import { loadDomainsConfig } from "./config.js";
-
-function resolve(...segments: string[]): string {
-  return path.join(process.cwd(), ...segments);
-}
+import { resolve } from "../root.js";
 
 async function safeRead(filePath: string): Promise<string> {
   try {

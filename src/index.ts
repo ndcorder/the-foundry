@@ -22,13 +22,14 @@ import type { CheckpointState, StimuliRefreshState } from "./types/index.js";
 import type { FoundryConfig, ModelsConfig } from "./types/index.js";
 import { readFile, appendFile } from "node:fs/promises";
 import path from "node:path";
+import { resolve } from "./root.js";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function getLastIterationFromLog(): Promise<number> {
-  const logPath = path.join(process.cwd(), "logs", "iterations.jsonl");
+  const logPath = resolve("logs", "iterations.jsonl");
   try {
     const content = await readFile(logPath, "utf-8");
     const lines = content.split("\n").filter((l) => l.trim());
@@ -159,17 +160,17 @@ export async function startFoundry(): Promise<void> {
     // ── Anti-entropy monitoring ─────────────────────────────────
     try {
       const iterEntries = await readJsonlEntries<any>(
-        path.join(process.cwd(), "logs", "iterations.jsonl"),
+        resolve("logs", "iterations.jsonl"),
       );
       const journal = await readFile(
-        path.join(process.cwd(), "identity", "journal.md"), "utf-8",
+        resolve("identity", "journal.md"), "utf-8",
       ).catch(() => "");
 
       const warnings = runAllDetectors(iterEntries, journal, iteration);
       for (const w of warnings) {
         console.log(`  [${w.severity}] ${w.detector}: ${w.message}`);
         await appendFile(
-          path.join(process.cwd(), "logs", "monitor.jsonl"),
+          resolve("logs", "monitor.jsonl"),
           JSON.stringify(w) + "\n",
         );
       }
@@ -222,7 +223,7 @@ async function saveState(
 
 export async function stopFoundry(stopFile = "STOP"): Promise<void> {
   const { writeFile } = await import("node:fs/promises");
-  const stopPath = path.join(process.cwd(), stopFile);
+  const stopPath = resolve(stopFile);
   await writeFile(stopPath, `Stopped at ${new Date().toISOString()}\n`, "utf-8");
 }
 
@@ -242,7 +243,7 @@ export async function getStatus(): Promise<FoundryStatus> {
   let lastArtifact: string | null = null;
 
   try {
-    const logPath = path.join(process.cwd(), "logs", "iterations.jsonl");
+    const logPath = resolve("logs", "iterations.jsonl");
     const content = await readFile(logPath, "utf-8");
     const lines = content.split("\n").filter((l) => l.trim());
     for (let i = lines.length - 1; i >= 0; i--) {
@@ -256,7 +257,7 @@ export async function getStatus(): Promise<FoundryStatus> {
     // no log file yet
   }
 
-  const stopExists = await readFile(path.join(process.cwd(), "STOP"), "utf-8")
+  const stopExists = await readFile(resolve("STOP"), "utf-8")
     .then(() => true)
     .catch(() => false);
 

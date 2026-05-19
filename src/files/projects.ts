@@ -2,10 +2,7 @@ import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import yaml from "yaml";
 import type { ProjectBrief, ProjectStatus } from "../types/index.js";
-
-function resolve(...segs: string[]): string {
-  return path.join(process.cwd(), ...segs);
-}
+import { resolve } from "../root.js";
 
 function slugify(name: string): string {
   return name

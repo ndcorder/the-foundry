@@ -36,7 +36,7 @@ import {
   safeRead,
 } from "../context/index.js";
 import { loadPrompt, loadCriticGate1Prompt, loadCriticGate2Prompt, injectVars } from "./prompt.js";
-import path from "node:path";
+import { resolve } from "../root.js";
 
 interface DispatchResult<T> {
   data: T;
@@ -61,7 +61,7 @@ async function dispatchWithRetry<T>(
   for (let attempt = 0; attempt <= MAX_YAML_RETRIES; attempt++) {
     const userMessage = attempt === 0
       ? "Begin."
-      : buildCorrectionPrompt(lastText, "YAML validation failed — see above.");
+      : buildCorrectionPrompt(lastText, "YAML validation failed — see above.", role);
 
     const result: ModelCallResult = await callModel(
       agentConfig,
@@ -92,10 +92,6 @@ async function dispatchWithRetry<T>(
   }
 
   throw new Error(`[${role}] Failed to get valid YAML after ${MAX_YAML_RETRIES + 1} attempts`);
-}
-
-function resolve(...segs: string[]): string {
-  return path.join(process.cwd(), ...segs);
 }
 
 // ── Ideator ──────────────────────────────────────────────────────

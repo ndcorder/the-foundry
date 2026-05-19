@@ -1,10 +1,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { CriticRatings, CreatorFile } from "../types/index.js";
-
-function resolve(...segs: string[]): string {
-  return path.join(process.cwd(), ...segs);
-}
+import { resolve } from "../root.js";
 
 const CODE_DOMAINS = new Set(["code-tool", "code-game", "code-art"]);
 

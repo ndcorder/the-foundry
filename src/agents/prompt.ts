@@ -1,10 +1,13 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { resolve } from "../root.js";
 
-const PROMPTS_DIR = path.join(process.cwd(), "prompts");
+function promptsDir(): string {
+  return resolve("prompts");
+}
 
 export async function loadPrompt(role: string): Promise<string> {
-  return readFile(path.join(PROMPTS_DIR, `${role}.md`), "utf-8");
+  return readFile(path.join(promptsDir(), `${role}.md`), "utf-8");
 }
 
 export async function loadCriticGate1Prompt(): Promise<string> {

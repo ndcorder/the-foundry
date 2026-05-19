@@ -15,13 +15,9 @@ import { appendJournal } from "../files/journal.js";
 import { updateProjectStatus } from "../files/projects.js";
 import { refreshSource, writeSkillFile, loadStimuliConfig } from "../stimuli/index.js";
 import { readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { resolve } from "../root.js";
 
 const MAX_YAML_RETRIES = 2;
-
-function resolve(...segs: string[]): string {
-  return path.join(process.cwd(), ...segs);
-}
 
 export async function dispatchCuratorFull(
   config: FoundryConfig,
@@ -49,7 +45,7 @@ export async function dispatchCuratorFull(
   for (let attempt = 0; attempt <= MAX_YAML_RETRIES; attempt++) {
     const userMessage = attempt === 0
       ? "Begin."
-      : buildCorrectionPrompt(lastText, "YAML validation failed — see above.");
+      : buildCorrectionPrompt(lastText, "YAML validation failed — see above.", "curator-full");
 
     const result: ModelCallResult = await callModel(
       agentConfig,

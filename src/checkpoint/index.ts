@@ -1,21 +1,25 @@
 import { rename, readFile, writeFile, unlink } from "node:fs/promises";
-import path from "node:path";
 import type { CheckpointState } from "../types/state.js";
+import { resolve } from "../root.js";
 
-export const CHECKPOINT_PATH = path.join(process.cwd(), "checkpoint.json");
+export function checkpointPath(): string {
+  return resolve("checkpoint.json");
+}
 
-const TMP_PATH = path.join(process.cwd(), "checkpoint.tmp.json");
+function tmpPath(): string {
+  return resolve("checkpoint.tmp.json");
+}
 
 export async function saveCheckpoint(state: CheckpointState): Promise<void> {
   const json = JSON.stringify(state, null, 2);
-  await writeFile(TMP_PATH, json, "utf-8");
-  await rename(TMP_PATH, CHECKPOINT_PATH);
+  await writeFile(tmpPath(), json, "utf-8");
+  await rename(tmpPath(), checkpointPath());
 }
 
 export async function loadCheckpoint(): Promise<CheckpointState | null> {
   let raw: string;
   try {
-    raw = await readFile(CHECKPOINT_PATH, "utf-8");
+    raw = await readFile(checkpointPath(), "utf-8");
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw err;
@@ -30,7 +34,7 @@ export async function loadCheckpoint(): Promise<CheckpointState | null> {
 
 export async function deleteCheckpoint(): Promise<void> {
   try {
-    await unlink(CHECKPOINT_PATH);
+    await unlink(checkpointPath());
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
     throw err;

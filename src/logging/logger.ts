@@ -1,7 +1,11 @@
 import { appendFile, mkdir, rename, stat } from "node:fs/promises";
 import path from "node:path";
+import { resolve } from "../root.js";
 
-const LOGS_DIR = path.join(process.cwd(), "logs");
+function logsDir(): string {
+  return resolve("logs");
+}
+
 const ROTATION_THRESHOLD_BYTES = 50 * 1024 * 1024; // 50 MB
 
 let dirEnsured = false;
@@ -9,12 +13,12 @@ const rotationChecks = new Map<string, number>(); // track last check iteration 
 
 async function ensureLogsDir(): Promise<void> {
   if (dirEnsured) return;
-  await mkdir(LOGS_DIR, { recursive: true });
+  await mkdir(logsDir(), { recursive: true });
   dirEnsured = true;
 }
 
 async function rotateIfNeeded(filename: string): Promise<void> {
-  const filePath = path.join(LOGS_DIR, filename);
+  const filePath = path.join(logsDir(), filename);
   const lastCheck = rotationChecks.get(filename) ?? 0;
   const now = Date.now();
   // Only check every 60 seconds to avoid stat overhead on every append
@@ -28,7 +32,7 @@ async function rotateIfNeeded(filename: string): Promise<void> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const base = filename.replace(".jsonl", "");
     const archiveName = `${base}.${timestamp}.jsonl`;
-    await rename(filePath, path.join(LOGS_DIR, archiveName));
+    await rename(filePath, path.join(logsDir(), archiveName));
   } catch {
     // file doesn't exist yet — nothing to rotate
   }
@@ -37,7 +41,7 @@ async function rotateIfNeeded(filename: string): Promise<void> {
 async function appendJsonl(filename: string, entry: Record<string, unknown>): Promise<void> {
   await ensureLogsDir();
   await rotateIfNeeded(filename);
-  await appendFile(path.join(LOGS_DIR, filename), JSON.stringify(entry) + "\n", "utf-8");
+  await appendFile(path.join(logsDir(), filename), JSON.stringify(entry) + "\n", "utf-8");
 }
 
 export async function logTokenUsage(entry: Record<string, unknown>): Promise<void> {

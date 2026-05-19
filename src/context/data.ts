@@ -1,10 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { DecisionLogEntry, TestReportEntry } from "../types/index.js";
-
-function resolve(...segments: string[]): string {
-  return path.join(process.cwd(), ...segments);
-}
+import { resolve } from "../root.js";
 
 export async function safeRead(filePath: string): Promise<string> {
   try {

@@ -4,14 +4,11 @@ import { promisify } from "node:util";
 import path from "node:path";
 import yaml from "yaml";
 import type { StimuliConfig, StimuliSourceConfig, StimuliRefreshState } from "../types/index.js";
+import { resolve } from "../root.js";
 
 const execFile = promisify(execFileCb);
 
 const EXEC_TIMEOUT = 30_000;
-
-function resolve(...segments: string[]): string {
-  return path.join(process.cwd(), ...segments);
-}
 
 export async function loadStimuliConfig(): Promise<StimuliConfig> {
   const raw = await readFile(resolve("stimuli", "stimuli.yml"), "utf-8");

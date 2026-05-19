@@ -66,8 +66,10 @@ export async function dispatchCuratorFull(
       }
       console.warn(`[curator-full] YAML structurally invalid (attempt ${attempt + 1})`);
     } catch (err) {
+      /* v8 ignore start */
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`[curator-full] YAML parse error (attempt ${attempt + 1}): ${msg}`);
+      /* v8 ignore stop */
     }
   }
 

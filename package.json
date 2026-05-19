@@ -46,6 +46,9 @@
   "scripts": {
     "prepublishOnly": "npm run build",
     "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "dashboard": "tsx dashboard/server.ts"
@@ -61,7 +64,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^4.1.6",
     "tsx": "^4.19.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "vitest": "^4.1.6"
   }
 }

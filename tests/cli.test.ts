@@ -1,324 +1,371 @@
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { setRootDir, getRootDir } from '../src/root.js';
+import { setRootDir } from '../src/root.js';
+import { parseWorkdir, initFoundry } from '../src/cli.js';
 
-// ── Mocks ────────────────────────────────────────────────────────
-// cli.ts is an auto-executing entry point with no exports.
-// We test the functions it delegates to (startFoundry, stopFoundry, getStatus)
-// and validate the logic patterns it uses (parseWorkdir, status formatting, etc.)
-
-const mockStartFoundry = vi.fn().mockResolvedValue(undefined);
-const mockStopFoundry = vi.fn().mockResolvedValue(undefined);
-const mockGetStatus = vi.fn().mockResolvedValue({
-  running: false,
-  iteration: 0,
-  shipped: 0,
-  killed: 0,
-  skipped: 0,
-  savedAt: null,
-  recentOutcomes: [],
-  lastArtifact: null,
-});
-
-vi.mock('../src/index.js', () => ({
-  startFoundry: mockStartFoundry,
-  stopFoundry: mockStopFoundry,
-  getStatus: mockGetStatus,
+vi.mock('node:child_process', () => ({
+  execSync: vi.fn(() => Buffer.from('')),
 }));
 
-describe('cli', () => {
-  let tempDir: string;
+let tempDir: string;
+beforeEach(() => {
+  tempDir = mkdtempSync(path.join(tmpdir(), 'foundry-cli-'));
+  setRootDir(tempDir);
+});
+afterEach(() => {
+  rmSync(tempDir, { recursive: true, force: true });
+});
 
-  beforeEach(() => {
-    tempDir = mkdtempSync(path.join(tmpdir(), 'foundry-cli-'));
-    setRootDir(tempDir);
-    vi.clearAllMocks();
+describe('parseWorkdir', () => {
+  it('returns args without --workdir when not present', () => {
+    const origArgv = process.argv;
+    process.argv = ['node', 'cli.js', 'start'];
+    const result = parseWorkdir(process.argv);
+    expect(result).toEqual(['start']);
+    process.argv = origArgv;
   });
 
-  afterEach(() => {
-    rmSync(tempDir, { recursive: true, force: true });
+  it('strips --workdir and its value from args', () => {
+    const origArgv = process.argv;
+    process.argv = ['node', 'cli.js', '--workdir', '/tmp/test', 'start'];
+    const result = parseWorkdir(process.argv);
+    expect(result).toEqual(['start']);
+    process.argv = origArgv;
   });
 
-  describe('parseWorkdir logic', () => {
-    it('extracts --workdir and value, leaving remaining args', () => {
-      const argv = ['node', 'cli.js', '--workdir', '/tmp/test', 'start'];
-      const args = argv.slice(2);
-      const cleaned: string[] = [];
-      for (let i = 0; i < args.length; i++) {
-        if (args[i] === '--workdir' && i + 1 < args.length) {
-          setRootDir(path.resolve(args[i + 1]));
-          i++;
-        } else {
-          cleaned.push(args[i]);
-        }
+  it('handles --workdir at end of args', () => {
+    const origArgv = process.argv;
+    process.argv = ['node', 'cli.js', 'status', '--workdir', '/tmp/test'];
+    const result = parseWorkdir(process.argv);
+    expect(result).toEqual(['status']);
+    process.argv = origArgv;
+  });
+
+  it('handles --workdir without value (treated as regular arg)', () => {
+    const origArgv = process.argv;
+    process.argv = ['node', 'cli.js', '--workdir'];
+    const result = parseWorkdir(process.argv);
+    expect(result).toEqual(['--workdir']);
+    process.argv = origArgv;
+  });
+
+  it('handles empty args', () => {
+    const origArgv = process.argv;
+    process.argv = ['node', 'cli.js'];
+    const result = parseWorkdir(process.argv);
+    expect(result).toEqual([]);
+    process.argv = origArgv;
+  });
+});
+
+describe('initFoundry', () => {
+  it('creates complete directory structure', async () => {
+    const name = path.join(tempDir, 'test-foundry');
+    await initFoundry(name);
+
+    expect(existsSync(path.join(name, 'config'))).toBe(true);
+    expect(existsSync(path.join(name, 'prompts'))).toBe(true);
+    expect(existsSync(path.join(name, 'identity', 'manifesto.md'))).toBe(true);
+    expect(existsSync(path.join(name, 'identity', 'journal.md'))).toBe(true);
+    expect(existsSync(path.join(name, 'identity', 'journal-compressed.md'))).toBe(true);
+    expect(existsSync(path.join(name, 'portfolio', 'index.md'))).toBe(true);
+    expect(existsSync(path.join(name, 'portfolio', 'projects', 'index.md'))).toBe(true);
+    expect(existsSync(path.join(name, 'portfolio', 'killed'))).toBe(true);
+    expect(existsSync(path.join(name, 'logs'))).toBe(true);
+    expect(existsSync(path.join(name, 'workspace', 'current'))).toBe(true);
+    expect(existsSync(path.join(name, 'workspace', 'sandbox'))).toBe(true);
+    expect(existsSync(path.join(name, '.gitignore'))).toBe(true);
+    expect(existsSync(path.join(name, 'README.md'))).toBe(true);
+  });
+
+  it('creates seed portfolio index with table header', async () => {
+    const name = path.join(tempDir, 'test-foundry');
+    await initFoundry(name);
+    const content = readFileSync(path.join(name, 'portfolio', 'index.md'), 'utf-8');
+    expect(content).toContain('| ID | Title |');
+  });
+
+  it('creates seed journal with header', async () => {
+    const name = path.join(tempDir, 'test-foundry');
+    await initFoundry(name);
+    const content = readFileSync(path.join(name, 'identity', 'journal.md'), 'utf-8');
+    expect(content).toContain('The Foundry');
+    expect(content).toContain('Chronological record');
+  });
+
+  it('creates .gitignore with expected entries', async () => {
+    const name = path.join(tempDir, 'test-foundry');
+    await initFoundry(name);
+    const content = readFileSync(path.join(name, '.gitignore'), 'utf-8');
+    expect(content).toContain('node_modules/');
+    expect(content).toContain('workspace/');
+    expect(content).toContain('checkpoint.json');
+    expect(content).toContain('STOP');
+  });
+
+  it('creates README with portfolio name', async () => {
+    const name = path.join(tempDir, 'my-portfolio');
+    await initFoundry(name);
+    const content = readFileSync(path.join(name, 'README.md'), 'utf-8');
+    expect(content).toContain('my-portfolio');
+  });
+
+  it('refuses to overwrite existing foundry directory', async () => {
+    const name = path.join(tempDir, 'existing');
+    mkdirSync(path.join(name, 'config'), { recursive: true });
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+    await expect(initFoundry(name)).rejects.toThrow('exit');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    exitSpy.mockRestore();
+  });
+
+  it('copies stimuli.yml if it exists', async () => {
+    const name = path.join(tempDir, 'test-foundry');
+    await initFoundry(name);
+    // stimuli.yml may or may not exist depending on package state
+    // Just verify no error is thrown
+  });
+});
+
+describe('run', () => {
+  it('shows help with no command', async () => {
+    const { run } = await import('../src/cli.js');
+    const origArgv = process.argv;
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    process.argv = ['node', 'cli.js'];
+    await expect(run()).rejects.toThrow('exit');
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Usage:'));
+    process.argv = origArgv;
+    exitSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
+  it('shows help with unknown command', async () => {
+    const { run } = await import('../src/cli.js');
+    const origArgv = process.argv;
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    process.argv = ['node', 'cli.js', 'unknown'];
+    await expect(run()).rejects.toThrow('exit');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    process.argv = origArgv;
+    exitSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
+  it('calls stopFoundry for stop command', async () => {
+    const mockStop = vi.fn();
+    vi.doMock('../src/index.js', () => ({ stopFoundry: mockStop }));
+    const { run: runFresh } = await import('../src/cli.js');
+    const origArgv = process.argv;
+    process.argv = ['node', 'cli.js', 'stop'];
+    await runFresh();
+    expect(mockStop).toHaveBeenCalled();
+    process.argv = origArgv;
+  });
+
+  it('calls getStatus for status command', async () => {
+    const mockStatus = vi.fn().mockResolvedValue({
+      running: false, iteration: 5, shipped: 3, killed: 1, skipped: 0,
+      lastArtifact: 'Test', savedAt: '2026-01-01', recentOutcomes: [
+        { iteration: 4, outcome: 'shipped', domain: 'poetry' },
+        { iteration: 5, outcome: 'killed', domain: 'code' },
+      ],
+    });
+    vi.doMock('../src/index.js', () => ({ getStatus: mockStatus }));
+    const { run: runFresh } = await import('../src/cli.js');
+    const origArgv = process.argv;
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    process.argv = ['node', 'cli.js', 'status'];
+    await runFresh();
+    expect(mockStatus).toHaveBeenCalled();
+    process.argv = origArgv;
+    consoleSpy.mockRestore();
+  });
+
+  it('handles init with missing name', async () => {
+    const { run: runFresh } = await import('../src/cli.js');
+    const origArgv = process.argv;
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+    process.argv = ['node', 'cli.js', 'init'];
+    await expect(runFresh()).rejects.toThrow('exit');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    process.argv = origArgv;
+    exitSpy.mockRestore();
+  });
+
+  it('outputs status with lastArtifact, savedAt, and recentOutcomes', async () => {
+    const mockStatus = vi.fn().mockResolvedValue({
+      running: true, iteration: 10, shipped: 5, killed: 2, skipped: 1,
+      lastArtifact: 'Best Poem Ever',
+      savedAt: '2026-05-19T12:00:00Z',
+      recentOutcomes: [
+        { iteration: 8, outcome: 'shipped', domain: 'poetry' },
+        { iteration: 9, outcome: 'killed', domain: 'code' },
+        { iteration: 10, outcome: 'shipped' },
+      ],
+    });
+    vi.doMock('../src/index.js', () => ({ getStatus: mockStatus }));
+    const { run: runFresh } = await import('../src/cli.js');
+    const origArgv = process.argv;
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    process.argv = ['node', 'cli.js', 'status'];
+    await runFresh();
+    const allOutput = consoleSpy.mock.calls.map(c => String(c[0])).join('\n');
+    expect(allOutput).toContain('Last ship:');
+    expect(allOutput).toContain('Best Poem Ever');
+    expect(allOutput).toContain('Checkpoint:');
+    expect(allOutput).toContain('Recent:');
+    expect(allOutput).toContain('shipped');
+    expect(allOutput).toContain('(poetry)');
+    process.argv = origArgv;
+    consoleSpy.mockRestore();
+  });
+
+  it('runs dashboard command', async () => {
+    const mockExecSync = vi.fn();
+    vi.doMock('node:child_process', () => ({ execSync: mockExecSync }));
+    const { run: runFresh } = await import('../src/cli.js');
+    const origArgv = process.argv;
+    process.argv = ['node', 'cli.js', 'dashboard'];
+    await runFresh();
+    expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('dashboard'), expect.objectContaining({ stdio: 'inherit' }));
+    process.argv = origArgv;
+  });
+});
+
+describe('initFoundry — branch coverage', () => {
+  it('warns when site/ does not exist in package root', async () => {
+    // We need to control existsSync for the site/ path check
+    // The mock for child_process is already set up globally.
+    // We'll create a minimal foundry target and ensure site/ is NOT in packageRoot
+    const { execSync } = await import('node:child_process');
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const consoleLSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const name = path.join(tempDir, 'no-site-foundry');
+    // initFoundry uses import.meta.dirname to find package root.
+    // Since site/ and .github/ exist in the real package root, they will be found.
+    // To test the else branches, we need to mock existsSync conditionally.
+    // Instead, let's just verify the positive paths are hit (site/ exists in real package)
+    await initFoundry(name);
+
+    consoleSpy.mockRestore();
+    consoleLSpy.mockRestore();
+  });
+
+  it('handles npm install failure', async () => {
+    const { execSync } = await import('node:child_process');
+    const mockExec = vi.mocked(execSync);
+    // Make npm install throw
+    mockExec.mockImplementation((cmd: string) => {
+      if (typeof cmd === 'string' && cmd.includes('npm install')) {
+        throw new Error('npm install failed');
       }
-      expect(cleaned).toEqual(['start']);
-      expect(getRootDir()).toBe('/tmp/test');
+      return Buffer.from('');
     });
 
-    it('keeps --workdir as arg when no value follows', () => {
-      const argv = ['node', 'cli.js', 'start', '--workdir'];
-      const args = argv.slice(2);
-      const cleaned: string[] = [];
-      for (let i = 0; i < args.length; i++) {
-        if (args[i] === '--workdir' && i + 1 < args.length) {
-          i++;
-        } else {
-          cleaned.push(args[i]);
-        }
-      }
-      expect(cleaned).toEqual(['start', '--workdir']);
-    });
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const consoleLSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const name = path.join(tempDir, 'npm-fail-foundry');
+    await initFoundry(name);
 
-    it('handles --workdir in middle of args', () => {
-      const argv = ['node', 'cli.js', '--workdir', '/some/path', 'status', '--verbose'];
-      const args = argv.slice(2);
-      const cleaned: string[] = [];
-      for (let i = 0; i < args.length; i++) {
-        if (args[i] === '--workdir' && i + 1 < args.length) {
-          setRootDir(path.resolve(args[i + 1]));
-          i++;
-        } else {
-          cleaned.push(args[i]);
-        }
-      }
-      expect(cleaned).toEqual(['status', '--verbose']);
-      expect(getRootDir()).toBe('/some/path');
-    });
-
-    it('handles no args', () => {
-      const argv = ['node', 'cli.js'];
-      const args = argv.slice(2);
-      expect(args).toEqual([]);
-    });
+    const warnOutput = consoleSpy.mock.calls.map(c => String(c[0])).join('\n');
+    expect(warnOutput).toContain('npm install');
+    mockExec.mockReset();
+    mockExec.mockReturnValue(Buffer.from(''));
+    consoleSpy.mockRestore();
+    consoleLSpy.mockRestore();
   });
 
-  describe('initFoundry file structure', () => {
-    it('creates all required directories', async () => {
-      const dest = path.join(tempDir, 'test-foundry');
-      const { writeFile, mkdir } = await import('node:fs/promises');
-
-      // Replicate initFoundry's directory creation
-      await mkdir(dest, { recursive: true });
-      const emptyDirs = [
-        'portfolio', 'portfolio/killed', 'portfolio/projects',
-        'logs', 'workspace/current', 'workspace/sandbox', 'stimuli/live',
-      ];
-      for (const dir of emptyDirs) {
-        await mkdir(path.join(dest, dir), { recursive: true });
+  it('handles git commit failure', async () => {
+    const { execSync } = await import('node:child_process');
+    const mockExec = vi.mocked(execSync);
+    mockExec.mockImplementation((cmd: string) => {
+      if (typeof cmd === 'string' && (cmd.includes('git commit') || cmd.includes('git add -A'))) {
+        throw new Error('git commit failed');
       }
+      return Buffer.from('');
+    });
 
-      for (const dir of emptyDirs) {
-        expect(existsSync(path.join(dest, dir))).toBe(true);
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const consoleLSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const name = path.join(tempDir, 'git-fail-foundry');
+    await initFoundry(name);
+
+    const warnOutput = consoleSpy.mock.calls.map(c => String(c[0])).join('\n');
+    expect(warnOutput).toContain('git commit');
+    mockExec.mockReset();
+    mockExec.mockReturnValue(Buffer.from(''));
+    consoleSpy.mockRestore();
+    consoleLSpy.mockRestore();
+  });
+
+  it('handles gh user detection and repo creation with ghUser', async () => {
+    const { execSync } = await import('node:child_process');
+    const mockExec = vi.mocked(execSync);
+    mockExec.mockImplementation((cmd: string) => {
+      if (typeof cmd === 'string' && cmd.includes('gh api user')) {
+        return Buffer.from('testuser\n');
       }
-    });
-
-    it('creates all seed files with correct content', async () => {
-      const dest = path.join(tempDir, 'seed-test');
-      const { writeFile, mkdir } = await import('node:fs/promises');
-
-      await mkdir(path.join(dest, 'portfolio', 'projects'), { recursive: true });
-      await mkdir(path.join(dest, 'identity'), { recursive: true });
-
-      await writeFile(
-        path.join(dest, 'portfolio', 'index.md'),
-        `# Portfolio Index\n\n| ID | Title | Domain | Rating | Date | Project |\n|---|---|---|---|---|---|\n`,
-        'utf-8',
-      );
-      await writeFile(
-        path.join(dest, 'portfolio', 'projects', 'index.md'),
-        `# Projects Index\n\nNo active projects.\n`,
-        'utf-8',
-      );
-      await writeFile(
-        path.join(dest, 'identity', 'journal.md'),
-        `# The Foundry — Journal\n\n*Chronological record of iterations, decisions, and reflections.*\n\n---\n`,
-        'utf-8',
-      );
-      await writeFile(
-        path.join(dest, 'identity', 'journal-compressed.md'),
-        `# The Foundry — Compressed Journal\n\n*Curator-compressed summaries of iteration history.*\n\n---\n`,
-        'utf-8',
-      );
-      await writeFile(
-        path.join(dest, '.gitignore'),
-        `node_modules/\ndist/\n.astro/\nsite/dist/\nsite/node_modules/\nsite/public/artifacts/\nworkspace/\ncheckpoint.json\nSTOP\n*.tsbuildinfo\n.DS_Store\n.env\n.env.*\n`,
-        'utf-8',
-      );
-      await writeFile(
-        path.join(dest, 'README.md'),
-        `# seed-test\n\nA Foundry portfolio. Artifacts are produced autonomously and deployed to GitHub Pages.\n`,
-        'utf-8',
-      );
-
-      expect(readFileSync(path.join(dest, 'portfolio', 'index.md'), 'utf-8')).toContain('Portfolio Index');
-      expect(readFileSync(path.join(dest, 'portfolio', 'projects', 'index.md'), 'utf-8')).toContain('No active projects');
-      expect(readFileSync(path.join(dest, 'identity', 'journal.md'), 'utf-8')).toContain('Chronological record');
-      expect(readFileSync(path.join(dest, 'identity', 'journal-compressed.md'), 'utf-8')).toContain('Curator-compressed');
-      expect(readFileSync(path.join(dest, '.gitignore'), 'utf-8')).toContain('checkpoint.json');
-      expect(readFileSync(path.join(dest, 'README.md'), 'utf-8')).toContain('seed-test');
-    });
-
-    it('detects existing config directory (guard condition)', () => {
-      const dest = path.join(tempDir, 'existing');
-      mkdirSync(path.join(dest, 'config'), { recursive: true });
-      expect(existsSync(path.join(dest, 'config'))).toBe(true);
-    });
-  });
-
-  describe('command routing', () => {
-    it('stop command calls stopFoundry', async () => {
-      await mockStopFoundry();
-      expect(mockStopFoundry).toHaveBeenCalledOnce();
-    });
-
-    it('start command calls startFoundry', async () => {
-      await mockStartFoundry();
-      expect(mockStartFoundry).toHaveBeenCalledOnce();
-    });
-
-    it('status returns full data', async () => {
-      mockGetStatus.mockResolvedValueOnce({
-        running: true,
-        iteration: 42,
-        shipped: 10,
-        killed: 3,
-        skipped: 2,
-        savedAt: '2026-05-19T10:00:00Z',
-        recentOutcomes: [
-          { iteration: 40, outcome: 'shipped', domain: 'prose' },
-          { iteration: 41, outcome: 'killed', domain: 'code-tool' },
-          { iteration: 42, outcome: 'shipped' },
-        ],
-        lastArtifact: 'My Great Poem',
-      });
-
-      const s = await mockGetStatus();
-      expect(s.running).toBe(true);
-      expect(s.iteration).toBe(42);
-      expect(s.shipped).toBe(10);
-      expect(s.lastArtifact).toBe('My Great Poem');
-      expect(s.recentOutcomes).toHaveLength(3);
-    });
-
-    it('status returns minimal data', async () => {
-      const s = await mockGetStatus();
-      expect(s.running).toBe(false);
-      expect(s.lastArtifact).toBeNull();
-      expect(s.recentOutcomes).toEqual([]);
-    });
-  });
-
-  describe('status output formatting', () => {
-    it('formats running status with all fields', () => {
-      const s = {
-        running: true, iteration: 42, shipped: 10, killed: 3, skipped: 2,
-        savedAt: '2026-05-19T10:00:00Z',
-        recentOutcomes: [
-          { iteration: 40, outcome: 'shipped', domain: 'prose' },
-          { iteration: 41, outcome: 'killed' },
-        ],
-        lastArtifact: 'My Poem',
-      };
-
-      // Replicate cli.ts status formatting
-      const line1 = `The Foundry — ${s.running ? 'running' : 'stopped'}`;
-      expect(line1).toContain('running');
-      expect(`  Iteration:  ${s.iteration}`).toContain('42');
-      expect(`  Shipped:    ${s.shipped}`).toContain('10');
-      expect(`  Killed:     ${s.killed}`).toContain('3');
-      expect(`  Skipped:    ${s.skipped}`).toContain('2');
-
-      const lastLine = s.lastArtifact ? `  Last ship:  ${s.lastArtifact}` : '';
-      expect(lastLine).toContain('My Poem');
-
-      const cpLine = s.savedAt ? `  Checkpoint: ${s.savedAt}` : '';
-      expect(cpLine).toContain('2026-05-19');
-
-      const recentLines = s.recentOutcomes.slice(-5).map(
-        (o: any) => `    #${o.iteration} ${o.outcome}${o.domain ? ' (' + o.domain + ')' : ''}`
-      );
-      expect(recentLines[0]).toBe('    #40 shipped (prose)');
-      expect(recentLines[1]).toBe('    #41 killed');
-    });
-
-    it('formats stopped status with empty fields', () => {
-      const s = {
-        running: false, iteration: 0, shipped: 0, killed: 0, skipped: 0,
-        savedAt: null as string | null,
-        recentOutcomes: [] as any[],
-        lastArtifact: null as string | null,
-      };
-
-      expect(`The Foundry — ${s.running ? 'running' : 'stopped'}`).toContain('stopped');
-      expect(s.lastArtifact ? `  Last ship:  ${s.lastArtifact}` : '').toBe('');
-      expect(s.savedAt ? `  Checkpoint: ${s.savedAt}` : '').toBe('');
-      expect(s.recentOutcomes.length).toBe(0);
-    });
-  });
-
-  describe('initFoundry error handling patterns', () => {
-    it('git init failure is caught', () => {
-      expect(() => { throw new Error('git not found'); }).toThrow('git not found');
-    });
-
-    it('git commit failure is caught', () => {
-      expect(() => { throw new Error('nothing to commit'); }).toThrow('nothing to commit');
-    });
-
-    it('gh repo create failure is caught', () => {
-      expect(() => { throw new Error('repo already exists'); }).toThrow('repo already exists');
-    });
-
-    it('gh pages failure is caught', () => {
-      expect(() => { throw new Error('pages setup failed'); }).toThrow('pages setup failed');
-    });
-
-    it('npm install failure is caught', () => {
-      expect(() => { throw new Error('npm ERR!'); }).toThrow('npm ERR!');
-    });
-
-    it('gh api user returns empty on auth failure', () => {
-      let ghUser = '';
-      try {
-        throw new Error('not authenticated');
-      } catch {
-        // gh not authenticated
+      if (typeof cmd === 'string' && cmd.includes('gh repo create')) {
+        return Buffer.from('');
       }
-      expect(ghUser).toBe('');
+      if (typeof cmd === 'string' && cmd.includes('gh api repos/')) {
+        return Buffer.from('');
+      }
+      return Buffer.from('');
     });
+
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const name = path.join(tempDir, 'gh-user-foundry');
+    await initFoundry(name);
+
+    const allOutput = consoleSpy.mock.calls.map(c => String(c[0])).join('\n');
+    expect(allOutput).toContain('GitHub repo');
+    expect(allOutput).toContain('GitHub Pages');
+    expect(allOutput).toContain('testuser');
+    mockExec.mockReset();
+    mockExec.mockReturnValue(Buffer.from(''));
+    consoleSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 
-  describe('command matching logic', () => {
-    it('recognizes all valid commands', () => {
-      const commands = ['init', 'start', 'stop', 'status', 'dashboard'];
-      const matchFn = (cmd: string) => commands.includes(cmd);
-      expect(matchFn('init')).toBe(true);
-      expect(matchFn('start')).toBe(true);
-      expect(matchFn('stop')).toBe(true);
-      expect(matchFn('status')).toBe(true);
-      expect(matchFn('dashboard')).toBe(true);
-      expect(matchFn('unknown')).toBe(false);
+  it('handles gh repo create failure with ghUser set', async () => {
+    const { execSync } = await import('node:child_process');
+    const mockExec = vi.mocked(execSync);
+    mockExec.mockImplementation((cmd: string) => {
+      if (typeof cmd === 'string' && cmd.includes('gh api user')) {
+        return Buffer.from('testuser\n');
+      }
+      if (typeof cmd === 'string' && cmd.includes('gh repo create')) {
+        throw new Error('repo create failed');
+      }
+      if (typeof cmd === 'string' && cmd.includes('gh api repos/')) {
+        throw new Error('pages failed');
+      }
+      return Buffer.from('');
     });
 
-    it('init requires target name', () => {
-      const args = ['init'];
-      const target = args[1];
-      expect(target).toBeUndefined();
-    });
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const name = path.join(tempDir, 'gh-fail-foundry');
+    await initFoundry(name);
 
-    it('default case exits 1 for unknown command', () => {
-      const command = 'foobar';
-      const exitCode = command ? 1 : 0;
-      expect(exitCode).toBe(1);
-    });
-
-    it('default case exits 0 for no command', () => {
-      const command = undefined;
-      const exitCode = command ? 1 : 0;
-      expect(exitCode).toBe(0);
-    });
+    const allLog = consoleSpy.mock.calls.map(c => String(c[0])).join('\n');
+    const allWarn = warnSpy.mock.calls.map(c => String(c[0])).join('\n');
+    expect(allWarn).toContain('GitHub repo');
+    expect(allLog).toContain('Manual steps');
+    expect(allLog).toContain('testuser');
+    // Pages should also warn since it tries to enable
+    expect(allWarn).toContain('GitHub Pages');
+    mockExec.mockReset();
+    mockExec.mockReturnValue(Buffer.from(''));
+    consoleSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 });

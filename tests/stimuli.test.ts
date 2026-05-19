@@ -4,14 +4,6 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import yaml from 'yaml';
 import { setRootDir } from '../src/root.js';
-
-vi.mock('node:child_process', () => ({
-  execFile: vi.fn((_cmd: string, _args: string[], _opts: unknown, cb?: Function) => {
-    const err = new Error('command not found');
-    if (cb) return cb(err);
-    return Promise.reject(err);
-  }),
-}));
 import {
   loadStimuliConfig,
   initRefreshStates,
@@ -155,20 +147,36 @@ describe('writeSkillFile', () => {
 import { refreshSource } from '../src/stimuli/index.js';
 
 // Mock child_process.execFile to prevent real external calls
+import { promisify } from 'node:util';
+
+const { mockExecFileFn } = vi.hoisted(() => {
+  const mockExecFileFn = vi.fn((...args: unknown[]) => {
+    const cb = args.find((a) => typeof a === 'function') as
+      | ((err: Error | null, stdout: string, stderr: string) => void)
+      | undefined;
+    if (cb) {
+      cb(new Error('mock: external tool not available'), '', '');
+    } else {
+      throw new Error('mock: external tool not available');
+    }
+  });
+  // Add custom promisify to match Node's execFile behavior (returns {stdout, stderr})
+  (mockExecFileFn as any)[Symbol.for('nodejs.util.promisify.custom')] = (...args: unknown[]) => {
+    return new Promise((resolve, reject) => {
+      mockExecFileFn(...args, (err: Error | null, stdout: string, stderr: string) => {
+        if (err) reject(Object.assign(err, { stdout, stderr }));
+        else resolve({ stdout, stderr });
+      });
+    });
+  };
+  return { mockExecFileFn };
+});
+
 vi.mock('node:child_process', async (importOriginal) => {
   const orig = await importOriginal<typeof import('node:child_process')>();
   return {
     ...orig,
-    execFile: (...args: unknown[]) => {
-      const cb = args.find((a) => typeof a === 'function') as
-        | ((err: Error | null, stdout: string, stderr: string) => void)
-        | undefined;
-      if (cb) {
-        cb(new Error('mock: external tool not available'), '', '');
-      } else {
-        throw new Error('mock: external tool not available');
-      }
-    },
+    execFile: mockExecFileFn,
   };
 });
 
@@ -216,6 +224,65 @@ describe('refreshSource', () => {
     };
     // All runFirecrawl calls will fail because execFile is mocked
     await expect(refreshSource('multi', config)).rejects.toThrow();
+  });
+});
+
+describe('refreshSource - happy paths', () => {
+  afterEach(() => {
+    // Restore default error behavior after each happy-path test
+    mockExecFileFn.mockImplementation((...args: unknown[]) => {
+      const cb = args.find((a) => typeof a === 'function') as Function | undefined;
+      if (cb) cb(new Error('mock: external tool not available'), '', '');
+    });
+  });
+
+  it('succeeds with tavily single query when execFile succeeds', async () => {
+    mockExecFileFn.mockImplementation((...args: unknown[]) => {
+      const cb = args.find((a) => typeof a === 'function') as Function | undefined;
+      if (cb) cb(null, 'search result content', '');
+    });
+
+    const config: StimuliSourceConfig = {
+      server: 'tavily',
+      query_template: 'test query',
+      max_items: 5,
+      refresh_interval: 10,
+    };
+    const content = await refreshSource('tavily-test', config);
+    expect(content).toContain('search result content');
+    expect(existsSync(path.join(tempDir, 'stimuli', 'live', 'tavily-test.md'))).toBe(true);
+  });
+
+  it('succeeds with tavily multiple queries when execFile succeeds', async () => {
+    mockExecFileFn.mockImplementation((...args: unknown[]) => {
+      const cb = args.find((a) => typeof a === 'function') as Function | undefined;
+      if (cb) cb(null, 'multi result', '');
+    });
+
+    const config: StimuliSourceConfig = {
+      server: 'tavily',
+      queries: ['query one', 'query two'],
+      max_items: 5,
+      refresh_interval: 10,
+    };
+    const content = await refreshSource('multi-test', config);
+    expect(content).toContain('multi result');
+  });
+
+  it('succeeds with context7 when execFile succeeds', async () => {
+    mockExecFileFn.mockImplementation((...args: unknown[]) => {
+      const cb = args.find((a) => typeof a === 'function') as Function | undefined;
+      if (cb) cb(null, 'context7 knowledge', '');
+    });
+
+    const config: StimuliSourceConfig = {
+      server: 'context7',
+      strategy: 'random',
+      max_items: 3,
+      refresh_interval: 10,
+    };
+    const content = await refreshSource('ctx7-test', config);
+    expect(content).toContain('context7 knowledge');
   });
 });
 

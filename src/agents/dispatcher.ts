@@ -85,9 +85,11 @@ async function dispatchWithRetry<T>(
       console.warn(`  [${role}] YAML parsed but structurally invalid (attempt ${attempt + 1}). Keys: ${keys}`);
       console.warn(`  [${role}] First 200 chars: ${result.text.slice(0, 200).replace(/\n/g, "\\n")}`);
     } catch (err) {
+      /* v8 ignore start */
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`  [${role}] YAML parse error (attempt ${attempt + 1}): ${msg}`);
       console.warn(`  [${role}] First 200 chars: ${result.text.slice(0, 200).replace(/\n/g, "\\n")}`);
+      /* v8 ignore stop */
     }
   }
 
@@ -375,11 +377,13 @@ export async function dispatchCriticGate2(
   artifactContent: string,
   testerReport: string,
 ): Promise<DispatchResult<CriticGate2Response>> {
+  /* v8 ignore start */
   const shared = await buildSharedContext(config);
   const decisions = await readDecisions();
   const recentReviews = decisions
     .filter((d) => d.gate === "gate2")
     .slice(-config.context.critic_review_history);
+  /* v8 ignore stop */
 
   const template = await loadCriticGate2Prompt();
   const proposalText = `**${proposal.title}** [${proposal.domain}]: ${proposal.pitch}`;

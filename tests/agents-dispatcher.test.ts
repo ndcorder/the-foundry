@@ -391,6 +391,107 @@ describe('agents/dispatcher', () => {
     });
   });
 
+  describe('dispatchCriticGate2 - edge cases', () => {
+    it('uses fallback text when testerReport is empty', async () => {
+      const gate2Yaml = 'decision: ship\nratings:\n  originality: 4\n  specificity: 3.5\n  craft: 4\n  surprise: 3\n  coherence: 4\n  portfolio_fit: 3.5\nreview: "Good"';
+      mockCallModel.mockResolvedValueOnce({ text: gate2Yaml, usage: { input: 100, output: 50 } });
+
+      const { dispatchCriticGate2 } = await import('../src/agents/dispatcher.js');
+      const proposal = { title: 'Test', domain: 'code-tool', pitch: 'Test', complexity: 'S' as const, why: 'Why', project_id: null, stimulus_ref: null };
+      const result = await dispatchCriticGate2(makeConfig(), makeModels(), 1, proposal, 'artifact', '');
+
+      expect(result.data.decision).toBe('ship');
+      const systemPrompt = mockCallModel.mock.calls[0][1];
+      expect(systemPrompt).toContain('No tester report');
+    });
+
+    it('logs revision_notes in decision when decision is revise', async () => {
+      const gate2Yaml = 'decision: revise\nratings:\n  originality: 2\n  specificity: 2\n  craft: 2\n  surprise: 2\n  coherence: 2\n  portfolio_fit: 2\nreview: "Needs work"\nrevision_notes: "Fix the structure"';
+      mockCallModel.mockResolvedValueOnce({ text: gate2Yaml, usage: { input: 100, output: 50 } });
+
+      const { dispatchCriticGate2 } = await import('../src/agents/dispatcher.js');
+      const proposal = { title: 'Test', domain: 'code-tool', pitch: 'Test', complexity: 'S' as const, why: 'Why', project_id: null, stimulus_ref: null };
+      const result = await dispatchCriticGate2(makeConfig(), makeModels(), 1, proposal, 'artifact', 'tester report');
+
+      expect(result.data.decision).toBe('revise');
+      expect(mockLogDecision).toHaveBeenCalledWith(expect.objectContaining({
+        decision: 'revise',
+        reasons: 'Fix the structure',
+      }));
+    });
+
+    it('logs kill_reason in decision when decision is kill', async () => {
+      const gate2Yaml = 'decision: kill\nratings:\n  originality: 1\n  specificity: 1\n  craft: 1\n  surprise: 1\n  coherence: 1\n  portfolio_fit: 1\nreview: "Terrible"\nkill_reason: "Beyond saving"';
+      mockCallModel.mockResolvedValueOnce({ text: gate2Yaml, usage: { input: 100, output: 50 } });
+
+      const { dispatchCriticGate2 } = await import('../src/agents/dispatcher.js');
+      const proposal = { title: 'Test', domain: 'code-tool', pitch: 'Test', complexity: 'S' as const, why: 'Why', project_id: null, stimulus_ref: null };
+      const result = await dispatchCriticGate2(makeConfig(), makeModels(), 1, proposal, 'artifact', 'tester report');
+
+      expect(result.data.decision).toBe('kill');
+      expect(mockLogDecision).toHaveBeenCalledWith(expect.objectContaining({
+        decision: 'kill',
+        reasons: 'Beyond saving',
+      }));
+    });
+  });
+
+  describe('dispatchIdeator - with gate1 history', () => {
+    it('filters and slices gate1 decisions from history', async () => {
+      mockReadDecisions.mockResolvedValueOnce([
+        { gate: 'gate1', decision: 'approve', proposal_title: 'Old Idea 1' },
+        { gate: 'gate2', decision: 'ship', proposal_title: 'Old Idea 2' },
+        { gate: 'gate1', decision: 'reject', proposal_title: 'Old Idea 3' },
+      ]);
+
+      const ideatorYaml = 'ideas:\n  - title: "Test"\n    domain: prose\n    pitch: "A test"\n    complexity: S\n    why: "Because"\n    project_id: null\n    stimulus_ref: null';
+      mockCallModel.mockResolvedValueOnce({ text: ideatorYaml, usage: { input: 100, output: 50 } });
+
+      const { dispatchIdeator } = await import('../src/agents/dispatcher.js');
+      const result = await dispatchIdeator(makeConfig(), makeModels(), 1);
+      expect(result.data.ideas[0].title).toBe('Test');
+      // Verify formatDecisions was called with filtered gate1 entries
+      expect(mockFormatDecisions).toHaveBeenCalled();
+    });
+  });
+
+  describe('dispatchCriticGate1 - with decisions history', () => {
+    it('uses gate1 history from decisions', async () => {
+      mockReadDecisions.mockResolvedValueOnce([
+        { gate: 'gate1', decision: 'approve', proposal_title: 'Prev' },
+      ]);
+
+      const gate1Yaml = 'evaluations:\n  - title: "Test"\n    decision: reject\n    reasons: "Not good"';
+      mockCallModel.mockResolvedValueOnce({ text: gate1Yaml, usage: { input: 80, output: 40 } });
+
+      const { dispatchCriticGate1 } = await import('../src/agents/dispatcher.js');
+      const result = await dispatchCriticGate1(makeConfig(), makeModels(), 1, 'proposals');
+      expect(result.data.evaluations[0].decision).toBe('reject');
+    });
+  });
+
+  describe('dispatchWithRetry - parse error catch branch', () => {
+    it('enters catch block when parseYaml throws on truly unparseable input', async () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      // Use input that makes yaml.parse throw: a string with tabs in flow context
+      // which strict YAML mode rejects. But the repair lib might fix it.
+      // Safest bet: make callModel return something that triggers catch.
+      // Return a null/undefined text to force an error in parseYaml.
+      mockCallModel
+        .mockResolvedValueOnce({ text: '', usage: { input: 10, output: 5 } })
+        .mockResolvedValueOnce({ text: '\x00\x01\x02', usage: { input: 10, output: 5 } })
+        .mockResolvedValueOnce({
+          text: 'ideas:\n  - title: "Saved"\n    domain: prose\n    pitch: "OK"\n    complexity: S\n    why: "Y"\n    project_id: null\n    stimulus_ref: null',
+          usage: { input: 50, output: 30 },
+        });
+
+      const { dispatchIdeator } = await import('../src/agents/dispatcher.js');
+      const result = await dispatchIdeator(makeConfig(), makeModels(), 1);
+      expect(result.data.ideas[0].title).toBe('Saved');
+      consoleSpy.mockRestore();
+    });
+  });
+
   describe('dispatchCuratorRedirect', () => {
     it('parses curator redirect response', async () => {
       const redirectYaml = 'proposal:\n  title: "Human Request"\n  domain: code-tool\n  pitch: "What the human wanted"\n  complexity: M\n  why: "Human redirect"\n  project_id: null\n  stimulus_ref: null';

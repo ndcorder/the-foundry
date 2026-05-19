@@ -3,7 +3,7 @@ import path from "node:path";
 let _rootDir: string | undefined;
 
 export function setRootDir(dir: string): void {
-  _rootDir = dir;
+  _rootDir = path.resolve(dir);
 }
 
 export function getRootDir(): string {

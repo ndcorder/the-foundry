@@ -365,6 +365,156 @@ describe('curator', () => {
       expect(mockUpdateProjectStatus).not.toHaveBeenCalled();
     });
 
+    it('handles appendJournal failure in retrospective', async () => {
+      mockAppendJournal.mockRejectedValueOnce(new Error('disk full'));
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const { applyCuratorCycle } = await import('../src/curator/index.js');
+      const response: CuratorFullResponse = {
+        retrospective: 'Retro', compressed_journal: 'Compressed',
+        manifesto_changes: [], domain_recommendations: '',
+        project_decisions: [], stimuli_actions: [], human_redirect: null,
+      };
+
+      await applyCuratorCycle(response, 10);
+      const errOutput = errSpy.mock.calls.map(c => String(c[0])).join('\n');
+      expect(errOutput).toContain('Failed to append retrospective');
+      errSpy.mockRestore();
+    });
+
+    it('handles writeFile failure for compressed journal', async () => {
+      // To fail writeFile for compressed journal, we make the identity dir unwritable
+      // Simpler approach: remove the identity dir
+      rmSync(path.join(tempDir, 'identity'), { recursive: true, force: true });
+      // writeFile will fail if intermediate dir is missing and no recursive create
+      // Actually writeFile just needs the dir to exist. Let's make the path a file instead.
+      writeFileSync(path.join(tempDir, 'identity'), 'not a dir');
+
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const { applyCuratorCycle } = await import('../src/curator/index.js');
+      const response: CuratorFullResponse = {
+        retrospective: 'Retro', compressed_journal: 'Compressed',
+        manifesto_changes: [], domain_recommendations: '',
+        project_decisions: [], stimuli_actions: [], human_redirect: null,
+      };
+
+      await applyCuratorCycle(response, 10);
+      const errOutput = errSpy.mock.calls.map(c => String(c[0])).join('\n');
+      expect(errOutput).toContain('Failed to write compressed journal');
+      errSpy.mockRestore();
+      // Restore identity dir for other tests
+      rmSync(path.join(tempDir, 'identity'), { force: true });
+      mkdirSync(path.join(tempDir, 'identity'), { recursive: true });
+      writeFileSync(path.join(tempDir, 'identity', 'manifesto.md'), '# Manifesto\n', 'utf-8');
+    });
+
+    it('handles writeFile failure for domain recommendations', async () => {
+      // Make curator-recommendations.md a directory so writeFile fails
+      mkdirSync(path.join(tempDir, 'curator-recommendations.md'), { recursive: true });
+
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const { applyCuratorCycle } = await import('../src/curator/index.js');
+      const response: CuratorFullResponse = {
+        retrospective: 'Retro', compressed_journal: 'Compressed',
+        manifesto_changes: [], domain_recommendations: 'Recs',
+        project_decisions: [], stimuli_actions: [], human_redirect: null,
+      };
+
+      await applyCuratorCycle(response, 10);
+      const errOutput = errSpy.mock.calls.map(c => String(c[0])).join('\n');
+      expect(errOutput).toContain('Failed to write domain recommendations');
+      errSpy.mockRestore();
+      rmSync(path.join(tempDir, 'curator-recommendations.md'), { recursive: true, force: true });
+    });
+
+    it('handles project decision failure', async () => {
+      mockUpdateProjectStatus.mockRejectedValueOnce(new Error('project not found'));
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const { applyCuratorCycle } = await import('../src/curator/index.js');
+      const response: CuratorFullResponse = {
+        retrospective: 'Retro', compressed_journal: 'Compressed',
+        manifesto_changes: [], domain_recommendations: '',
+        project_decisions: [{ project_id: 'P999', action: 'complete', reason: 'Done' }],
+        stimuli_actions: [], human_redirect: null,
+      };
+
+      await applyCuratorCycle(response, 10);
+      const errOutput = errSpy.mock.calls.map(c => String(c[0])).join('\n');
+      expect(errOutput).toContain('Failed to apply project decision P999');
+      errSpy.mockRestore();
+    });
+
+    it('handles stimuli refresh action failure', async () => {
+      mockLoadStimuliConfig.mockResolvedValueOnce({
+        mcp: { news: { server: 'tavily', max_items: 5, refresh_interval: 10 } },
+        stimuli_ttl: 24, skills_per_context: 2,
+      });
+      mockRefreshSource.mockRejectedValueOnce(new Error('refresh failed'));
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const { applyCuratorCycle } = await import('../src/curator/index.js');
+      const response: CuratorFullResponse = {
+        retrospective: 'Retro', compressed_journal: 'Compressed',
+        manifesto_changes: [], domain_recommendations: '',
+        project_decisions: [], stimuli_actions: [{ action: 'refresh', target: 'news' }],
+        human_redirect: null,
+      };
+
+      await applyCuratorCycle(response, 10);
+      const errOutput = errSpy.mock.calls.map(c => String(c[0])).join('\n');
+      expect(errOutput).toContain('Failed to apply stimuli action');
+      errSpy.mockRestore();
+    });
+
+    it('handles summary journal entry failure', async () => {
+      // Make the last appendJournal call fail
+      // appendJournal is called multiple times; we need the last one to fail
+      mockAppendJournal
+        .mockResolvedValueOnce(undefined) // retrospective
+        .mockRejectedValueOnce(new Error('disk full')); // summary
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const { applyCuratorCycle } = await import('../src/curator/index.js');
+      const response: CuratorFullResponse = {
+        retrospective: 'Retro', compressed_journal: 'Compressed',
+        manifesto_changes: [], domain_recommendations: '',
+        project_decisions: [], stimuli_actions: [], human_redirect: null,
+      };
+
+      await applyCuratorCycle(response, 10);
+      const errOutput = errSpy.mock.calls.map(c => String(c[0])).join('\n');
+      expect(errOutput).toContain('Failed to log summary');
+      errSpy.mockRestore();
+    });
+
+    it('handles manifesto change error in applyManifestoChange', async () => {
+      // Make identity dir a file so readFile for manifesto fails
+      rmSync(path.join(tempDir, 'identity', 'manifesto.md'), { force: true });
+      // Make manifesto path a directory so readFile fails
+      mkdirSync(path.join(tempDir, 'identity', 'manifesto.md'), { recursive: true });
+
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const { applyCuratorCycle } = await import('../src/curator/index.js');
+      const response: CuratorFullResponse = {
+        retrospective: 'Retro', compressed_journal: 'Compressed',
+        manifesto_changes: [{ section: 'Values', old: 'x', new: 'y', reason: 'test' }],
+        domain_recommendations: '', project_decisions: [],
+        stimuli_actions: [], human_redirect: null,
+      };
+
+      await applyCuratorCycle(response, 10);
+      const errOutput = errSpy.mock.calls.map(c => String(c[0])).join('\n');
+      expect(errOutput).toContain('Failed to apply manifesto change');
+      errSpy.mockRestore();
+      // Restore
+      rmSync(path.join(tempDir, 'identity', 'manifesto.md'), { recursive: true, force: true });
+      writeFileSync(path.join(tempDir, 'identity', 'manifesto.md'), '# Manifesto\n', 'utf-8');
+    });
+
     it('handles unknown stimuli refresh source gracefully', async () => {
       mockLoadStimuliConfig.mockResolvedValueOnce({
         mcp: {},

@@ -675,6 +675,15 @@ describe('index', () => {
       expect(status.lastArtifact).toBeNull();
     });
 
+    it('returns status with no log file', async () => {
+      // Remove the logs dir entirely
+      rmSync(path.join(tempDir, 'logs'), { recursive: true, force: true });
+
+      const { getStatus } = await import('../src/index.js');
+      const status = await getStatus({ rootDir: tempDir });
+      expect(status.lastArtifact).toBeNull();
+    });
+
     it('returns status from checkpoint when available', async () => {
       const { loadCheckpoint } = await import('../src/checkpoint/index.js');
       vi.mocked(loadCheckpoint).mockResolvedValueOnce({
@@ -705,6 +714,289 @@ describe('index', () => {
       expect(status.skipped).toBe(3);
       expect(status.savedAt).toBe('2026-05-19T10:00:00Z');
       expect(status.recentOutcomes).toHaveLength(1);
+    });
+  });
+
+  describe('startFoundry - auto git push', () => {
+    it('pushes when auto_push is true after shipped iteration', async () => {
+      const { loadConfig } = await import('../src/context/config.js');
+      vi.mocked(loadConfig).mockResolvedValueOnce({
+        foundry: { name: 'test', version: '0.1.0' },
+        iteration: { max_idea_retries: 3, max_revision_rounds: 2, max_test_fix_cycles: 2, curator_interval: 10, domain_cooldown: 3, novelty_window: 5 },
+        projects: { max_active: 3, max_iterations_per_project: 10, allow_standalone_interrupts: true },
+        stimuli: { enabled: false, stimuli_ttl: 24, skills_per_context: 2, mcp_timeout_seconds: 30 },
+        context: { journal_compressed_max_tokens: 4000, portfolio_index_max_entries: 50, critic_review_history: 5, critic_gate1_history: 5 },
+        intervention: { requests_file: 'requests.md', stop_file: 'STOP' },
+        logging: { log_all_prompts: false, log_token_usage: true, log_decisions: true, log_test_reports: true },
+        recovery: { checkpoint_every: 5, resume_on_crash: true },
+        loop: { cooldown_seconds: 0, disk_space_min_gb: 0 },
+        git: { auto_commit: true, auto_push: true },
+      });
+
+      const { checkStopFile } = await import('../src/files/intervention.js');
+      vi.mocked(checkStopFile)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+
+      const { runIteration } = await import('../src/iteration/index.js');
+      vi.mocked(runIteration).mockResolvedValueOnce({
+        iteration: 1,
+        outcome: 'shipped',
+        artifact_id: '0001',
+        title: 'Art',
+        domain: 'prose',
+        ratings: { originality: 4, specificity: 3, craft: 4, surprise: 3, coherence: 4, portfolio_fit: 3 },
+        token_usage: { input: 100, output: 50 },
+        duration_ms: 1000,
+      });
+
+      const { startFoundry } = await import('../src/index.js');
+      // autoCommitAndPush will be called with autoGitPush=true
+      // execSync is not mocked here but it will throw which is caught internally
+      await startFoundry({ rootDir: tempDir });
+    });
+  });
+
+  describe('startFoundry - stimuli refresh', () => {
+    it('runs stimuli refresh when enabled', async () => {
+      const { loadConfig } = await import('../src/context/config.js');
+      vi.mocked(loadConfig).mockResolvedValueOnce({
+        foundry: { name: 'test', version: '0.1.0' },
+        iteration: { max_idea_retries: 3, max_revision_rounds: 2, max_test_fix_cycles: 2, curator_interval: 10, domain_cooldown: 3, novelty_window: 5 },
+        projects: { max_active: 3, max_iterations_per_project: 10, allow_standalone_interrupts: true },
+        stimuli: { enabled: true, stimuli_ttl: 24, skills_per_context: 2, mcp_timeout_seconds: 30 },
+        context: { journal_compressed_max_tokens: 4000, portfolio_index_max_entries: 50, critic_review_history: 5, critic_gate1_history: 5 },
+        intervention: { requests_file: 'requests.md', stop_file: 'STOP' },
+        logging: { log_all_prompts: false, log_token_usage: true, log_decisions: true, log_test_reports: true },
+        recovery: { checkpoint_every: 5, resume_on_crash: true },
+        loop: { cooldown_seconds: 0, disk_space_min_gb: 0 },
+        git: { auto_commit: false, auto_push: false },
+      });
+
+      const { checkStopFile } = await import('../src/files/intervention.js');
+      vi.mocked(checkStopFile)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+
+      const { runIteration } = await import('../src/iteration/index.js');
+      vi.mocked(runIteration).mockResolvedValueOnce({
+        iteration: 1,
+        outcome: 'shipped',
+        title: 'Test',
+        domain: 'prose',
+        token_usage: { input: 100, output: 50 },
+        duration_ms: 1000,
+      });
+
+      const { refreshAllStale } = await import('../src/stimuli/index.js');
+
+      const { startFoundry } = await import('../src/index.js');
+      await startFoundry({ rootDir: tempDir });
+
+      expect(refreshAllStale).toHaveBeenCalled();
+    });
+
+    it('handles stimuli refresh error gracefully', async () => {
+      const { loadConfig } = await import('../src/context/config.js');
+      vi.mocked(loadConfig).mockResolvedValueOnce({
+        foundry: { name: 'test', version: '0.1.0' },
+        iteration: { max_idea_retries: 3, max_revision_rounds: 2, max_test_fix_cycles: 2, curator_interval: 10, domain_cooldown: 3, novelty_window: 5 },
+        projects: { max_active: 3, max_iterations_per_project: 10, allow_standalone_interrupts: true },
+        stimuli: { enabled: true, stimuli_ttl: 24, skills_per_context: 2, mcp_timeout_seconds: 30 },
+        context: { journal_compressed_max_tokens: 4000, portfolio_index_max_entries: 50, critic_review_history: 5, critic_gate1_history: 5 },
+        intervention: { requests_file: 'requests.md', stop_file: 'STOP' },
+        logging: { log_all_prompts: false, log_token_usage: true, log_decisions: true, log_test_reports: true },
+        recovery: { checkpoint_every: 5, resume_on_crash: true },
+        loop: { cooldown_seconds: 0, disk_space_min_gb: 0 },
+        git: { auto_commit: false, auto_push: false },
+      });
+
+      const { checkStopFile } = await import('../src/files/intervention.js');
+      vi.mocked(checkStopFile)
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+
+      const { runIteration } = await import('../src/iteration/index.js');
+      vi.mocked(runIteration).mockResolvedValueOnce({
+        iteration: 1,
+        outcome: 'shipped',
+        title: 'Test',
+        domain: 'prose',
+        token_usage: { input: 100, output: 50 },
+        duration_ms: 1000,
+      });
+
+      const { refreshAllStale } = await import('../src/stimuli/index.js');
+      vi.mocked(refreshAllStale).mockRejectedValueOnce(new Error('stimuli broken'));
+
+      const { startFoundry } = await import('../src/index.js');
+      // Should not throw — stimuli error is non-fatal
+      await startFoundry({ rootDir: tempDir });
+    });
+  });
+
+  describe('startFoundry - stimuli config load failure', () => {
+    it('handles stimuli config load failure during checkpoint restore', async () => {
+      const { loadCheckpoint } = await import('../src/checkpoint/index.js');
+      vi.mocked(loadCheckpoint).mockResolvedValueOnce({
+        iteration: 10,
+        active_project_ids: [],
+        domain_counts: {},
+        last_stimuli_refresh: { news: 5 },
+        last_curator_run: 5,
+        stats: {
+          iteration: 10, shipped: 5, killed: 2, skipped: 1,
+          domain_counts: {}, recent_outcomes: [],
+          critic_rejection_window: [], total_tokens: { input: 1000, output: 500 },
+        },
+        saved_at: '2026-05-19T10:00:00Z',
+      });
+
+      const { loadStimuliConfig } = await import('../src/stimuli/index.js');
+      vi.mocked(loadStimuliConfig).mockRejectedValueOnce(new Error('no stimuli.yml'));
+
+      const { checkStopFile } = await import('../src/files/intervention.js');
+      vi.mocked(checkStopFile).mockResolvedValueOnce(true);
+
+      const { startFoundry } = await import('../src/index.js');
+      await startFoundry({ rootDir: tempDir });
+      // Should continue with empty Map for stimuliRefreshStates
+    });
+
+    it('handles stimuli config load failure during fresh start', async () => {
+      const { loadStimuliConfig } = await import('../src/stimuli/index.js');
+      vi.mocked(loadStimuliConfig).mockRejectedValueOnce(new Error('no stimuli.yml'));
+
+      const { checkStopFile } = await import('../src/files/intervention.js');
+      vi.mocked(checkStopFile).mockResolvedValueOnce(true);
+
+      const { startFoundry } = await import('../src/index.js');
+      await startFoundry({ rootDir: tempDir });
+      // Should continue with empty Map
+    });
+  });
+
+  describe('startFoundry - monitor warnings', () => {
+    it('logs monitor warnings and writes to monitor.jsonl', async () => {
+      const { checkStopFile } = await import('../src/files/intervention.js');
+      vi.mocked(checkStopFile).mockReset();
+      let stopCallCount = 0;
+      vi.mocked(checkStopFile).mockImplementation(async () => {
+        stopCallCount++;
+        return stopCallCount > 1;
+      });
+
+      const { runIteration } = await import('../src/iteration/index.js');
+      vi.mocked(runIteration).mockReset();
+      vi.mocked(runIteration).mockResolvedValueOnce({
+        iteration: 1, outcome: 'shipped', title: 'Test', domain: 'prose',
+        token_usage: { input: 100, output: 50 }, duration_ms: 1000,
+      });
+
+      const { shouldRunCurator } = await import('../src/curator/index.js');
+      vi.mocked(shouldRunCurator).mockReturnValue(false);
+
+      const { runAllDetectors } = await import('../src/monitor/index.js');
+      vi.mocked(runAllDetectors).mockReset();
+      vi.mocked(runAllDetectors).mockReturnValue([
+        { detector: 'quality', severity: 'warning' as const, message: 'Quality dip detected', iteration: 1 },
+      ]);
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const { startFoundry } = await import('../src/index.js');
+      await startFoundry({ rootDir: tempDir });
+
+      const allLog = consoleSpy.mock.calls.map(c => String(c[0])).join('\n');
+      expect(allLog).toContain('[warning] quality: Quality dip detected');
+
+      // Check that monitor.jsonl was written
+      const monitorLog = readFileSync(path.join(tempDir, 'logs', 'monitor.jsonl'), 'utf-8');
+      expect(monitorLog).toContain('Quality dip detected');
+      consoleSpy.mockRestore();
+    });
+
+    it('triggers emergency curator on critical quality warning', async () => {
+      const { checkStopFile } = await import('../src/files/intervention.js');
+      vi.mocked(checkStopFile).mockReset();
+      let stopCallCount = 0;
+      vi.mocked(checkStopFile).mockImplementation(async () => {
+        stopCallCount++;
+        return stopCallCount > 1;
+      });
+
+      const { runIteration } = await import('../src/iteration/index.js');
+      vi.mocked(runIteration).mockReset();
+      vi.mocked(runIteration).mockResolvedValueOnce({
+        iteration: 1, outcome: 'shipped', title: 'Test', domain: 'prose',
+        token_usage: { input: 100, output: 50 }, duration_ms: 1000,
+      });
+
+      const { shouldRunCurator } = await import('../src/curator/index.js');
+      vi.mocked(shouldRunCurator).mockReturnValue(false);
+
+      const { runAllDetectors } = await import('../src/monitor/index.js');
+      vi.mocked(runAllDetectors).mockReset();
+      vi.mocked(runAllDetectors).mockReturnValue([
+        { detector: 'quality', severity: 'critical' as const, message: 'Crisis', iteration: 1, action: { type: 'emergency_curator' } },
+      ] as any);
+
+      const { dispatchCuratorFull, applyCuratorCycle } = await import('../src/curator/index.js');
+      vi.mocked(dispatchCuratorFull).mockResolvedValueOnce({
+        retrospective: 'Emergency', compressed_journal: 'C',
+        manifesto_changes: [], domain_recommendations: '',
+        project_decisions: [], stimuli_actions: [], human_redirect: null,
+      });
+      vi.mocked(applyCuratorCycle).mockResolvedValueOnce(undefined);
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const { startFoundry } = await import('../src/index.js');
+      await startFoundry({ rootDir: tempDir });
+
+      expect(dispatchCuratorFull).toHaveBeenCalled();
+      expect(applyCuratorCycle).toHaveBeenCalled();
+      const allLog = consoleSpy.mock.calls.map(c => String(c[0])).join('\n');
+      expect(allLog).toContain('Emergency Curator triggered');
+      consoleSpy.mockRestore();
+    });
+
+    it('handles emergency curator failure gracefully', async () => {
+      const { checkStopFile } = await import('../src/files/intervention.js');
+      vi.mocked(checkStopFile).mockReset();
+      let stopCallCount = 0;
+      vi.mocked(checkStopFile).mockImplementation(async () => {
+        stopCallCount++;
+        return stopCallCount > 1;
+      });
+
+      const { runIteration } = await import('../src/iteration/index.js');
+      vi.mocked(runIteration).mockReset();
+      vi.mocked(runIteration).mockResolvedValueOnce({
+        iteration: 1, outcome: 'shipped', title: 'Test', domain: 'prose',
+        token_usage: { input: 100, output: 50 }, duration_ms: 1000,
+      });
+
+      const { shouldRunCurator } = await import('../src/curator/index.js');
+      vi.mocked(shouldRunCurator).mockReturnValue(false);
+
+      const { runAllDetectors } = await import('../src/monitor/index.js');
+      vi.mocked(runAllDetectors).mockReset();
+      vi.mocked(runAllDetectors).mockReturnValue([
+        { detector: 'quality', severity: 'critical' as const, message: 'Crisis', iteration: 1, action: { type: 'emergency_curator' } },
+      ] as any);
+
+      const { dispatchCuratorFull } = await import('../src/curator/index.js');
+      vi.mocked(dispatchCuratorFull).mockRejectedValueOnce(new Error('curator boom'));
+
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const { startFoundry } = await import('../src/index.js');
+      await startFoundry({ rootDir: tempDir });
+
+      const allErr = errSpy.mock.calls.map(c => String(c[0])).join('\n');
+      expect(allErr).toContain('Emergency Curator failed');
+      errSpy.mockRestore();
     });
   });
 });

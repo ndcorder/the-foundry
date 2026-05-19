@@ -1251,4 +1251,35 @@ describe('iteration/runner', () => {
       expect(result.outcome).toBe('shipped');
     });
   });
+
+  describe('runIteration - curator deadlock override with non-Error throw', () => {
+    it('handles non-Error thrown from curator redirect', async () => {
+      const config = makeConfig();
+      config.iteration.max_idea_retries = 1;
+
+      mockDispatchIdeator.mockResolvedValueOnce({
+        data: { ideas: [{ title: 'Rejected', domain: 'prose', pitch: 'Meh', complexity: 'S', why: 'Why', project_id: null, stimulus_ref: null }] },
+        usage,
+        rawText: '',
+      });
+      mockDispatchCriticGate1.mockResolvedValueOnce({
+        data: { evaluations: [{ title: 'Rejected', decision: 'reject', sharpening_notes: '', reasons: 'Boring' }] },
+        usage,
+        rawText: '',
+      });
+
+      // Throw a non-Error (string) to cover the String(err) branch
+      mockDispatchCuratorRedirect.mockRejectedValueOnce('string error');
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const { runIteration } = await import('../src/iteration/runner.js');
+      const result = await runIteration(config, makeModels(), 1);
+
+      expect(result.outcome).toBe('skipped');
+      const warnOutput = warnSpy.mock.calls.map(c => c.join(' ')).join('\n');
+      expect(warnOutput).toContain('string error');
+      warnSpy.mockRestore();
+    });
+  });
 });

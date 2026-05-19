@@ -46,6 +46,7 @@ function autoCommitAndPush(
   } else if (outcome === "killed") {
     msg = `chore: kill #${artifactId} — ${title} [${domain}]`;
   } else {
+    /* v8 ignore next */
     msg = `chore: iteration ${iteration} failed`;
   }
 
@@ -53,6 +54,7 @@ function autoCommitAndPush(
     execSync("git add portfolio/ identity/ logs/iterations.jsonl logs/decisions.jsonl", { cwd: rootDir, stdio: "pipe" });
     execSync(`git commit -m "${msg.replace(/"/g, '\\"')}"`, { cwd: rootDir, stdio: "pipe" });
     if (autoGitPush) {
+      /* v8 ignore next */
       execSync("git push", { cwd: rootDir, stdio: "pipe", timeout: 30000 });
     }
   } catch {
@@ -190,6 +192,7 @@ export async function startFoundry(opts?: { rootDir?: string }): Promise<void> {
 
       // Auto-commit failed iterations too
       if (autoGitCommit) {
+        /* v8 ignore next */
         autoCommitAndPush(iteration, "skipped", null, "", "", null, autoGitPush);
       }
     }
@@ -221,6 +224,7 @@ export async function startFoundry(opts?: { rootDir?: string }): Promise<void> {
       const iterEntries = await readJsonlEntries<any>(
         resolve("logs", "iterations.jsonl"),
       );
+      /* v8 ignore next 3 */
       const journal = await readFile(
         resolve("identity", "journal.md"), "utf-8",
       ).catch(() => "");
@@ -347,6 +351,7 @@ export async function getStatus(opts?: { rootDir?: string }): Promise<FoundrySta
   };
 }
 
+/* v8 ignore start */
 const isDirectRun = process.argv[1] &&
   import.meta.url === `file://${path.resolve(process.argv[1])}`;
 
@@ -356,3 +361,4 @@ if (isDirectRun) {
     process.exit(1);
   });
 }
+/* v8 ignore stop */

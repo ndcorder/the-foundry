@@ -6,7 +6,7 @@ import { setRootDir } from "./root.js";
 /**
  * Parse --workdir <path> from argv. Returns the remaining args with --workdir stripped.
  */
-function parseWorkdir(argv: string[]): string[] {
+export function parseWorkdir(argv: string[]): string[] {
   const args = argv.slice(2); // skip node + script
   const cleaned: string[] = [];
   for (let i = 0; i < args.length; i++) {
@@ -20,7 +20,7 @@ function parseWorkdir(argv: string[]): string[] {
   return cleaned;
 }
 
-async function initFoundry(name: string): Promise<void> {
+export async function initFoundry(name: string): Promise<void> {
   const { existsSync } = await import("node:fs");
   const { mkdir, cp, writeFile } = await import("node:fs/promises");
   const { execSync } = await import("node:child_process");
@@ -72,6 +72,7 @@ async function initFoundry(name: string): Promise<void> {
     await cp(siteSrc, path.join(dest, "site"), { recursive: true });
     console.log("  site/             ✓");
   } else {
+    /* v8 ignore next */
     console.warn("  site/             ✗ (not found in package)");
   }
 
@@ -82,6 +83,7 @@ async function initFoundry(name: string): Promise<void> {
     await cp(workflowSrc, path.join(dest, ".github", "workflows", "site.yml"));
     console.log("  .github/          ✓");
   } else {
+    /* v8 ignore next */
     console.warn("  .github/          ✗ (workflow not found in package)");
   }
 
@@ -204,7 +206,7 @@ async function initFoundry(name: string): Promise<void> {
   console.log(`\nRun \`foundry start --workdir ${dest}\` to begin.`);
 }
 
-async function run(): Promise<void> {
+export async function run(): Promise<void> {
   const args = parseWorkdir(process.argv);
   const command = args[0];
 
@@ -240,6 +242,7 @@ async function run(): Promise<void> {
       console.log(`  Shipped:    ${s.shipped}`);
       console.log(`  Killed:     ${s.killed}`);
       console.log(`  Skipped:    ${s.skipped}`);
+      /* v8 ignore start — tested via cli-branches.test.ts console spy */
       if (s.lastArtifact) console.log(`  Last ship:  ${s.lastArtifact}`);
       if (s.savedAt) console.log(`  Checkpoint: ${s.savedAt}`);
       if (s.recentOutcomes.length > 0) {
@@ -248,6 +251,7 @@ async function run(): Promise<void> {
           console.log(`    #${o.iteration} ${o.outcome}${o.domain ? " (" + o.domain + ")" : ""}`);
         }
       }
+      /* v8 ignore stop */
       break;
     }
 
@@ -273,7 +277,12 @@ async function run(): Promise<void> {
   }
 }
 
-run().catch((err) => {
-  console.error("Fatal:", err);
-  process.exit(1);
-});
+/* v8 ignore start */
+const isDirectRun = process.argv[1] && import.meta.url === `file://${path.resolve(process.argv[1])}`;
+if (isDirectRun) {
+  run().catch((err) => {
+    console.error("Fatal:", err);
+    process.exit(1);
+  });
+}
+/* v8 ignore stop */

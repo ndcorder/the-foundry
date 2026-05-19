@@ -22,7 +22,7 @@ import type { CheckpointState, StimuliRefreshState } from "./types/index.js";
 import type { FoundryConfig, ModelsConfig } from "./types/index.js";
 import { readFile, appendFile } from "node:fs/promises";
 import path from "node:path";
-import { resolve } from "./root.js";
+import { resolve, setRootDir } from "./root.js";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -41,7 +41,8 @@ async function getLastIterationFromLog(): Promise<number> {
   }
 }
 
-export async function startFoundry(): Promise<void> {
+export async function startFoundry(opts?: { rootDir?: string }): Promise<void> {
+  if (opts?.rootDir) setRootDir(opts.rootDir);
   const config = await loadConfig();
   const models = await loadModelsConfig();
 
@@ -221,7 +222,8 @@ async function saveState(
   await saveCheckpoint(state);
 }
 
-export async function stopFoundry(stopFile = "STOP"): Promise<void> {
+export async function stopFoundry(stopFile = "STOP", opts?: { rootDir?: string }): Promise<void> {
+  if (opts?.rootDir) setRootDir(opts.rootDir);
   const { writeFile } = await import("node:fs/promises");
   const stopPath = resolve(stopFile);
   await writeFile(stopPath, `Stopped at ${new Date().toISOString()}\n`, "utf-8");
@@ -238,7 +240,8 @@ export interface FoundryStatus {
   lastArtifact: string | null;
 }
 
-export async function getStatus(): Promise<FoundryStatus> {
+export async function getStatus(opts?: { rootDir?: string }): Promise<FoundryStatus> {
+  if (opts?.rootDir) setRootDir(opts.rootDir);
   const checkpoint = await loadCheckpoint();
   let lastArtifact: string | null = null;
 

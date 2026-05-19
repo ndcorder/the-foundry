@@ -31,9 +31,17 @@ identity/journal.md
 identity/journal-compressed.md
 stimuli/live/
 
+# Runtime intervention
+requests.md
+
+# Internal dev files
+CLAUDE.md
+docs/superpowers/
+
 # IDE / OS
 .idea/
 .vscode/
 *.swp
 .DS_Store
 .superpowers/
+pnpm-lock.yaml

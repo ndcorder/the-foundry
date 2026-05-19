@@ -55,7 +55,7 @@ function autoCommitAndPush(
     execSync(`git commit -m "${msg.replace(/"/g, '\\"')}"`, { cwd: rootDir, stdio: "pipe" });
     if (autoGitPush) {
       /* v8 ignore next */
-      execSync("git push", { cwd: rootDir, stdio: "pipe", timeout: 30000 });
+      execSync("git push origin HEAD", { cwd: rootDir, stdio: "pipe", timeout: 30000 });
     }
   } catch {
     console.warn("[git] auto-commit/push failed, will retry next iteration");

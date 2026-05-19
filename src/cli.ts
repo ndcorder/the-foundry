@@ -242,7 +242,6 @@ export async function run(): Promise<void> {
       console.log(`  Shipped:    ${s.shipped}`);
       console.log(`  Killed:     ${s.killed}`);
       console.log(`  Skipped:    ${s.skipped}`);
-      /* v8 ignore start — tested via cli-branches.test.ts console spy */
       if (s.lastArtifact) console.log(`  Last ship:  ${s.lastArtifact}`);
       if (s.savedAt) console.log(`  Checkpoint: ${s.savedAt}`);
       if (s.recentOutcomes.length > 0) {
@@ -251,7 +250,6 @@ export async function run(): Promise<void> {
           console.log(`    #${o.iteration} ${o.outcome}${o.domain ? " (" + o.domain + ")" : ""}`);
         }
       }
-      /* v8 ignore stop */
       break;
     }
 

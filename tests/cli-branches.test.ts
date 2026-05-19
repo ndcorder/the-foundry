@@ -86,6 +86,33 @@ describe('initFoundry branch coverage', () => {
     logSpy.mockRestore();
   });
 
+  it('handles start command via run()', async () => {
+    const mockStart = vi.fn();
+    vi.doMock('../src/index.js', () => ({ startFoundry: mockStart }));
+    const { run: runFresh } = await import('../src/cli.js');
+    const origArgv = process.argv;
+    process.argv = ['node', 'cli.js', 'start'];
+    await runFresh();
+    expect(mockStart).toHaveBeenCalled();
+    process.argv = origArgv;
+  });
+
+  it('handles init command via run()', async () => {
+    const { execSync } = await import('node:child_process');
+    vi.mocked(execSync).mockReturnValue(Buffer.from(''));
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { run: runFresh } = await import('../src/cli.js');
+    const origArgv = process.argv;
+    const dest = path.join(tempDir, 'init-via-run');
+    process.argv = ['node', 'cli.js', 'init', dest];
+    await runFresh();
+    expect(existsSync(path.join(dest, 'config'))).toBe(true);
+    process.argv = origArgv;
+    logSpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
   it('handles dashboard command', async () => {
     const { execSync } = await import('node:child_process');
     vi.mocked(execSync).mockReturnValue(Buffer.from(''));

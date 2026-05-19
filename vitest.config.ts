@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     globals: true,
+    fileParallelism: false,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
@@ -20,8 +21,10 @@ export default defineConfig({
       ],
       reporter: ['text', 'text-summary', 'lcov'],
       thresholds: {
-        functions: 98,
-        lines: 99,
+        functions: 100,
+        lines: 100,
+        statements: 99,
+        branches: 88,
       },
     },
   },

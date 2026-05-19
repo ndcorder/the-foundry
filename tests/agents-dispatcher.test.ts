@@ -19,7 +19,7 @@ vi.mock('../src/logging/index.js', () => ({
 
 const mockBuildSharedContext = vi.fn().mockResolvedValue('shared context');
 const mockLoadDomainsConfig = vi.fn().mockResolvedValue({ domains: [{ name: 'code-tool' }, { name: 'prose' }] });
-const mockReadDecisions = vi.fn().mockResolvedValue([]);
+const mockReadDecisions = vi.fn().mockResolvedValue([{ gate: 'gate2', decision: 'ship', proposal_title: 'Old', review: 'Good' }]);
 const mockReadTestReports = vi.fn().mockResolvedValue([]);
 const mockReadLiveStimuli = vi.fn().mockResolvedValue('stimuli content');
 const mockPickRandomSkills = vi.fn().mockResolvedValue('skill content');
@@ -388,6 +388,33 @@ describe('agents/dispatcher', () => {
       const systemPrompt = mockCallModel.mock.calls[0][1];
       // When no quality sections found, the full manifesto is used
       expect(systemPrompt).toContain('Simple Manifesto');
+    });
+  });
+
+  describe('dispatchTesterVerdict', () => {
+    it('parses verdict response', async () => {
+      const testerYaml = 'verdict: pass\nsummary: "All sandbox tests pass"\ntests_run:\n  - name: test1\n    result: pass\n    details: ok\nissues: []\npost_mortem: null';
+      mockCallModel.mockResolvedValueOnce({ text: testerYaml, usage: { input: 200, output: 100 } });
+
+      const { dispatchTesterVerdict } = await import('../src/agents/dispatcher.js');
+      const proposal = { title: 'Test', domain: 'code-tool', pitch: 'Test', complexity: 'S' as const, why: 'Why', project_id: null, stimulus_ref: null };
+      const result = await dispatchTesterVerdict(makeConfig(), makeModels(), 1, proposal, 'artifact code', 'tests passed');
+
+      expect(result.data.verdict).toBe('pass');
+      expect(result.data.summary).toBe('All sandbox tests pass');
+    });
+  });
+
+  describe('dispatchCuratorRedirect', () => {
+    it('parses redirect response', async () => {
+      const curatorYaml = 'proposal:\n  title: "Human Request"\n  domain: "code-tool"\n  pitch: "Build what the human asked"\n  complexity: "M"\n  why: "Human redirect"\n  project_id: null\n  stimulus_ref: null';
+      mockCallModel.mockResolvedValueOnce({ text: curatorYaml, usage: { input: 150, output: 80 } });
+
+      const { dispatchCuratorRedirect } = await import('../src/agents/dispatcher.js');
+      const result = await dispatchCuratorRedirect(makeConfig(), makeModels(), 1, 'Build me a tool');
+
+      expect(result.data.proposal.title).toBe('Human Request');
+      expect(result.data.proposal.domain).toBe('code-tool');
     });
   });
 

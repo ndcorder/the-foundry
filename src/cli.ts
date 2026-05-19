@@ -60,6 +60,11 @@ async function initFoundry(name: string): Promise<void> {
   if (existsSync(stimuliSkillsSrc)) {
     await cp(stimuliSkillsSrc, path.join(dest, "stimuli", "skills"), { recursive: true });
   }
+  // stimuli/stimuli.yml — pipeline config
+  const stimuliYmlSrc = path.join(packageRoot, "stimuli", "stimuli.yml");
+  if (existsSync(stimuliYmlSrc)) {
+    await cp(stimuliYmlSrc, path.join(dest, "stimuli", "stimuli.yml"));
+  }
 
   // site/ — entire Astro project
   const siteSrc = path.join(packageRoot, "site");

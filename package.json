@@ -28,6 +28,7 @@
     "config/",
     "identity/manifesto.md",
     "stimuli/skills/",
+    "stimuli/stimuli.yml",
     "site/src/",
     "site/astro.config.mjs",
     "site/package.json",

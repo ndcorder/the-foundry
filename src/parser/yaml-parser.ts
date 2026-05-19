@@ -1,4 +1,5 @@
 import yaml from "yaml";
+import { repair, retryPrompt, type ValidationError } from "outputguard";
 import type {
   IdeatorResponse,
   CriticGate1Response,
@@ -9,72 +10,161 @@ import type {
   CuratorFullResponse,
 } from "../types/index.js";
 
-function stripWrappers(text: string): string {
-  // Strip thinking/reasoning/output tags that GLM models sometimes emit
-  let cleaned = text
+// ── JSON Schemas for retry prompts ───────────────────────────────
+
+const SCHEMAS: Record<string, Record<string, unknown>> = {
+  ideator: {
+    type: "object",
+    required: ["ideas"],
+    properties: {
+      ideas: {
+        type: "array",
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["title", "domain", "pitch", "complexity", "why"],
+          properties: {
+            title: { type: "string" },
+            domain: { type: "string" },
+            pitch: { type: "string" },
+            complexity: { type: "string", enum: ["S", "M", "L"] },
+            why: { type: "string" },
+            project_id: {},
+            stimulus_ref: {},
+          },
+        },
+      },
+    },
+  },
+  "critic-gate1": {
+    type: "object",
+    required: ["evaluations"],
+    properties: {
+      evaluations: {
+        type: "array",
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["title", "decision"],
+          properties: {
+            title: { type: "string" },
+            decision: { type: "string" },
+            sharpening_notes: { type: "string" },
+            reasons: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+  creator: {
+    type: "object",
+    required: ["title", "files"],
+    properties: {
+      title: { type: "string" },
+      files: {
+        type: "array",
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["path", "content"],
+          properties: {
+            path: { type: "string" },
+            content: { type: "string" },
+            language: { type: "string" },
+          },
+        },
+      },
+      notes: { type: "string" },
+    },
+  },
+  tester: {
+    type: "object",
+    required: ["verdict", "summary"],
+    properties: {
+      verdict: { type: "string", enum: ["pass", "fail_fixable", "fail_catastrophic"] },
+      summary: { type: "string" },
+      tests_run: { type: "array" },
+      issues: { type: "array" },
+      post_mortem: {},
+      test_plan: { type: "object" },
+    },
+  },
+  "critic-gate2": {
+    type: "object",
+    required: ["decision", "ratings", "review"],
+    properties: {
+      decision: { type: "string", enum: ["ship", "revise", "kill"] },
+      ratings: { type: "object" },
+      review: { type: "string" },
+      revision_notes: { type: "string" },
+      kill_reason: { type: "string" },
+    },
+  },
+  "curator-redirect": {
+    type: "object",
+    required: ["proposal"],
+    properties: {
+      proposal: {
+        type: "object",
+        required: ["title", "domain"],
+        properties: {
+          title: { type: "string" },
+          domain: { type: "string" },
+          pitch: { type: "string" },
+          complexity: { type: "string" },
+          why: { type: "string" },
+        },
+      },
+    },
+  },
+  "curator-full": {
+    type: "object",
+    required: ["retrospective", "compressed_journal"],
+    properties: {
+      retrospective: { type: "string" },
+      compressed_journal: { type: "string" },
+      manifesto_changes: { type: "array" },
+      domain_recommendations: { type: "string" },
+      project_decisions: { type: "array" },
+      stimuli_actions: { type: "array" },
+    },
+  },
+};
+
+export function getSchema(role: string): Record<string, unknown> | undefined {
+  return SCHEMAS[role];
+}
+
+// ── Parsing ──────────────────────────────────────────────────────
+
+function stripLlmWrappers(text: string): string {
+  return text
     .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
     .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, "")
     .replace(/<output>([\s\S]*?)<\/output>/gi, "$1")
     .replace(/<response>([\s\S]*?)<\/response>/gi, "$1")
     .replace(/<answer>([\s\S]*?)<\/answer>/gi, "$1")
+    .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, "")
+    .replace(/<tool_use>[\s\S]*?<\/tool_use>/gi, "")
+    .replace(/<function_call>[\s\S]*?<\/function_call>/gi, "")
     .trim();
-  return cleaned;
-}
-
-function extractYamlBlock(text: string): string {
-  const cleaned = stripWrappers(text);
-
-  // Strategy 1: explicit YAML code fence (most reliable)
-  const fenced = cleaned.match(/```(?:ya?ml)?\s*\n([\s\S]*?)```/);
-  if (fenced) return fenced[1].trim();
-
-  // Strategy 2: any code fence at all
-  const anyFence = cleaned.match(/```\w*\s*\n([\s\S]*?)```/);
-  if (anyFence) {
-    const inner = anyFence[1].trim();
-    // Only use if it looks like YAML (has key: value patterns)
-    if (/^[a-z_][a-z0-9_-]*\s*:/m.test(inner)) return inner;
-  }
-
-  // Strategy 3: find the first YAML-like line and take everything from there
-  const lines = cleaned.split("\n");
-  const start = lines.findIndex((l) => /^[a-z_][a-z0-9_-]*\s*:/.test(l));
-  if (start >= 0) {
-    // Find end: stop at lines that are clearly not YAML (markdown headers, etc.)
-    let end = lines.length;
-    for (let i = start + 1; i < lines.length; i++) {
-      const l = lines[i];
-      if (/^```/.test(l) || /^#{1,3}\s/.test(l)) { end = i; break; }
-    }
-    return lines.slice(start, end).join("\n").trim();
-  }
-
-  return cleaned;
 }
 
 export function parseYaml<T>(text: string): T {
-  const block = extractYamlBlock(text);
-
-  try {
-    return yaml.parse(block) as T;
-  } catch (firstError) {
-    // Retry with light cleanup: tabs → spaces, trailing whitespace
-    const fixedBlock = block.replace(/\t/g, "  ").replace(/[ \t]+$/gm, "");
-    if (fixedBlock !== block) {
-      try { return yaml.parse(fixedBlock) as T; } catch { /* fall through */ }
-    }
-
-    // Retry: if the block starts with `---`, strip the document marker
-    if (block.startsWith("---")) {
-      const stripped = block.replace(/^---\s*\n/, "").replace(/\n---\s*$/, "");
-      try { return yaml.parse(stripped) as T; } catch { /* fall through */ }
-    }
-
-    throw firstError;
+  const cleaned = stripLlmWrappers(text);
+  const result = repair(cleaned, { format: "yaml" });
+  if (!result.repaired && result.parseError) {
+    throw new Error(result.parseError);
   }
+  return yaml.parse(result.text) as T;
 }
 
-export function buildCorrectionPrompt(rawResponse: string, error: string): string {
+export function buildCorrectionPrompt(rawResponse: string, error: string, role?: string): string {
+  const schema = role ? SCHEMAS[role] : undefined;
+  if (schema) {
+    const errors: ValidationError[] = [{ message: error, path: "$", schemaPath: "", value: undefined }];
+    return retryPrompt(rawResponse, schema, errors, { format: "yaml", includeMessageHistory: true });
+  }
   const truncated = rawResponse.length > 2000 ? rawResponse.slice(0, 2000) + "\n[...truncated]" : rawResponse;
   return [
     "Your previous response wasn't valid YAML. Here's what I received:",
@@ -91,7 +181,6 @@ export function buildCorrectionPrompt(rawResponse: string, error: string): strin
 }
 
 // ── Validators ───────────────────────────────────────────────────
-// Structural checks — not exhaustive, just enough to catch garbled output.
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -107,7 +196,6 @@ export function validateIdeator(data: unknown): data is IdeatorResponse {
 export function validateCriticGate1(data: unknown): data is CriticGate1Response {
   if (!isObj(data)) return false;
 
-  // Accept both "evaluations" and "decisions" as the list key
   const list = (data as any).evaluations ?? (data as any).decisions;
   if (!Array.isArray(list) || list.length === 0) return false;
 
@@ -116,7 +204,6 @@ export function validateCriticGate1(data: unknown): data is CriticGate1Response 
   );
   if (!valid) return false;
 
-  // Normalize into the canonical shape
   (data as any).evaluations = list.map((e: any) => ({
     title: e.title,
     decision: e.decision ?? e.verdict ?? "reject",
@@ -145,12 +232,10 @@ export function validateTester(data: unknown): data is TesterResponse {
 export function validateCriticGate2(data: unknown): data is CriticGate2Response {
   if (!isObj(data)) return false;
 
-  // Accept both "decision" and "verdict" for the gate 2 outcome
   if (typeof data.decision !== "string" && typeof data.verdict !== "string") return false;
   if (!isObj(data.ratings)) return false;
   if (typeof data.review !== "string") return false;
 
-  // Normalize "verdict" → "decision"
   if (!data.decision && data.verdict) {
     (data as any).decision = data.verdict;
     delete (data as any).verdict;

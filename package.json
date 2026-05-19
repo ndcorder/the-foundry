@@ -1,9 +1,15 @@
 {
   "name": "the-foundry",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "An autonomous multi-agent creative system that builds, writes, composes, and creates indefinitely.",
   "author": "Nicolas Corder",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ndcorder/the-foundry.git"
+  },
+  "homepage": "https://github.com/ndcorder/the-foundry",
+  "keywords": ["ai", "multi-agent", "creative-ai", "autonomous", "generative-art", "portfolio"],
   "type": "module",
   "main": "dist/index.js",
   "engines": {
@@ -22,10 +28,15 @@
     "config/",
     "identity/manifesto.md",
     "stimuli/skills/",
-    "site/",
+    "site/src/",
+    "site/astro.config.mjs",
+    "site/package.json",
+    "site/tsconfig.json",
+    "site/showcase.yml",
     ".github/"
   ],
   "scripts": {
+    "prepublishOnly": "npm run build",
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",

@@ -1,9 +1,39 @@
+# Dependencies
 node_modules/
+site/node_modules/
+
+# Build output
 dist/
 *.js.map
 *.d.ts.map
+.astro/
+site/dist/
+site/public/artifacts/
+
+# Environment
 .env
-workspace/current/
-workspace/sandbox/
+.env.*
+
+# Runtime state
+checkpoint.json
 STOP
+workspace/
 logs/*.jsonl
+curator-recommendations.md
+
+# Generated content — users produce their own
+portfolio/*
+!portfolio/index.md
+!portfolio/projects/
+portfolio/projects/*
+!portfolio/projects/index.md
+identity/journal.md
+identity/journal-compressed.md
+stimuli/live/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+.superpowers/

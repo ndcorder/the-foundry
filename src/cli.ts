@@ -55,15 +55,18 @@ export async function initFoundry(name: string): Promise<void> {
   await mkdir(path.join(dest, "identity"), { recursive: true });
   await cp(path.join(packageRoot, "identity", "manifesto.md"), path.join(dest, "identity", "manifesto.md"));
 
-  // stimuli/skills/ (optional — may not exist in all installs)
+  // stimuli/ — pipeline config and skill files
+  await mkdir(path.join(dest, "stimuli"), { recursive: true });
   const stimuliSkillsSrc = path.join(packageRoot, "stimuli", "skills");
   if (existsSync(stimuliSkillsSrc)) {
     await cp(stimuliSkillsSrc, path.join(dest, "stimuli", "skills"), { recursive: true });
   }
-  // stimuli/stimuli.yml — pipeline config
   const stimuliYmlSrc = path.join(packageRoot, "stimuli", "stimuli.yml");
   if (existsSync(stimuliYmlSrc)) {
     await cp(stimuliYmlSrc, path.join(dest, "stimuli", "stimuli.yml"));
+  } else {
+    /* v8 ignore next */
+    console.warn("  stimuli.yml       ✗ (not found in package)");
   }
 
   // site/ — entire Astro project
@@ -90,7 +93,12 @@ export async function initFoundry(name: string): Promise<void> {
   console.log("  config/           ✓");
   console.log("  prompts/          ✓");
   console.log("  identity/         ✓");
-  console.log("  stimuli/          ✓");
+  if (existsSync(path.join(dest, "stimuli", "stimuli.yml"))) {
+    console.log("  stimuli/          ✓");
+  } else {
+    /* v8 ignore next */
+    console.warn("  stimuli/          ✗ (stimuli.yml missing)");
+  }
 
   // ── Step 4: Create empty directories ─────────────────────
   const emptyDirs = [
@@ -286,7 +294,11 @@ export async function run(): Promise<void> {
 }
 
 /* v8 ignore start */
-const isDirectRun = process.argv[1] && import.meta.url === `file://${path.resolve(process.argv[1])}`;
+import { realpathSync } from "node:fs";
+let isDirectRun = false;
+try {
+  isDirectRun = process.argv[1] != null && import.meta.url === `file://${realpathSync(path.resolve(process.argv[1]))}`;
+} catch {}
 if (isDirectRun) {
   run().catch((err) => {
     console.error("Fatal:", err);

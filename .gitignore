@@ -6,6 +6,7 @@ site/node_modules/
 dist/
 *.js.map
 *.d.ts.map
+*.tsbuildinfo
 .astro/
 site/dist/
 site/public/artifacts/

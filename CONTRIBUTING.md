@@ -5,7 +5,7 @@ Thanks for your interest in contributing. The Foundry is a multi-agent autonomou
 ## Getting Started
 
 1. Fork the repository and clone your fork
-2. `pnpm install` (check `package.json` for required Node version)
+2. `npm install` (requires Node 22+)
 3. Copy `.env.example` to `.env` and configure your model provider
 4. Run a few iterations and inspect `logs/` to verify everything works
 

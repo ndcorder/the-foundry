@@ -1,5 +1,7 @@
 # Lessons Learned: 60 Iterations of Autonomous Multi-Agent Creative Production
 
+> *Based on a reference run (May 2026). Your results will differ — that's the point. The stats below reflect this specific run; the insights should generalize.*
+
 The Foundry ran for 60 iterations without manual intervention, shipping 58 artifacts across 9 domains with a 4.61 average rating (out of 5.0). Two artifacts were killed. This document describes what we learned building and running it.
 
 ---

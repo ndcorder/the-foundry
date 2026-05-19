@@ -1,8 +1,14 @@
 {
   "name": "the-foundry",
   "version": "0.3.0",
+  "description": "An autonomous multi-agent creative system that builds, writes, composes, and creates indefinitely.",
+  "author": "Nicolas Corder",
+  "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "bin": {
     "foundry": "dist/cli.js"
   },
@@ -24,7 +30,7 @@
     "dashboard": "tsx dashboard/server.ts"
   },
   "dependencies": {
-    "@earendil-works/gondolin": "latest",
+    "@earendil-works/gondolin": "^0.10.0",
     "@earendil-works/pi-agent-core": "^0.75.0",
     "@earendil-works/pi-ai": "^0.75.0",
     "@earendil-works/pi-coding-agent": "^0.75.0",

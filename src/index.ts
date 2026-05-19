@@ -40,7 +40,7 @@ async function getLastIterationFromLog(): Promise<number> {
   }
 }
 
-async function main(): Promise<void> {
+export async function startFoundry(): Promise<void> {
   const config = await loadConfig();
   const models = await loadModelsConfig();
 
@@ -220,7 +220,77 @@ async function saveState(
   await saveCheckpoint(state);
 }
 
-main().catch((err) => {
-  console.error("Fatal:", err);
-  process.exit(1);
-});
+export async function stopFoundry(stopFile = "STOP"): Promise<void> {
+  const { writeFile } = await import("node:fs/promises");
+  const stopPath = path.join(process.cwd(), stopFile);
+  await writeFile(stopPath, `Stopped at ${new Date().toISOString()}\n`, "utf-8");
+}
+
+export interface FoundryStatus {
+  running: boolean;
+  iteration: number;
+  savedAt: string | null;
+  shipped: number;
+  killed: number;
+  skipped: number;
+  recentOutcomes: Array<{ iteration: number; outcome: string; domain?: string }>;
+  lastArtifact: string | null;
+}
+
+export async function getStatus(): Promise<FoundryStatus> {
+  const checkpoint = await loadCheckpoint();
+  let lastArtifact: string | null = null;
+
+  try {
+    const logPath = path.join(process.cwd(), "logs", "iterations.jsonl");
+    const content = await readFile(logPath, "utf-8");
+    const lines = content.split("\n").filter((l) => l.trim());
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const entry = JSON.parse(lines[i]);
+      if (entry.outcome === "shipped" && entry.title) {
+        lastArtifact = entry.title;
+        break;
+      }
+    }
+  } catch {
+    // no log file yet
+  }
+
+  const stopExists = await readFile(path.join(process.cwd(), "STOP"), "utf-8")
+    .then(() => true)
+    .catch(() => false);
+
+  if (!checkpoint) {
+    return {
+      running: !stopExists,
+      iteration: 0,
+      savedAt: null,
+      shipped: 0,
+      killed: 0,
+      skipped: 0,
+      recentOutcomes: [],
+      lastArtifact,
+    };
+  }
+
+  return {
+    running: !stopExists,
+    iteration: checkpoint.iteration,
+    savedAt: checkpoint.saved_at,
+    shipped: checkpoint.stats.shipped,
+    killed: checkpoint.stats.killed,
+    skipped: checkpoint.stats.skipped,
+    recentOutcomes: checkpoint.stats.recent_outcomes,
+    lastArtifact,
+  };
+}
+
+const isDirectRun = process.argv[1] &&
+  import.meta.url === `file://${path.resolve(process.argv[1])}`;
+
+if (isDirectRun) {
+  startFoundry().catch((err) => {
+    console.error("Fatal:", err);
+    process.exit(1);
+  });
+}

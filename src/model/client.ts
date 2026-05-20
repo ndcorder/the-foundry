@@ -56,6 +56,15 @@ export function resetModelState(): void {
   activeOverrides = [];
 }
 
+export async function validateProvider(provider: string, modelId: string): Promise<boolean> {
+  try {
+    resolveModel(provider, modelId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function callModel(
   agentConfig: AgentModelConfig,
   systemPrompt: string,

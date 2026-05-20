@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { loadConfig, loadModelsConfig } from "./context/config.js";
-import { setModelOverrides } from "./model/index.js";
+import { setModelOverrides, validateProvider } from "./model/index.js";
 import { runIteration } from "./iteration/index.js";
 import { checkStopFile } from "./files/intervention.js";
 import { appendJournal } from "./files/journal.js";
@@ -19,7 +19,7 @@ import {
 import { runAllDetectors, type MonitorWarning } from "./monitor/index.js";
 import { readJsonlEntries } from "./context/index.js";
 import type { CheckpointState, StimuliRefreshState } from "./types/index.js";
-import type { FoundryConfig, ModelsConfig } from "./types/index.js";
+import type { FoundryConfig, ModelsConfig, AgentModelConfig } from "./types/index.js";
 import { execSync, execFileSync } from "node:child_process";
 import { readFile, appendFile } from "node:fs/promises";
 import path from "node:path";
@@ -88,8 +88,30 @@ export async function startFoundry(opts?: { rootDir?: string }): Promise<void> {
   const upgraded = await upgradeProject({ silent: false });
   if (upgraded) console.log();
 
-  console.log(`The Foundry v${config.foundry.version} — Phase 3`);
-  console.log(`Mode: infinite loop with crash recovery + observability`);
+  // ── Provider health check ────────────────────────────────
+  const agentEntries = Object.entries(models.agents) as [string, AgentModelConfig][];
+  const providerSet = new Set(agentEntries.map(([, a]) => a.provider ?? "zai"));
+  const providers = [...providerSet];
+
+  for (const provider of providers) {
+    const agentUsingIt = agentEntries.find(([, a]) => (a.provider ?? "zai") === provider);
+    if (agentUsingIt) {
+      const valid = await validateProvider(provider, agentUsingIt[1].model);
+      if (!valid) {
+        console.warn(`  ⚠ Provider "${provider}" unreachable — falling back to "zai" for affected agents`);
+        for (const [, agent] of agentEntries) {
+          if ((agent.provider ?? "zai") === provider && provider !== "zai") {
+            agent.provider = "zai";
+            agent.model = models.agents.ideator.model;
+          }
+        }
+      }
+    }
+  }
+
+  const concurrencyDisplay = config.loop?.concurrency ?? 1;
+  console.log(`The Foundry v${config.foundry.version}`);
+  console.log(`Mode: ${concurrencyDisplay} parallel iteration${concurrencyDisplay > 1 ? "s" : ""} (${providers.join(" + ")})`);
   if (autoGitCommit) console.log(`Git: auto-commit${autoGitPush ? " + push" : ""} enabled`);
   console.log();
 

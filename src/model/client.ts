@@ -48,6 +48,13 @@ function extractText(message: AssistantMessage): string {
     .join("");
 }
 
+export function resetModelState(): void {
+  consecutiveErrors = 0;
+  backoffMs = 0;
+  modelCache.clear();
+  activeOverrides = [];
+}
+
 export async function callModel(
   agentConfig: AgentModelConfig,
   systemPrompt: string,

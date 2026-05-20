@@ -1,4 +1,4 @@
-import { rm, mkdir, readdir, readFile } from "node:fs/promises";
+import { rm, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { resolve } from "../root.js";
 
@@ -10,8 +10,12 @@ export async function clearWorkspace(): Promise<void> {
 
 export async function writeWorkspaceFile(filePath: string, content: string): Promise<void> {
   const full = resolve("workspace", "current", filePath);
+  const workspaceRoot = resolve("workspace", "current");
+  const resolved = path.resolve(full);
+  if (!resolved.startsWith(path.resolve(workspaceRoot) + path.sep) && resolved !== path.resolve(workspaceRoot)) {
+    throw new Error(`Path traversal blocked: "${filePath}" escapes workspace`);
+  }
   await mkdir(path.dirname(full), { recursive: true });
-  const { writeFile } = await import("node:fs/promises");
   await writeFile(full, content, "utf-8");
 }
 

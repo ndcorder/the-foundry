@@ -59,11 +59,6 @@ vi.mock('../src/stimuli/index.js', () => ({
   refreshStatesToRecord: vi.fn().mockReturnValue({}),
 }));
 
-vi.mock('../src/files/projects.js', () => ({
-  countActiveProjects: vi.fn().mockResolvedValue(0),
-  createProject: vi.fn(),
-}));
-
 vi.mock('../src/curator/index.js', () => ({
   dispatchCuratorFull: vi.fn(),
   applyCuratorCycle: vi.fn(),
@@ -108,6 +103,33 @@ describe('index', () => {
       // Should save checkpoint and exit without running any iterations
       expect(saveCheckpoint).toHaveBeenCalled();
       expect(runIteration).not.toHaveBeenCalled();
+    });
+
+    it('halts gracefully on SIGINT signal', async () => {
+      const { checkStopFile } = await import('../src/files/intervention.js');
+      vi.mocked(checkStopFile).mockResolvedValue(false);
+
+      const { runIteration } = await import('../src/iteration/index.js');
+      vi.mocked(runIteration).mockImplementationOnce(async () => {
+        process.emit('SIGINT');
+        return {
+          iteration: 1,
+          outcome: 'shipped',
+          title: 'Test',
+          domain: 'prose',
+          token_usage: { input: 100, output: 50 },
+          duration_ms: 1000,
+        };
+      });
+
+      const { saveCheckpoint } = await import('../src/checkpoint/index.js');
+      const { appendJournal } = await import('../src/files/journal.js');
+
+      const { startFoundry } = await import('../src/index.js');
+      await startFoundry({ rootDir: tempDir });
+
+      expect(saveCheckpoint).toHaveBeenCalled();
+      expect(appendJournal).toHaveBeenCalledWith(expect.stringContaining('Halted by signal'));
     });
 
     it('runs one iteration then halts on STOP', async () => {

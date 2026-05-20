@@ -3,14 +3,7 @@ import path from "node:path";
 import yaml from "yaml";
 import type { ProjectBrief, ProjectStatus } from "../types/index.js";
 import { resolve } from "../root.js";
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 40);
-}
+import { slugify } from "./portfolio.js";
 
 const PROJECTS_DIR = "portfolio/projects";
 

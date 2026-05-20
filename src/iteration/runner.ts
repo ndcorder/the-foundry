@@ -530,8 +530,13 @@ export async function runIteration(
       console.log(`  ↻ Revision requested: ${gate2.revision_notes?.slice(0, 100) || "see notes"}`);
     } else {
       console.log("  Max revision rounds reached — force ship-or-kill.");
-      // Force ship on final round if not killed
-      gate2 = { ...gate2, decision: "ship" };
+      const finalMean = computeMeanRating(gate2.ratings);
+      const meanVal = parseFloat(finalMean);
+      if (!isNaN(meanVal) && meanVal < 2.5) {
+        gate2 = { ...gate2, decision: "kill", kill_reason: `Force-killed: mean rating ${finalMean} below quality threshold after max revisions` };
+      } else {
+        gate2 = { ...gate2, decision: "ship" };
+      }
     }
   }
 
@@ -605,7 +610,7 @@ export async function runIteration(
   });
 
   const mean = computeMeanRating(gate2!.ratings);
-  await updatePortfolioIndex(artifactId, proposal.title, proposal.domain, mean);
+  await updatePortfolioIndex(artifactId, proposal.title, proposal.domain, mean, proposal.project_id ?? undefined);
 
   // Project bookkeeping
   if (proposal.project_id) {

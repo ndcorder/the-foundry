@@ -3,4 +3,5 @@ export {
   logDecision,
   logIteration,
   logTestReport,
+  resetLoggerState,
 } from "./logger.js";

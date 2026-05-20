@@ -704,9 +704,56 @@ describe('iteration/runner', () => {
       const { runIteration } = await import('../src/iteration/runner.js');
       const result = await runIteration(config, makeModels(), 1);
 
-      // Should force ship since max_revision_rounds = 0
+      // Mean = (3+2+2+2+3+3)/6 = 2.5, not below threshold — should force ship
       expect(result.outcome).toBe('shipped');
       expect(mockDispatchCreator).toHaveBeenCalledTimes(1); // No revision round
+    });
+
+    it('force kills after max revision rounds when mean rating below threshold', async () => {
+      const config = makeConfig();
+      config.iteration.max_revision_rounds = 0;
+
+      const proposal = { title: 'Bad Art', domain: 'prose', pitch: 'Test', complexity: 'S', why: 'Why', project_id: null, stimulus_ref: null };
+
+      mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
+      mockDispatchCriticGate1.mockResolvedValueOnce({
+        data: { evaluations: [{ title: 'Bad Art', decision: 'approve', sharpening_notes: '', reasons: '' }] },
+        usage,
+        rawText: '',
+      });
+
+      mockIsCodeDomain.mockReturnValue(false);
+
+      mockDispatchCreator.mockResolvedValueOnce({
+        data: { title: 'Bad Art', files: [{ path: 'v1.md', content: 'content' }] },
+        usage,
+        rawText: '',
+      });
+
+      mockDispatchTesterLightweight.mockResolvedValueOnce({
+        data: { verdict: 'pass', summary: 'OK', tests_run: [], issues: [] },
+        usage,
+        rawText: '',
+      });
+
+      // Critic says revise with very low ratings (mean = 1.5, below 2.5)
+      mockDispatchCriticGate2.mockResolvedValueOnce({
+        data: {
+          decision: 'revise',
+          ratings: { originality: 1, specificity: 2, craft: 1, surprise: 2, coherence: 1, portfolio_fit: 2 },
+          review: 'Terrible',
+          revision_notes: 'Start over',
+        },
+        usage,
+        rawText: '',
+      });
+
+      const { runIteration } = await import('../src/iteration/runner.js');
+      const result = await runIteration(config, makeModels(), 1);
+
+      // Mean 1.5 < 2.5 threshold — should force kill
+      expect(result.outcome).toBe('killed');
+      expect(mockDispatchCreator).toHaveBeenCalledTimes(1);
     });
   });
 

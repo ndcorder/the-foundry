@@ -44,6 +44,11 @@ async function appendJsonl(filename: string, entry: Record<string, unknown>): Pr
   await appendFile(path.join(logsDir(), filename), JSON.stringify(entry) + "\n", "utf-8");
 }
 
+export function resetLoggerState(): void {
+  dirEnsured = false;
+  rotationChecks.clear();
+}
+
 export async function logTokenUsage(entry: Record<string, unknown>): Promise<void> {
   await appendJsonl("token-usage.jsonl", entry);
 }

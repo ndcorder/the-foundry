@@ -1,6 +1,7 @@
 export {
   isCodeDomain,
   getNextArtifactId,
+  slugify,
   writeArtifact,
   updatePortfolioIndex,
   writeKilledArtifact,

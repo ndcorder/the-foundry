@@ -15,12 +15,12 @@ import {
   recordToRefreshStates,
   refreshStatesToRecord,
 } from "./stimuli/index.js";
-import { countActiveProjects, createProject } from "./files/projects.js";
+
 import { runAllDetectors, type MonitorWarning } from "./monitor/index.js";
 import { readJsonlEntries } from "./context/index.js";
 import type { CheckpointState, StimuliRefreshState } from "./types/index.js";
 import type { FoundryConfig, ModelsConfig } from "./types/index.js";
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import { readFile, appendFile } from "node:fs/promises";
 import path from "node:path";
 import { resolve, getRootDir, setRootDir } from "./root.js";
@@ -52,7 +52,7 @@ function autoCommitAndPush(
 
   try {
     execSync("git add portfolio/ identity/ logs/iterations.jsonl logs/decisions.jsonl", { cwd: rootDir, stdio: "pipe" });
-    execSync(`git commit -m "${msg.replace(/"/g, '\\"')}"`, { cwd: rootDir, stdio: "pipe" });
+    execFileSync("git", ["commit", "-m", msg], { cwd: rootDir, stdio: "pipe" });
     if (autoGitPush) {
       /* v8 ignore next */
       execSync("git push origin HEAD", { cwd: rootDir, stdio: "pipe", timeout: 30000 });
@@ -134,13 +134,26 @@ export async function startFoundry(opts?: { rootDir?: string }): Promise<void> {
     console.log(`Fresh start — no checkpoint found. Continuing from iteration ${iteration} (per log).`);
   }
 
+  // Graceful shutdown on signals
+  let shutdownRequested = false;
+  const onSignal = () => {
+    if (shutdownRequested) {
+      console.log("\nForce shutdown.");
+      process.exit(1);
+    }
+    shutdownRequested = true;
+    console.log("\nShutdown requested — will stop after current iteration...");
+  };
+  process.on("SIGINT", onSignal);
+  process.on("SIGTERM", onSignal);
+
   // ── Main loop ────────────────────────────────────────────────
   while (true) {
-    // Check STOP file
-    if (await checkStopFile(config)) {
-      console.log(`\nSTOP file detected — halting after saving checkpoint.`);
+    // Check STOP file or shutdown signal
+    if (shutdownRequested || await checkStopFile(config)) {
+      console.log(`\n${shutdownRequested ? "Signal" : "STOP file"} detected — halting after saving checkpoint.`);
       await saveState(config, iteration - 1, lastCuratorRun, stats, stimuliRefreshStates);
-      await appendJournal(`**System:** Halted by STOP file at iteration ${iteration}.`);
+      await appendJournal(`**System:** Halted by ${shutdownRequested ? "signal" : "STOP file"} at iteration ${iteration}.`);
       break;
     }
 
@@ -265,6 +278,9 @@ export async function startFoundry(opts?: { rootDir?: string }): Promise<void> {
 
     iteration++;
   }
+
+  process.removeListener("SIGINT", onSignal);
+  process.removeListener("SIGTERM", onSignal);
 
   console.log("\nThe Foundry has stopped.");
 }

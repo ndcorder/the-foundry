@@ -12,9 +12,11 @@ import {
   parseYaml,
   buildCorrectionPrompt,
   validateIdeator,
+  normalizeCriticGate1,
   validateCriticGate1,
   validateCreator,
   validateTester,
+  normalizeCriticGate2,
   validateCriticGate2,
   validateCuratorRedirect,
   validateCuratorFull,
@@ -185,6 +187,67 @@ describe('validateIdeator', () => {
   });
 });
 
+// ── normalizeCriticGate1 ─────────────────────────────────────────
+
+describe('normalizeCriticGate1', () => {
+  it('maps decisions key to evaluations', () => {
+    const data = { decisions: [{ title: 'A', decision: 'approve' }] };
+    normalizeCriticGate1(data);
+    expect((data as any).evaluations).toBeDefined();
+    expect((data as any).decisions).toBeUndefined();
+  });
+
+  it('maps verdict to decision', () => {
+    const data = { evaluations: [{ title: 'A', verdict: 'approve' }] };
+    normalizeCriticGate1(data);
+    expect((data as any).evaluations[0].decision).toBe('approve');
+  });
+
+  it('maps notes to sharpening_notes', () => {
+    const data = { evaluations: [{ title: 'A', decision: 'ok', notes: 'fix it' }] };
+    normalizeCriticGate1(data);
+    expect((data as any).evaluations[0].sharpening_notes).toBe('fix it');
+  });
+
+  it('maps reason to reasons', () => {
+    const data = { evaluations: [{ title: 'A', decision: 'ok', reason: 'because' }] };
+    normalizeCriticGate1(data);
+    expect((data as any).evaluations[0].reasons).toBe('because');
+  });
+
+  it('returns non-object input unchanged', () => {
+    expect(normalizeCriticGate1(null)).toBeNull();
+    expect(normalizeCriticGate1('hi')).toBe('hi');
+  });
+
+  it('returns object unchanged if no evaluations or decisions', () => {
+    const data = { other: 'field' };
+    expect(normalizeCriticGate1(data)).toBe(data);
+  });
+});
+
+// ── normalizeCriticGate2 ─────────────────────────────────────────
+
+describe('normalizeCriticGate2', () => {
+  it('maps verdict to decision', () => {
+    const data = { verdict: 'ship', ratings: {}, review: 'ok' };
+    normalizeCriticGate2(data);
+    expect((data as any).decision).toBe('ship');
+    expect((data as any).verdict).toBeUndefined();
+  });
+
+  it('does not overwrite existing decision', () => {
+    const data = { decision: 'revise', verdict: 'ship', ratings: {}, review: 'ok' };
+    normalizeCriticGate2(data);
+    expect((data as any).decision).toBe('revise');
+  });
+
+  it('returns non-object input unchanged', () => {
+    expect(normalizeCriticGate2(null)).toBeNull();
+    expect(normalizeCriticGate2(42)).toBe(42);
+  });
+});
+
 // ── validateCriticGate1 ──────────────────────────────────────────
 
 describe('validateCriticGate1', () => {
@@ -226,8 +289,10 @@ describe('validateCriticGate1', () => {
     expect(validateCriticGate1({ evaluations: [{ decision: 'approve' }] })).toBe(false);
   });
 
-  it('rejects evaluations without decision or verdict', () => {
-    expect(validateCriticGate1({ evaluations: [{ title: 'X' }] })).toBe(false);
+  it('defaults decision to "reject" when neither decision nor verdict present', () => {
+    const data = { evaluations: [{ title: 'X' }] };
+    expect(validateCriticGate1(data)).toBe(true);
+    expect((data as any).evaluations[0].decision).toBe('reject');
   });
 
   it('normalizes sharpening_notes from notes alias', () => {

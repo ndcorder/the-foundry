@@ -184,6 +184,19 @@ describe('updatePortfolioIndex', () => {
     expect(content).not.toContain('*No artifacts yet.*');
     expect(content).toContain('| 0001 | First |');
   });
+
+  it('includes projectId when provided', async () => {
+    await updatePortfolioIndex('0001', 'Project Art', 'code-tool', '8.0', 'P001');
+    const content = readFileSync(path.join(tempDir, 'portfolio', 'index.md'), 'utf-8');
+    expect(content).toContain('| P001 |');
+    expect(content).not.toContain('| — |');
+  });
+
+  it('uses dash when projectId is omitted', async () => {
+    await updatePortfolioIndex('0002', 'Solo Art', 'fiction', '6.0');
+    const content = readFileSync(path.join(tempDir, 'portfolio', 'index.md'), 'utf-8');
+    expect(content).toContain('| — |');
+  });
 });
 
 describe('writeKilledArtifact', () => {

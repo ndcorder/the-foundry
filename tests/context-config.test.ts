@@ -120,6 +120,18 @@ describe('config', () => {
       writeFileSync(path.join(tempDir, 'config', 'foundry.yml'), ':\n  : :\n  - [invalid', 'utf-8');
       await expect(loadConfig()).rejects.toThrow();
     });
+
+    it('throws with clear message when required section is missing', async () => {
+      const incomplete = `
+foundry:
+  name: "Test"
+  version: "0.1.0"
+iteration:
+  max_idea_retries: 3
+`;
+      writeFileSync(path.join(tempDir, 'config', 'foundry.yml'), incomplete, 'utf-8');
+      await expect(loadConfig()).rejects.toThrow("Missing 'context' section");
+    });
   });
 
   describe('loadModelsConfig', () => {

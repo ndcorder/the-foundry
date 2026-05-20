@@ -26,6 +26,7 @@ describe('model/client', () => {
   let callModel: typeof import('../src/model/client.js').callModel;
   let setModelOverrides: typeof import('../src/model/client.js').setModelOverrides;
   let resolveAgentConfig: typeof import('../src/model/client.js').resolveAgentConfig;
+  let resetModelState: typeof import('../src/model/client.js').resetModelState;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -33,6 +34,7 @@ describe('model/client', () => {
     callModel = mod.callModel;
     setModelOverrides = mod.setModelOverrides;
     resolveAgentConfig = mod.resolveAgentConfig;
+    resetModelState = mod.resetModelState;
     // Reset overrides
     setModelOverrides([]);
 
@@ -131,6 +133,52 @@ describe('model/client', () => {
 
       await callModel(baseConfig, 'sys', 'usr', 5, 'ideator');
       expect(mockGetModel).toHaveBeenCalledWith('zai', 'fancy-model');
+    });
+
+    it('resets backoff state via resetModelState', async () => {
+      // Trigger consecutive errors to build up backoff
+      mockComplete.mockRejectedValueOnce(new Error('fail1'));
+      await expect(callModel(baseConfig, 'sys', 'usr', 1, 'test')).rejects.toThrow('fail1');
+      mockComplete.mockRejectedValueOnce(new Error('fail2'));
+      await expect(callModel(baseConfig, 'sys', 'usr', 1, 'test')).rejects.toThrow('fail2');
+
+      // Reset state
+      resetModelState();
+
+      // Next call should proceed without backoff delay
+      const start = Date.now();
+      mockComplete.mockResolvedValueOnce({
+        content: [{ type: 'text', text: 'ok' }],
+        usage: { input: 10, output: 5 },
+        stopReason: 'end_turn',
+      });
+      await callModel(baseConfig, 'sys', 'usr', 1, 'test');
+      expect(Date.now() - start).toBeLessThan(1000);
+    });
+
+    it('clears model cache via resetModelState', async () => {
+      const successResponse = {
+        content: [{ type: 'text', text: 'ok' }],
+        usage: { input: 10, output: 5 },
+        stopReason: 'end_turn',
+      };
+      mockComplete.mockResolvedValue(successResponse);
+
+      // First call with model-a populates cache
+      const configA = { ...baseConfig, model: 'model-a' };
+      await callModel(configA, 'sys', 'usr', 1, 'test');
+      const callsAfterFirst = mockGetModel.mock.calls.length;
+
+      // Second call reuses cache — no new getModel call
+      await callModel(configA, 'sys', 'usr', 2, 'test');
+      expect(mockGetModel.mock.calls.length).toBe(callsAfterFirst);
+
+      // Reset clears cache
+      resetModelState();
+
+      // Third call must re-resolve the model
+      await callModel(configA, 'sys', 'usr', 3, 'test');
+      expect(mockGetModel.mock.calls.length).toBe(callsAfterFirst + 1);
     });
 
     it('handles error stopReason with no errorMessage', async () => {

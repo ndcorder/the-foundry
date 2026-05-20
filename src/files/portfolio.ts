@@ -14,7 +14,7 @@ function domainDir(domain: string): string {
   return domain;
 }
 
-function slugify(title: string): string {
+export function slugify(title: string): string {
   return title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -112,6 +112,7 @@ export async function updatePortfolioIndex(
   title: string,
   domain: string,
   meanRating: string,
+  projectId?: string,
 ): Promise<void> {
   const indexPath = resolve("portfolio", "index.md");
   let content: string;
@@ -125,7 +126,7 @@ export async function updatePortfolioIndex(
   content = content.replace(/\n\*No artifacts yet\.\*\n?/, "\n");
 
   const date = new Date().toISOString().slice(0, 10);
-  const row = `| ${id} | ${title} | ${domain} | ${meanRating} | ${date} | — |`;
+  const row = `| ${id} | ${title} | ${domain} | ${meanRating} | ${date} | ${projectId ?? "—"} |`;
   content = content.trimEnd() + "\n" + row + "\n";
 
   await writeFile(indexPath, content, "utf-8");

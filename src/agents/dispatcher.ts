@@ -377,13 +377,11 @@ export async function dispatchCriticGate2(
   artifactContent: string,
   testerReport: string,
 ): Promise<DispatchResult<CriticGate2Response>> {
-  /* v8 ignore start */
   const shared = await buildSharedContext(config);
   const decisions = await readDecisions();
   const recentReviews = decisions
     .filter((d) => d.gate === "gate2")
     .slice(-config.context.critic_review_history);
-  /* v8 ignore stop */
 
   const template = await loadCriticGate2Prompt();
   const proposalText = `**${proposal.title}** [${proposal.domain}]: ${proposal.pitch}`;

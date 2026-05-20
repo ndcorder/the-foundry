@@ -47,7 +47,9 @@ export async function readJsonlEntries<T>(filePath: string): Promise<T[]> {
       .filter((f) => f.startsWith(base + ".") && f.endsWith(".jsonl") && f !== path.basename(filePath))
       .sort();
 
-    for (const f of rotated) {
+    const recentRotated = rotated.slice(-2);
+
+    for (const f of recentRotated) {
       const raw = await safeReadAbsolute(path.join(dir, f));
       allEntries.push(...parseJsonlLines<T>(raw));
     }
@@ -127,7 +129,8 @@ export function selectDiverseReviews(
   const domains = [...byDomain.keys()];
   let idx = 0;
   while (selected.size < maxCount && selected.size < reviews.length) {
-    const domain = domains[idx % domains.length];
+    const domainIdx = idx % domains.length;
+    const domain = domains[domainIdx];
     const pool = byDomain.get(domain)!;
     if (pool.length > 0) {
       const entry = pool.shift()!;
@@ -135,10 +138,11 @@ export function selectDiverseReviews(
       selected.set(key, entry);
     }
     idx++;
-    // Remove exhausted domains
     if (pool.length === 0) {
-      domains.splice(idx % domains.length, 1);
+      domains.splice(domainIdx, 1);
       if (domains.length === 0) break;
+      if (domainIdx < domains.length) idx = domainIdx;
+      else idx = 0;
     }
   }
 

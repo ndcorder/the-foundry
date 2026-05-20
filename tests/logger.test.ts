@@ -115,6 +115,32 @@ describe('logger', () => {
     });
   });
 
+  describe('resetLoggerState', () => {
+    it('causes logs directory to be re-ensured on next write', async () => {
+      const { logIteration, resetLoggerState } = await import('../src/logging/logger.js');
+
+      // First write creates the logs dir
+      await logIteration({ first: true });
+      expect(existsSync(path.join(tempDir, 'logs'))).toBe(true);
+
+      // Remove the logs dir manually
+      rmSync(path.join(tempDir, 'logs'), { recursive: true, force: true });
+      expect(existsSync(path.join(tempDir, 'logs'))).toBe(false);
+
+      // Without reset, the cached dirEnsured=true means mkdir is skipped,
+      // so the write would fail. Reset forces re-check.
+      resetLoggerState();
+
+      // This should re-create the logs dir
+      await logIteration({ after_reset: true });
+      expect(existsSync(path.join(tempDir, 'logs'))).toBe(true);
+
+      const entries = readJsonl('iterations.jsonl');
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ after_reset: true });
+    });
+  });
+
   describe('ensureLogsDir', () => {
     it('creates logs directory if it does not exist', async () => {
       expect(existsSync(path.join(tempDir, 'logs'))).toBe(false);

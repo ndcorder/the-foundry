@@ -1,15 +1,7 @@
-import { readFile } from "node:fs/promises";
 import type { FoundryConfig } from "../types/index.js";
 import { loadDomainsConfig } from "./config.js";
+import { safeRead } from "./data.js";
 import { resolve } from "../root.js";
-
-async function safeRead(filePath: string): Promise<string> {
-  try {
-    return await readFile(filePath, "utf-8");
-  } catch {
-    return "";
-  }
-}
 
 function truncateToTokenBudget(text: string, maxTokens: number): string {
   const maxChars = maxTokens * 4;

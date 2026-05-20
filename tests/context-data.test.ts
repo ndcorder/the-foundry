@@ -96,6 +96,18 @@ describe('readJsonlEntries', () => {
     expect(entries.map(e => e.id)).toEqual([1, 2, 3]);
   });
 
+  it('reads at most 2 most recent rotated archives', async () => {
+    const dir = path.join(tempDir, 'logs');
+    writeFileSync(path.join(dir, 'data.jsonl'), '{"id":5}\n');
+    writeFileSync(path.join(dir, 'data.2026-01-01.jsonl'), '{"id":1}\n');
+    writeFileSync(path.join(dir, 'data.2026-02-01.jsonl'), '{"id":2}\n');
+    writeFileSync(path.join(dir, 'data.2026-03-01.jsonl'), '{"id":3}\n');
+    writeFileSync(path.join(dir, 'data.2026-04-01.jsonl'), '{"id":4}\n');
+    const entries = await readJsonlEntries<{ id: number }>(path.join(dir, 'data.jsonl'));
+    // Only the 2 most recent rotated (2026-03-01, 2026-04-01) + current
+    expect(entries.map(e => e.id)).toEqual([3, 4, 5]);
+  });
+
   it('handles missing directory gracefully', async () => {
     const entries = await readJsonlEntries<unknown>(path.join(tempDir, 'nodir', 'file.jsonl'));
     expect(entries).toEqual([]);
@@ -389,9 +401,6 @@ describe('selectDiverseReviews', () => {
   });
 
   it('handles pool exhaustion with domain splice edge case', () => {
-    // Two domains: domain A has 1 item, domain B has 2 items.
-    // Round 1: pick from A (pool becomes empty), wrong domain gets spliced.
-    // Round 2: revisit A with empty pool → pool.length > 0 is false.
     const reviews = [
       makeReview('aaa item1'),
       makeReview('bbb item1'),
@@ -399,6 +408,27 @@ describe('selectDiverseReviews', () => {
     ];
     const selected = selectDiverseReviews(reviews, 3);
     expect(selected).toHaveLength(3);
+  });
+
+  it('removes the correct exhausted domain, not the next one', () => {
+    // Domain "x" has 1 entry, "y" has 2, "z" has 2. When "x" exhausts after
+    // round 1, splicing must remove "x" — not "y".
+    const reviews = [
+      makeReview('x only'),
+      makeReview('y first'),
+      makeReview('y second'),
+      makeReview('z first'),
+      makeReview('z second'),
+    ];
+    const selected = selectDiverseReviews(reviews, 4);
+    expect(selected).toHaveLength(4);
+    const titles = selected.map(r => r.proposal_title!);
+    // "x only" must be included (it's the sole x entry)
+    expect(titles).toContain('x only');
+    // Both y and z domains should be represented
+    const domains = new Set(titles.map(t => t.split(' ')[0]));
+    expect(domains).toContain('y');
+    expect(domains).toContain('z');
   });
 
   it('exhausts all domains and breaks out of while loop', () => {

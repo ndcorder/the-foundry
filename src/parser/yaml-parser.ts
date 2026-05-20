@@ -193,26 +193,28 @@ export function validateIdeator(data: unknown): data is IdeatorResponse {
   );
 }
 
-export function validateCriticGate1(data: unknown): data is CriticGate1Response {
-  if (!isObj(data)) return false;
+export function normalizeCriticGate1(data: unknown): unknown {
+  if (!isObj(data)) return data;
+  const d = data as any;
+  const list = d.evaluations ?? d.decisions;
+  if (!Array.isArray(list)) return data;
 
-  const list = (data as any).evaluations ?? (data as any).decisions;
-  if (!Array.isArray(list) || list.length === 0) return false;
-
-  const valid = list.every(
-    (e: any) => typeof e.title === "string" && (typeof e.decision === "string" || typeof e.verdict === "string"),
-  );
-  if (!valid) return false;
-
-  (data as any).evaluations = list.map((e: any) => ({
+  d.evaluations = list.map((e: any) => ({
     title: e.title,
     decision: e.decision ?? e.verdict ?? "reject",
     sharpening_notes: e.sharpening_notes ?? e.notes ?? e.sharpening ?? "",
     reasons: e.reasons ?? e.reason ?? "",
   }));
-  delete (data as any).decisions;
+  delete d.decisions;
+  return data;
+}
 
-  return true;
+export function validateCriticGate1(data: unknown): data is CriticGate1Response {
+  normalizeCriticGate1(data);
+  if (!isObj(data) || !Array.isArray(data.evaluations) || data.evaluations.length === 0) return false;
+  return data.evaluations.every(
+    (e: any) => typeof e.title === "string" && typeof e.decision === "string",
+  );
 }
 
 export function validateCreator(data: unknown): data is CreatorResponse {
@@ -229,18 +231,22 @@ export function validateTester(data: unknown): data is TesterResponse {
   return typeof data.verdict === "string" && typeof data.summary === "string";
 }
 
-export function validateCriticGate2(data: unknown): data is CriticGate2Response {
-  if (!isObj(data)) return false;
+export function normalizeCriticGate2(data: unknown): unknown {
+  if (!isObj(data)) return data;
+  const d = data as any;
+  if (!d.decision && d.verdict) {
+    d.decision = d.verdict;
+    delete d.verdict;
+  }
+  return data;
+}
 
-  if (typeof data.decision !== "string" && typeof data.verdict !== "string") return false;
+export function validateCriticGate2(data: unknown): data is CriticGate2Response {
+  normalizeCriticGate2(data);
+  if (!isObj(data)) return false;
+  if (typeof data.decision !== "string") return false;
   if (!isObj(data.ratings)) return false;
   if (typeof data.review !== "string") return false;
-
-  if (!data.decision && data.verdict) {
-    (data as any).decision = data.verdict;
-    delete (data as any).verdict;
-  }
-
   return true;
 }
 

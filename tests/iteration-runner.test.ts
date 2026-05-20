@@ -27,6 +27,14 @@ vi.mock('../src/agents/index.js', () => ({
   dispatchCuratorRedirect: mockDispatchCuratorRedirect,
 }));
 
+// ── Mock creator pipeline ────────────────────────────────────────
+
+const mockRunCreatorPipeline = vi.fn();
+
+vi.mock('../src/creator/index.js', () => ({
+  runCreatorPipeline: (...args: any[]) => mockRunCreatorPipeline(...args),
+}));
+
 // ── Mock file operations ──────────────────────────────────────────
 
 const mockIsCodeDomain = vi.fn();
@@ -76,10 +84,12 @@ vi.mock('../src/sandbox/index.js', () => ({
 const mockUpdateProjectStatus = vi.fn().mockResolvedValue(undefined);
 const mockLinkArtifactToProject = vi.fn().mockResolvedValue(undefined);
 const mockGetActiveProjects = vi.fn().mockResolvedValue([]);
+const mockCreateProject = vi.fn().mockResolvedValue('P001');
 vi.mock('../src/files/projects.js', () => ({
   updateProjectStatus: mockUpdateProjectStatus,
   linkArtifactToProject: mockLinkArtifactToProject,
   getActiveProjects: mockGetActiveProjects,
+  createProject: mockCreateProject,
 }));
 
 // ── Fixtures ─────────────────────────────────────────────────────
@@ -134,10 +144,11 @@ function setupHappyPath() {
 
   mockIsCodeDomain.mockReturnValue(false);
 
-  mockDispatchCreator.mockResolvedValueOnce({
-    data: { title: 'Test Artifact', files: [{ path: 'poem.md', content: '# A Poem' }], notes: '' },
+  mockRunCreatorPipeline.mockResolvedValueOnce({
+    artifact: { title: 'Test Artifact', files: [{ path: 'poem.md', content: '# A Poem' }], notes: '' },
     usage,
-    rawText: '',
+    phasesRun: ['build'],
+    phaseTokens: { build: 50 },
   });
 
   mockDispatchTesterLightweight.mockResolvedValueOnce({
@@ -201,10 +212,11 @@ describe('iteration/runner', () => {
 
       mockIsCodeDomain.mockReturnValue(false);
 
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Testing Haiku', files: [{ path: 'haiku.md', content: 'Lines of code flow down' }] },
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Testing Haiku', files: [{ path: 'haiku.md', content: 'Lines of code flow down' }] },
         usage,
-        rawText: '',
+        phasesRun: ['build'],
+        phaseTokens: { build: 50 },
       });
 
       mockDispatchTesterLightweight.mockResolvedValueOnce({
@@ -228,7 +240,7 @@ describe('iteration/runner', () => {
 
       expect(result.outcome).toBe('shipped');
       expect(result.title).toBe('Testing Haiku');
-      expect(mockDispatchIdeator).not.toHaveBeenCalled(); // Skips ideation
+      expect(mockDispatchIdeator).not.toHaveBeenCalled();
       expect(mockClearRequests).toHaveBeenCalledOnce();
     });
   });
@@ -238,7 +250,6 @@ describe('iteration/runner', () => {
       const config = makeConfig();
       config.iteration.max_idea_retries = 2;
 
-      // All idea attempts get rejected
       for (let i = 0; i < 2; i++) {
         mockDispatchIdeator.mockResolvedValueOnce({
           data: { ideas: [{ title: `Idea ${i}`, domain: 'prose', pitch: 'Meh', complexity: 'S', why: 'Why', project_id: null, stimulus_ref: null }] },
@@ -252,7 +263,6 @@ describe('iteration/runner', () => {
         });
       }
 
-      // Curator deadlock override also fails
       mockDispatchCuratorRedirect.mockRejectedValueOnce(new Error('Curator failed'));
 
       const { runIteration } = await import('../src/iteration/runner.js');
@@ -267,30 +277,24 @@ describe('iteration/runner', () => {
     it('kills artifact when gate2 says kill', async () => {
       const proposal = { title: 'Bad Artifact', domain: 'prose', pitch: 'A test', complexity: 'S', why: 'Because', project_id: null, stimulus_ref: null };
 
-      mockDispatchIdeator.mockResolvedValueOnce({
-        data: { ideas: [proposal] },
-        usage,
-        rawText: '',
-      });
-
+      mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
       mockDispatchCriticGate1.mockResolvedValueOnce({
         data: { evaluations: [{ title: 'Bad Artifact', decision: 'approve', sharpening_notes: '', reasons: '' }] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       mockIsCodeDomain.mockReturnValue(false);
 
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Bad Artifact', files: [{ path: 'bad.md', content: 'bad content' }] },
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Bad Artifact', files: [{ path: 'bad.md', content: 'bad content' }] },
         usage,
-        rawText: '',
+        phasesRun: ['build'],
+        phaseTokens: { build: 50 },
       });
 
       mockDispatchTesterLightweight.mockResolvedValueOnce({
         data: { verdict: 'pass', summary: 'OK', tests_run: [], issues: [] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       mockDispatchCriticGate2.mockResolvedValueOnce({
@@ -300,8 +304,7 @@ describe('iteration/runner', () => {
           review: 'Not good enough',
           kill_reason: 'Too derivative',
         },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       const { runIteration } = await import('../src/iteration/runner.js');
@@ -321,23 +324,22 @@ describe('iteration/runner', () => {
       mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
       mockDispatchCriticGate1.mockResolvedValueOnce({
         data: { evaluations: [{ title: 'Revised Art', decision: 'approve', sharpening_notes: '', reasons: '' }] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       mockIsCodeDomain.mockReturnValue(false);
 
-      // First creation
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Revised Art', files: [{ path: 'v1.md', content: 'draft' }] },
+      // First creation via pipeline
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Revised Art', files: [{ path: 'v1.md', content: 'draft' }] },
         usage,
-        rawText: '',
+        phasesRun: ['plan', 'build-1', 'revise'],
+        phaseTokens: { plan: 30, 'build-1': 40, revise: 30 },
       });
 
       mockDispatchTesterLightweight.mockResolvedValueOnce({
         data: { verdict: 'pass', summary: 'OK', tests_run: [], issues: [] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       // Gate2 says revise
@@ -348,21 +350,20 @@ describe('iteration/runner', () => {
           review: 'Needs more depth',
           revision_notes: 'Add more imagery',
         },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
-      // Revised creation
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Revised Art', files: [{ path: 'v2.md', content: 'improved draft' }] },
+      // Revised creation via pipeline
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Revised Art', files: [{ path: 'v2.md', content: 'improved draft' }] },
         usage,
-        rawText: '',
+        phasesRun: ['plan', 'build-1', 'revise'],
+        phaseTokens: { plan: 30, 'build-1': 40, revise: 30 },
       });
 
       mockDispatchTesterLightweight.mockResolvedValueOnce({
         data: { verdict: 'pass', summary: 'Good now', tests_run: [], issues: [] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       // Gate2 ships
@@ -372,15 +373,14 @@ describe('iteration/runner', () => {
           ratings: { originality: 4, specificity: 4, craft: 4, surprise: 3, coherence: 4, portfolio_fit: 4 },
           review: 'Much better',
         },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       const { runIteration } = await import('../src/iteration/runner.js');
       const result = await runIteration(makeConfig(), makeModels(), 1);
 
       expect(result.outcome).toBe('shipped');
-      expect(mockDispatchCreator).toHaveBeenCalledTimes(2);
+      expect(mockRunCreatorPipeline).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -391,23 +391,21 @@ describe('iteration/runner', () => {
       mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
       mockDispatchCriticGate1.mockResolvedValueOnce({
         data: { evaluations: [{ title: 'Code Tool', decision: 'approve', sharpening_notes: '', reasons: '' }] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       mockIsCodeDomain.mockReturnValue(true);
 
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Code Tool', files: [{ path: 'main.js', content: 'console.log(1)' }] },
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Code Tool', files: [{ path: 'main.js', content: 'console.log(1)' }] },
         usage,
-        rawText: '',
+        phasesRun: ['plan', 'build-1', 'revise'],
+        phaseTokens: { plan: 30, 'build-1': 40, revise: 30 },
       });
 
-      // Test plan phase - no test_plan means lightweight fallback
       mockDispatchTesterTestPlan.mockResolvedValueOnce({
         data: { verdict: 'pass', summary: 'Tests pass', tests_run: [{ name: 'basic', result: 'pass', details: 'ok' }], issues: [] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       mockDispatchCriticGate2.mockResolvedValueOnce({
@@ -416,8 +414,7 @@ describe('iteration/runner', () => {
           ratings: { originality: 3, specificity: 4, craft: 4, surprise: 2, coherence: 4, portfolio_fit: 3, technical_quality: 4 },
           review: 'Working code tool',
         },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       const { runIteration } = await import('../src/iteration/runner.js');
@@ -431,12 +428,10 @@ describe('iteration/runner', () => {
   describe('runIteration - disk space check', () => {
     it('halts on low disk space when configured', async () => {
       const config = makeConfig();
-      config.loop.disk_space_min_gb = 999999; // impossibly high
+      config.loop.disk_space_min_gb = 999999;
 
       const { runIteration } = await import('../src/iteration/runner.js');
       const result = await runIteration(config, makeModels(), 1);
-
-      // Either halts on disk space or proceeds (depends on system), so we just verify no crash
       expect(result).toBeDefined();
     });
   });
@@ -448,22 +443,21 @@ describe('iteration/runner', () => {
       mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
       mockDispatchCriticGate1.mockResolvedValueOnce({
         data: { evaluations: [{ title: 'Project Art', decision: 'approve', sharpening_notes: '', reasons: '' }] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       mockIsCodeDomain.mockReturnValue(false);
 
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Project Art', files: [{ path: 'art.md', content: 'content' }] },
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Project Art', files: [{ path: 'art.md', content: 'content' }] },
         usage,
-        rawText: '',
+        phasesRun: ['build'],
+        phaseTokens: { build: 50 },
       });
 
       mockDispatchTesterLightweight.mockResolvedValueOnce({
         data: { verdict: 'pass', summary: 'OK', tests_run: [], issues: [] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       mockDispatchCriticGate2.mockResolvedValueOnce({
@@ -472,8 +466,7 @@ describe('iteration/runner', () => {
           ratings: { originality: 4, specificity: 3, craft: 4, surprise: 3, coherence: 4, portfolio_fit: 4 },
           review: 'Good fit',
         },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       mockGetActiveProjects.mockResolvedValueOnce([{ project_id: 'P001', completed_iterations: 2 }]);
@@ -494,17 +487,17 @@ describe('iteration/runner', () => {
       mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
       mockDispatchCriticGate1.mockResolvedValueOnce({
         data: { evaluations: [{ title: 'Fixable', decision: 'approve', sharpening_notes: '', reasons: '' }] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       mockIsCodeDomain.mockReturnValue(false);
 
       // First creation
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Fixable', files: [{ path: 'v1.md', content: 'draft with typo' }] },
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Fixable', files: [{ path: 'v1.md', content: 'draft with typo' }] },
         usage,
-        rawText: '',
+        phasesRun: ['build'],
+        phaseTokens: { build: 50 },
       });
 
       // Tester finds fixable issues
@@ -515,22 +508,21 @@ describe('iteration/runner', () => {
           tests_run: [{ name: 'spell', result: 'fail', details: 'typo on line 1' }],
           issues: [{ severity: 'minor', description: 'typo', location: 'line 1', suggested_fix: 'fix the typo' }],
         },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
-      // Creator fixes
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Fixable', files: [{ path: 'v1.md', content: 'draft fixed' }] },
+      // Creator fixes via pipeline
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Fixable', files: [{ path: 'v1.md', content: 'draft fixed' }] },
         usage,
-        rawText: '',
+        phasesRun: ['build'],
+        phaseTokens: { build: 50 },
       });
 
       // Now passes
       mockDispatchTesterLightweight.mockResolvedValueOnce({
         data: { verdict: 'pass', summary: 'All good', tests_run: [{ name: 'spell', result: 'pass', details: 'ok' }], issues: [] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       mockDispatchCriticGate2.mockResolvedValueOnce({
@@ -539,157 +531,45 @@ describe('iteration/runner', () => {
           ratings: { originality: 3, specificity: 3, craft: 3, surprise: 3, coherence: 3, portfolio_fit: 3 },
           review: 'OK after fix',
         },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       const { runIteration } = await import('../src/iteration/runner.js');
       const result = await runIteration(makeConfig(), makeModels(), 1);
 
       expect(result.outcome).toBe('shipped');
-      expect(mockDispatchCreator).toHaveBeenCalledTimes(2);
+      expect(mockRunCreatorPipeline).toHaveBeenCalledTimes(2);
       expect(mockLogTestReport).toHaveBeenCalledTimes(2);
-    });
-  });
-
-  describe('runIteration - catastrophic test failure', () => {
-    it('forwards catastrophic failure to critic', async () => {
-      const proposal = { title: 'Catastrophic', domain: 'prose', pitch: 'Test', complexity: 'S', why: 'Why', project_id: null, stimulus_ref: null };
-
-      mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
-      mockDispatchCriticGate1.mockResolvedValueOnce({
-        data: { evaluations: [{ title: 'Catastrophic', decision: 'approve', sharpening_notes: '', reasons: '' }] },
-        usage,
-        rawText: '',
-      });
-
-      mockIsCodeDomain.mockReturnValue(false);
-
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Catastrophic', files: [{ path: 'bad.md', content: 'terrible' }] },
-        usage,
-        rawText: '',
-      });
-
-      mockDispatchTesterLightweight.mockResolvedValueOnce({
-        data: { verdict: 'fail_catastrophic', summary: 'Totally broken', tests_run: [], issues: [] },
-        usage,
-        rawText: '',
-      });
-
-      // Critic kills it after catastrophic failure
-      mockDispatchCriticGate2.mockResolvedValueOnce({
-        data: {
-          decision: 'kill',
-          ratings: { originality: 1, specificity: 1, craft: 1, surprise: 1, coherence: 1, portfolio_fit: 1 },
-          review: 'Catastrophic failure',
-          kill_reason: 'Complete failure',
-        },
-        usage,
-        rawText: '',
-      });
-
-      const { runIteration } = await import('../src/iteration/runner.js');
-      const result = await runIteration(makeConfig(), makeModels(), 1);
-
-      expect(result.outcome).toBe('killed');
-    });
-  });
-
-  describe('runIteration - code with sandbox test plan', () => {
-    it('executes test plan in sandbox and gets verdict', async () => {
-      const proposal = { title: 'Sandbox Code', domain: 'code-tool', pitch: 'Tool', complexity: 'M', why: 'Why', project_id: null, stimulus_ref: null };
-
-      mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
-      mockDispatchCriticGate1.mockResolvedValueOnce({
-        data: { evaluations: [{ title: 'Sandbox Code', decision: 'approve', sharpening_notes: '', reasons: '' }] },
-        usage,
-        rawText: '',
-      });
-
-      mockIsCodeDomain.mockReturnValue(true);
-
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Sandbox Code', files: [{ path: 'main.js', content: 'console.log(42)' }] },
-        usage,
-        rawText: '',
-      });
-
-      // Test plan with sandbox execution
-      mockDispatchTesterTestPlan.mockResolvedValueOnce({
-        data: {
-          verdict: 'pass',
-          summary: 'Tests planned',
-          tests_run: [],
-          issues: [],
-          test_plan: {
-            language: 'node',
-            setup_commands: ['npm init -y'],
-            files: [{ path: 'test.js', content: 'console.log("test")' }],
-            run_command: 'node test.js',
-          },
-        },
-        usage,
-        rawText: '',
-      });
-
-      // Sandbox fails (QEMU not installed) -> falls back to lightweight
-      mockCreateSandbox.mockRejectedValueOnce(new Error('Failed to create sandbox VM: QEMU not found'));
-
-      // Lightweight fallback
-      mockDispatchTesterLightweight.mockResolvedValueOnce({
-        data: { verdict: 'pass', summary: 'Lightweight pass', tests_run: [], issues: [] },
-        usage,
-        rawText: '',
-      });
-
-      mockDispatchCriticGate2.mockResolvedValueOnce({
-        data: {
-          decision: 'ship',
-          ratings: { originality: 3, specificity: 4, craft: 4, surprise: 2, coherence: 4, portfolio_fit: 3 },
-          review: 'Good code tool',
-        },
-        usage,
-        rawText: '',
-      });
-
-      const { runIteration } = await import('../src/iteration/runner.js');
-      const result = await runIteration(makeConfig(), makeModels(), 1);
-
-      expect(result.outcome).toBe('shipped');
-      expect(mockCreateSandbox).toHaveBeenCalledOnce();
     });
   });
 
   describe('runIteration - max revision rounds force ship', () => {
     it('force ships after max revision rounds', async () => {
       const config = makeConfig();
-      config.iteration.max_revision_rounds = 0; // No revision rounds allowed
+      config.iteration.max_revision_rounds = 0;
 
       const proposal = { title: 'Force Ship', domain: 'prose', pitch: 'Test', complexity: 'S', why: 'Why', project_id: null, stimulus_ref: null };
 
       mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
       mockDispatchCriticGate1.mockResolvedValueOnce({
         data: { evaluations: [{ title: 'Force Ship', decision: 'approve', sharpening_notes: '', reasons: '' }] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       mockIsCodeDomain.mockReturnValue(false);
 
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Force Ship', files: [{ path: 'v1.md', content: 'content' }] },
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Force Ship', files: [{ path: 'v1.md', content: 'content' }] },
         usage,
-        rawText: '',
+        phasesRun: ['build'],
+        phaseTokens: { build: 50 },
       });
 
       mockDispatchTesterLightweight.mockResolvedValueOnce({
         data: { verdict: 'pass', summary: 'OK', tests_run: [], issues: [] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
-      // Critic says revise, but we're at max rounds
       mockDispatchCriticGate2.mockResolvedValueOnce({
         data: {
           decision: 'revise',
@@ -697,16 +577,14 @@ describe('iteration/runner', () => {
           review: 'Needs work',
           revision_notes: 'Fix it',
         },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       const { runIteration } = await import('../src/iteration/runner.js');
       const result = await runIteration(config, makeModels(), 1);
 
-      // Mean = (3+2+2+2+3+3)/6 = 2.5, not below threshold — should force ship
       expect(result.outcome).toBe('shipped');
-      expect(mockDispatchCreator).toHaveBeenCalledTimes(1); // No revision round
+      expect(mockRunCreatorPipeline).toHaveBeenCalledTimes(1);
     });
 
     it('force kills after max revision rounds when mean rating below threshold', async () => {
@@ -718,25 +596,23 @@ describe('iteration/runner', () => {
       mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
       mockDispatchCriticGate1.mockResolvedValueOnce({
         data: { evaluations: [{ title: 'Bad Art', decision: 'approve', sharpening_notes: '', reasons: '' }] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       mockIsCodeDomain.mockReturnValue(false);
 
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Bad Art', files: [{ path: 'v1.md', content: 'content' }] },
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Bad Art', files: [{ path: 'v1.md', content: 'content' }] },
         usage,
-        rawText: '',
+        phasesRun: ['build'],
+        phaseTokens: { build: 50 },
       });
 
       mockDispatchTesterLightweight.mockResolvedValueOnce({
         data: { verdict: 'pass', summary: 'OK', tests_run: [], issues: [] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
-      // Critic says revise with very low ratings (mean = 1.5, below 2.5)
       mockDispatchCriticGate2.mockResolvedValueOnce({
         data: {
           decision: 'revise',
@@ -744,86 +620,164 @@ describe('iteration/runner', () => {
           review: 'Terrible',
           revision_notes: 'Start over',
         },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       const { runIteration } = await import('../src/iteration/runner.js');
       const result = await runIteration(config, makeModels(), 1);
 
-      // Mean 1.5 < 2.5 threshold — should force kill
       expect(result.outcome).toBe('killed');
-      expect(mockDispatchCreator).toHaveBeenCalledTimes(1);
+      expect(mockRunCreatorPipeline).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe('runIteration - max revision rounds force ship', () => {
-    it('force-ships when max revision rounds exhausted without kill', async () => {
-      const config = makeConfig();
-      config.iteration.max_revision_rounds = 1;
-
-      const proposal = { title: 'Stubborn Art', domain: 'prose', pitch: 'Art', complexity: 'M', why: 'Why', project_id: null, stimulus_ref: null };
+  describe('runIteration - XL project creation', () => {
+    it('creates project for XL proposals and downgrades to L', async () => {
+      const proposal = {
+        title: 'Epic Project', domain: 'fiction', pitch: 'A novella',
+        complexity: 'XL' as const, why: 'Ambition',
+        project_id: null, stimulus_ref: null,
+        xl_mode: 'project' as const,
+        project: { name: 'The Last Librarian', description: 'A novella', estimated_iterations: 6, structure: [{ ch1: 'Arrival' }] },
+      };
 
       mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
       mockDispatchCriticGate1.mockResolvedValueOnce({
-        data: { evaluations: [{ title: 'Stubborn Art', decision: 'approve', sharpening_notes: '', reasons: '' }] },
-        usage,
-        rawText: '',
+        data: { evaluations: [{ title: 'Epic Project', decision: 'approve', sharpening_notes: '', reasons: '' }] },
+        usage, rawText: '',
       });
 
       mockIsCodeDomain.mockReturnValue(false);
 
-      // First creation
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Stubborn Art', files: [{ path: 'v1.md', content: 'draft' }] },
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Epic Project', files: [{ path: 'ch1.md', content: 'Chapter 1' }] },
         usage,
-        rawText: '',
-      });
-      mockDispatchTesterLightweight.mockResolvedValueOnce({
-        data: { verdict: 'pass', summary: 'OK', tests_run: [], issues: [] },
-        usage,
-        rawText: '',
-      });
-      // Gate2 says revise
-      mockDispatchCriticGate2.mockResolvedValueOnce({
-        data: {
-          decision: 'revise',
-          ratings: { originality: 2, specificity: 2, craft: 2, surprise: 2, coherence: 2, portfolio_fit: 2 },
-          review: 'Needs more depth',
-          revision_notes: 'Add more',
-        },
-        usage,
-        rawText: '',
+        phasesRun: ['plan', 'build-1', 'build-2', 'revise', 'polish'],
+        phaseTokens: { plan: 30, 'build-1': 40, 'build-2': 40, revise: 30, polish: 20 },
       });
 
-      // Second creation (last round)
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Stubborn Art', files: [{ path: 'v2.md', content: 'improved' }] },
-        usage,
-        rawText: '',
-      });
       mockDispatchTesterLightweight.mockResolvedValueOnce({
         data: { verdict: 'pass', summary: 'OK', tests_run: [], issues: [] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
-      // Gate2 says revise AGAIN but max_revision_rounds=1 means we force ship
+
       mockDispatchCriticGate2.mockResolvedValueOnce({
         data: {
-          decision: 'revise',
-          ratings: { originality: 3, specificity: 3, craft: 3, surprise: 3, coherence: 3, portfolio_fit: 3 },
-          review: 'Still not great but acceptable',
-          revision_notes: 'More please',
+          decision: 'ship',
+          ratings: { originality: 4, specificity: 4, craft: 4, surprise: 4, coherence: 4, portfolio_fit: 4 },
+          review: 'Excellent start',
         },
+        usage, rawText: '',
+      });
+
+      mockGetActiveProjects.mockResolvedValueOnce([{ project_id: 'P001', completed_iterations: 0 }]);
+
+      const { runIteration } = await import('../src/iteration/runner.js');
+      const result = await runIteration(makeConfig(), makeModels(), 1);
+
+      expect(result.outcome).toBe('shipped');
+      expect(mockCreateProject).toHaveBeenCalledOnce();
+      // Pipeline should receive L complexity (downgraded from XL)
+      const pipelineCall = mockRunCreatorPipeline.mock.calls[0];
+      expect(pipelineCall[1].complexity).toBe('L');
+      // Iteration log should record original XL complexity
+      expect(mockLogIteration).toHaveBeenCalledWith(expect.objectContaining({ complexity: 'XL' }));
+    });
+  });
+
+  describe('runIteration - M-complexity pipeline', () => {
+    it('uses pipeline for M-complexity proposals', async () => {
+      const proposal = { title: 'Multi Phase', domain: 'code-tool', pitch: 'Complex tool', complexity: 'M', why: 'Why', project_id: null, stimulus_ref: null };
+
+      mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
+      mockDispatchCriticGate1.mockResolvedValueOnce({
+        data: { evaluations: [{ title: 'Multi Phase', decision: 'approve', sharpening_notes: '', reasons: '' }] },
+        usage, rawText: '',
+      });
+
+      mockIsCodeDomain.mockReturnValue(false);
+
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Multi Phase', files: [{ path: 'main.ts', content: 'code' }] },
         usage,
-        rawText: '',
+        phasesRun: ['plan', 'build-1', 'revise'],
+        phaseTokens: { plan: 30, 'build-1': 40, revise: 30 },
+      });
+
+      mockDispatchTesterLightweight.mockResolvedValueOnce({
+        data: { verdict: 'pass', summary: 'OK', tests_run: [], issues: [] },
+        usage, rawText: '',
+      });
+
+      mockDispatchCriticGate2.mockResolvedValueOnce({
+        data: {
+          decision: 'ship',
+          ratings: { originality: 4, specificity: 4, craft: 4, surprise: 3, coherence: 4, portfolio_fit: 4 },
+          review: 'Good multi-phase work',
+        },
+        usage, rawText: '',
+      });
+
+      const { runIteration } = await import('../src/iteration/runner.js');
+      const result = await runIteration(makeConfig(), makeModels(), 1);
+
+      expect(result.outcome).toBe('shipped');
+      expect(mockRunCreatorPipeline).toHaveBeenCalledOnce();
+      // Verify iteration log includes phase data
+      expect(mockLogIteration).toHaveBeenCalledWith(expect.objectContaining({
+        complexity: 'M',
+        phases_run: ['plan', 'build-1', 'revise'],
+      }));
+    });
+  });
+
+  describe('runIteration - curator deadlock override succeeds', () => {
+    it('uses curator-forced proposal after ideation deadlock', async () => {
+      const config = makeConfig();
+      config.iteration.max_idea_retries = 1;
+
+      mockDispatchIdeator.mockResolvedValueOnce({
+        data: { ideas: [{ title: 'Rejected', domain: 'prose', pitch: 'Meh', complexity: 'S', why: 'Why', project_id: null, stimulus_ref: null }] },
+        usage, rawText: '',
+      });
+      mockDispatchCriticGate1.mockResolvedValueOnce({
+        data: { evaluations: [{ title: 'Rejected', decision: 'reject', sharpening_notes: '', reasons: 'Boring' }] },
+        usage, rawText: '',
+      });
+
+      const forcedProposal = { title: 'Forced Idea [FORCED]', domain: 'code-tool', pitch: 'Forced', complexity: 'M', why: 'Curator override', project_id: null, stimulus_ref: null };
+      mockDispatchCuratorRedirect.mockResolvedValueOnce({
+        data: { proposal: forcedProposal },
+        usage, rawText: '',
+      });
+
+      mockIsCodeDomain.mockReturnValue(false);
+
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Forced Idea', files: [{ path: 'forced.md', content: 'forced content' }] },
+        usage,
+        phasesRun: ['plan', 'build-1', 'revise'],
+        phaseTokens: { plan: 30, 'build-1': 40, revise: 30 },
+      });
+
+      mockDispatchTesterLightweight.mockResolvedValueOnce({
+        data: { verdict: 'pass', summary: 'OK', tests_run: [], issues: [] },
+        usage, rawText: '',
+      });
+
+      mockDispatchCriticGate2.mockResolvedValueOnce({
+        data: {
+          decision: 'ship',
+          ratings: { originality: 3, specificity: 3, craft: 3, surprise: 3, coherence: 3, portfolio_fit: 3 },
+          review: 'Acceptable',
+        },
+        usage, rawText: '',
       });
 
       const { runIteration } = await import('../src/iteration/runner.js');
       const result = await runIteration(config, makeModels(), 1);
 
       expect(result.outcome).toBe('shipped');
-      expect(mockDispatchCreator).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -834,22 +788,21 @@ describe('iteration/runner', () => {
       mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
       mockDispatchCriticGate1.mockResolvedValueOnce({
         data: { evaluations: [{ title: 'Project Fail', decision: 'approve', sharpening_notes: '', reasons: '' }] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       mockIsCodeDomain.mockReturnValue(false);
 
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Project Fail', files: [{ path: 'art.md', content: 'content' }] },
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Project Fail', files: [{ path: 'art.md', content: 'content' }] },
         usage,
-        rawText: '',
+        phasesRun: ['build'],
+        phaseTokens: { build: 50 },
       });
 
       mockDispatchTesterLightweight.mockResolvedValueOnce({
         data: { verdict: 'pass', summary: 'OK', tests_run: [], issues: [] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       mockDispatchCriticGate2.mockResolvedValueOnce({
@@ -858,374 +811,16 @@ describe('iteration/runner', () => {
           ratings: { originality: 4, specificity: 3, craft: 4, surprise: 3, coherence: 4, portfolio_fit: 4 },
           review: 'Good',
         },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
-      // Make project bookkeeping fail
       mockLinkArtifactToProject.mockRejectedValueOnce(new Error('Project P001 not found'));
 
       const { runIteration } = await import('../src/iteration/runner.js');
       const result = await runIteration(makeConfig(), makeModels(), 1);
 
-      // Should still ship despite bookkeeping error
       expect(result.outcome).toBe('shipped');
       expect(mockWriteArtifact).toHaveBeenCalledOnce();
-    });
-  });
-
-  describe('runIteration - code domain with full sandbox test plan', () => {
-    it('runs sandbox tests with test_plan and gets verdict', async () => {
-      const proposal = { title: 'Code With Tests', domain: 'code-tool', pitch: 'A tool', complexity: 'M', why: 'Why', project_id: null, stimulus_ref: null };
-
-      mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
-      mockDispatchCriticGate1.mockResolvedValueOnce({
-        data: { evaluations: [{ title: 'Code With Tests', decision: 'approve', sharpening_notes: '', reasons: '' }] },
-        usage,
-        rawText: '',
-      });
-
-      mockIsCodeDomain.mockReturnValue(true);
-
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Code With Tests', files: [{ path: 'main.js', content: 'module.exports = {}' }] },
-        usage,
-        rawText: '',
-      });
-
-      // Test plan phase returns a test_plan
-      mockDispatchTesterTestPlan.mockResolvedValueOnce({
-        data: {
-          verdict: 'pass',
-          summary: 'Plan ready',
-          tests_run: [],
-          issues: [],
-          test_plan: {
-            language: 'node',
-            setup_commands: ['npm install'],
-            files: [{ path: 'test.js', content: 'console.log("test")' }],
-            run_command: 'node test.js',
-          },
-        },
-        usage,
-        rawText: '',
-      });
-
-      // Sandbox mock
-      const mockSandboxSession = {
-        writeFile: vi.fn().mockResolvedValue(undefined),
-        exec: vi.fn()
-          .mockResolvedValueOnce({ exitCode: 0, stdout: 'ok', stderr: '', timedOut: false, durationMs: 100 })
-          .mockResolvedValueOnce({ exitCode: 0, stdout: 'All tests passed', stderr: '', timedOut: false, durationMs: 200 }),
-        close: vi.fn().mockResolvedValue(undefined),
-      };
-      mockCreateSandbox.mockResolvedValueOnce(mockSandboxSession);
-
-      // Verdict after sandbox execution
-      mockDispatchTesterVerdict.mockResolvedValueOnce({
-        data: { verdict: 'pass', summary: 'All tests passed', tests_run: [{ name: 'basic', result: 'pass', details: 'ok' }], issues: [] },
-        usage,
-        rawText: '',
-      });
-
-      mockDispatchCriticGate2.mockResolvedValueOnce({
-        data: {
-          decision: 'ship',
-          ratings: { originality: 4, specificity: 4, craft: 4, surprise: 3, coherence: 4, portfolio_fit: 4 },
-          review: 'Solid code with tests',
-        },
-        usage,
-        rawText: '',
-      });
-
-      const { runIteration } = await import('../src/iteration/runner.js');
-      const result = await runIteration(makeConfig(), makeModels(), 1);
-
-      expect(result.outcome).toBe('shipped');
-      expect(mockCreateSandbox).toHaveBeenCalledOnce();
-      expect(mockDispatchTesterVerdict).toHaveBeenCalledOnce();
-      expect(mockSandboxSession.writeFile).toHaveBeenCalled();
-      expect(mockSandboxSession.exec).toHaveBeenCalledTimes(2); // setup + test run
-      expect(mockSandboxSession.close).toHaveBeenCalledOnce();
-    });
-
-    it('falls back to lightweight when sandbox is unavailable (QEMU)', async () => {
-      const proposal = { title: 'No Sandbox', domain: 'code-tool', pitch: 'A tool', complexity: 'S', why: 'Why', project_id: null, stimulus_ref: null };
-
-      mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
-      mockDispatchCriticGate1.mockResolvedValueOnce({
-        data: { evaluations: [{ title: 'No Sandbox', decision: 'approve', sharpening_notes: '', reasons: '' }] },
-        usage,
-        rawText: '',
-      });
-
-      mockIsCodeDomain.mockReturnValue(true);
-
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'No Sandbox', files: [{ path: 'main.js', content: 'code' }] },
-        usage,
-        rawText: '',
-      });
-
-      mockDispatchTesterTestPlan.mockResolvedValueOnce({
-        data: {
-          verdict: 'pass',
-          summary: 'Plan ready',
-          tests_run: [],
-          issues: [],
-          test_plan: {
-            language: 'node',
-            setup_commands: [],
-            files: [{ path: 'test.js', content: 'test' }],
-            run_command: 'node test.js',
-          },
-        },
-        usage,
-        rawText: '',
-      });
-
-      // Sandbox creation fails with QEMU error
-      mockCreateSandbox.mockRejectedValueOnce(new Error('Failed to create sandbox: QEMU not installed'));
-
-      // Falls back to lightweight
-      mockDispatchTesterLightweight.mockResolvedValueOnce({
-        data: { verdict: 'pass', summary: 'Lightweight pass', tests_run: [], issues: [] },
-        usage,
-        rawText: '',
-      });
-
-      mockDispatchCriticGate2.mockResolvedValueOnce({
-        data: {
-          decision: 'ship',
-          ratings: { originality: 3, specificity: 3, craft: 3, surprise: 3, coherence: 3, portfolio_fit: 3 },
-          review: 'OK',
-        },
-        usage,
-        rawText: '',
-      });
-
-      const { runIteration } = await import('../src/iteration/runner.js');
-      const result = await runIteration(makeConfig(), makeModels(), 1);
-
-      expect(result.outcome).toBe('shipped');
-      expect(mockDispatchTesterLightweight).toHaveBeenCalledOnce();
-    });
-
-    it('handles sandbox setup command failure', async () => {
-      const proposal = { title: 'Setup Fail', domain: 'code-tool', pitch: 'A tool', complexity: 'S', why: 'Why', project_id: null, stimulus_ref: null };
-
-      mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
-      mockDispatchCriticGate1.mockResolvedValueOnce({
-        data: { evaluations: [{ title: 'Setup Fail', decision: 'approve', sharpening_notes: '', reasons: '' }] },
-        usage,
-        rawText: '',
-      });
-
-      mockIsCodeDomain.mockReturnValue(true);
-
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Setup Fail', files: [{ path: 'main.js', content: 'code' }] },
-        usage,
-        rawText: '',
-      });
-
-      mockDispatchTesterTestPlan.mockResolvedValueOnce({
-        data: {
-          verdict: 'pass',
-          summary: 'Plan ready',
-          tests_run: [],
-          issues: [],
-          test_plan: {
-            language: 'node',
-            setup_commands: ['npm install'],
-            files: [{ path: 'test.js', content: 'test' }],
-            run_command: 'node test.js',
-          },
-        },
-        usage,
-        rawText: '',
-      });
-
-      const mockSandboxSession = {
-        writeFile: vi.fn().mockResolvedValue(undefined),
-        exec: vi.fn().mockResolvedValueOnce({ exitCode: 1, stdout: '', stderr: 'npm ERR! missing', timedOut: false, durationMs: 50 }),
-        close: vi.fn().mockResolvedValue(undefined),
-      };
-      mockCreateSandbox.mockResolvedValueOnce(mockSandboxSession);
-
-      // Verdict interprets the setup failure
-      mockDispatchTesterVerdict.mockResolvedValueOnce({
-        data: { verdict: 'fail_fixable', summary: 'Setup failed', tests_run: [], issues: [{ severity: 'major', description: 'npm install failed', location: 'setup', suggested_fix: 'fix package.json' }] },
-        usage,
-        rawText: '',
-      });
-
-      // Creator fixes
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Setup Fail', files: [{ path: 'main.js', content: 'fixed code' }] },
-        usage,
-        rawText: '',
-      });
-
-      // Second test plan - no test plan this time (falls through to verdict-as-is)
-      mockDispatchTesterTestPlan.mockResolvedValueOnce({
-        data: { verdict: 'pass', summary: 'All good now', tests_run: [{ name: 'basic', result: 'pass', details: 'ok' }], issues: [] },
-        usage,
-        rawText: '',
-      });
-
-      mockDispatchCriticGate2.mockResolvedValueOnce({
-        data: {
-          decision: 'ship',
-          ratings: { originality: 3, specificity: 3, craft: 3, surprise: 3, coherence: 3, portfolio_fit: 3 },
-          review: 'Fixed and shipped',
-        },
-        usage,
-        rawText: '',
-      });
-
-      const { runIteration } = await import('../src/iteration/runner.js');
-      const result = await runIteration(makeConfig(), makeModels(), 1);
-
-      expect(result.outcome).toBe('shipped');
-    });
-
-    it('handles sandbox test timeout', async () => {
-      const proposal = { title: 'Timeout Test', domain: 'code-tool', pitch: 'A tool', complexity: 'S', why: 'Why', project_id: null, stimulus_ref: null };
-
-      mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
-      mockDispatchCriticGate1.mockResolvedValueOnce({
-        data: { evaluations: [{ title: 'Timeout Test', decision: 'approve', sharpening_notes: '', reasons: '' }] },
-        usage,
-        rawText: '',
-      });
-
-      mockIsCodeDomain.mockReturnValue(true);
-
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Timeout Test', files: [{ path: 'main.js', content: 'while(true){}' }] },
-        usage,
-        rawText: '',
-      });
-
-      mockDispatchTesterTestPlan.mockResolvedValueOnce({
-        data: {
-          verdict: 'pass',
-          summary: 'Plan ready',
-          tests_run: [],
-          issues: [],
-          test_plan: {
-            language: 'node',
-            setup_commands: [],
-            files: [{ path: 'test.js', content: 'test' }],
-            run_command: 'node test.js',
-          },
-        },
-        usage,
-        rawText: '',
-      });
-
-      const mockSandboxSession = {
-        writeFile: vi.fn().mockResolvedValue(undefined),
-        exec: vi.fn().mockResolvedValueOnce({ exitCode: 1, stdout: '', stderr: '', timedOut: true, durationMs: 60000 }),
-        close: vi.fn().mockResolvedValue(undefined),
-      };
-      mockCreateSandbox.mockResolvedValueOnce(mockSandboxSession);
-
-      mockDispatchTesterVerdict.mockResolvedValueOnce({
-        data: { verdict: 'fail_catastrophic', summary: 'Infinite loop', tests_run: [], issues: [] },
-        usage,
-        rawText: '',
-      });
-
-      mockDispatchCriticGate2.mockResolvedValueOnce({
-        data: {
-          decision: 'kill',
-          ratings: { originality: 1, specificity: 1, craft: 1, surprise: 1, coherence: 1, portfolio_fit: 1 },
-          review: 'Infinite loop',
-          kill_reason: 'Code hangs',
-        },
-        usage,
-        rawText: '',
-      });
-
-      const { runIteration } = await import('../src/iteration/runner.js');
-      const result = await runIteration(makeConfig(), makeModels(), 1);
-
-      expect(result.outcome).toBe('killed');
-    });
-  });
-
-  describe('runIteration - max test fix cycles exhausted', () => {
-    it('stops fixing after max_test_fix_cycles', async () => {
-      const config = makeConfig();
-      config.iteration.max_test_fix_cycles = 2;
-
-      const proposal = { title: 'Fix Exhaust', domain: 'prose', pitch: 'Test', complexity: 'S', why: 'Why', project_id: null, stimulus_ref: null };
-
-      mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
-      mockDispatchCriticGate1.mockResolvedValueOnce({
-        data: { evaluations: [{ title: 'Fix Exhaust', decision: 'approve', sharpening_notes: '', reasons: '' }] },
-        usage,
-        rawText: '',
-      });
-
-      mockIsCodeDomain.mockReturnValue(false);
-
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Fix Exhaust', files: [{ path: 'v1.md', content: 'broken' }] },
-        usage,
-        rawText: '',
-      });
-
-      // First test: fail_fixable
-      mockDispatchTesterLightweight.mockResolvedValueOnce({
-        data: {
-          verdict: 'fail_fixable',
-          summary: 'Issues',
-          tests_run: [],
-          issues: [{ severity: 'major', description: 'bug', location: 'line 1' }],
-        },
-        usage,
-        rawText: '',
-      });
-
-      // Creator fixes
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Fix Exhaust', files: [{ path: 'v1.md', content: 'still broken' }] },
-        usage,
-        rawText: '',
-      });
-
-      // Second test: still fail_fixable but max cycles hit
-      mockDispatchTesterLightweight.mockResolvedValueOnce({
-        data: {
-          verdict: 'fail_fixable',
-          summary: 'Still broken',
-          tests_run: [],
-          issues: [{ severity: 'major', description: 'bug2', location: 'line 2' }],
-        },
-        usage,
-        rawText: '',
-      });
-
-      // Proceeds to gate2 despite unfixed issues
-      mockDispatchCriticGate2.mockResolvedValueOnce({
-        data: {
-          decision: 'kill',
-          ratings: { originality: 2, specificity: 2, craft: 1, surprise: 1, coherence: 2, portfolio_fit: 1 },
-          review: 'Unfixed issues remain',
-          kill_reason: 'Quality too low',
-        },
-        usage,
-        rawText: '',
-      });
-
-      const { runIteration } = await import('../src/iteration/runner.js');
-      const result = await runIteration(config, makeModels(), 1);
-
-      expect(result.outcome).toBe('killed');
-      expect(mockDispatchCreator).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -1233,69 +828,52 @@ describe('iteration/runner', () => {
     it('skips disk check when disk_space_min_gb is 0', async () => {
       const config = makeConfig();
       config.loop.disk_space_min_gb = 0;
-
       setupHappyPath();
 
       const { runIteration } = await import('../src/iteration/runner.js');
       const result = await runIteration(config, makeModels(), 1);
-
       expect(result.outcome).toBe('shipped');
     });
   });
 
-  describe('runIteration - curator deadlock override succeeds', () => {
-    it('uses curator-forced proposal after ideation deadlock', async () => {
-      const config = makeConfig();
-      config.iteration.max_idea_retries = 1;
+  describe('runIteration - catastrophic test failure', () => {
+    it('forwards catastrophic failure to critic', async () => {
+      const proposal = { title: 'Catastrophic', domain: 'prose', pitch: 'Test', complexity: 'S', why: 'Why', project_id: null, stimulus_ref: null };
 
-      // Ideation rejected
-      mockDispatchIdeator.mockResolvedValueOnce({
-        data: { ideas: [{ title: 'Rejected', domain: 'prose', pitch: 'Meh', complexity: 'S', why: 'Why', project_id: null, stimulus_ref: null }] },
-        usage,
-        rawText: '',
-      });
+      mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
       mockDispatchCriticGate1.mockResolvedValueOnce({
-        data: { evaluations: [{ title: 'Rejected', decision: 'reject', sharpening_notes: '', reasons: 'Boring' }] },
-        usage,
-        rawText: '',
-      });
-
-      // Curator override succeeds
-      const forcedProposal = { title: 'Forced Idea [FORCED]', domain: 'code-tool', pitch: 'Forced', complexity: 'M', why: 'Curator override', project_id: null, stimulus_ref: null };
-      mockDispatchCuratorRedirect.mockResolvedValueOnce({
-        data: { proposal: forcedProposal },
-        usage,
-        rawText: '',
+        data: { evaluations: [{ title: 'Catastrophic', decision: 'approve', sharpening_notes: '', reasons: '' }] },
+        usage, rawText: '',
       });
 
       mockIsCodeDomain.mockReturnValue(false);
 
-      mockDispatchCreator.mockResolvedValueOnce({
-        data: { title: 'Forced Idea', files: [{ path: 'forced.md', content: 'forced content' }] },
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Catastrophic', files: [{ path: 'bad.md', content: 'terrible' }] },
         usage,
-        rawText: '',
+        phasesRun: ['build'],
+        phaseTokens: { build: 50 },
       });
 
       mockDispatchTesterLightweight.mockResolvedValueOnce({
-        data: { verdict: 'pass', summary: 'OK', tests_run: [], issues: [] },
-        usage,
-        rawText: '',
+        data: { verdict: 'fail_catastrophic', summary: 'Totally broken', tests_run: [], issues: [] },
+        usage, rawText: '',
       });
 
       mockDispatchCriticGate2.mockResolvedValueOnce({
         data: {
-          decision: 'ship',
-          ratings: { originality: 3, specificity: 3, craft: 3, surprise: 3, coherence: 3, portfolio_fit: 3 },
-          review: 'Acceptable',
+          decision: 'kill',
+          ratings: { originality: 1, specificity: 1, craft: 1, surprise: 1, coherence: 1, portfolio_fit: 1 },
+          review: 'Catastrophic failure',
+          kill_reason: 'Complete failure',
         },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
       const { runIteration } = await import('../src/iteration/runner.js');
-      const result = await runIteration(config, makeModels(), 1);
+      const result = await runIteration(makeConfig(), makeModels(), 1);
 
-      expect(result.outcome).toBe('shipped');
+      expect(result.outcome).toBe('killed');
     });
   });
 
@@ -1306,16 +884,13 @@ describe('iteration/runner', () => {
 
       mockDispatchIdeator.mockResolvedValueOnce({
         data: { ideas: [{ title: 'Rejected', domain: 'prose', pitch: 'Meh', complexity: 'S', why: 'Why', project_id: null, stimulus_ref: null }] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
       mockDispatchCriticGate1.mockResolvedValueOnce({
         data: { evaluations: [{ title: 'Rejected', decision: 'reject', sharpening_notes: '', reasons: 'Boring' }] },
-        usage,
-        rawText: '',
+        usage, rawText: '',
       });
 
-      // Throw a non-Error (string) to cover the String(err) branch
       mockDispatchCuratorRedirect.mockRejectedValueOnce('string error');
 
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});

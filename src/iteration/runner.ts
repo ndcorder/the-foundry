@@ -21,6 +21,7 @@ import {
   dispatchCriticGate2,
   dispatchCuratorRedirect,
 } from "../agents/index.js";
+import { runCreatorPipeline } from "../creator/index.js";
 import {
   isCodeDomain,
   getNextArtifactId,
@@ -36,7 +37,7 @@ import { logIteration, logTestReport } from "../logging/index.js";
 import { createSandbox, type SandboxSession } from "../sandbox/index.js";
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
-import { updateProjectStatus, linkArtifactToProject, getActiveProjects } from "../files/projects.js";
+import { updateProjectStatus, linkArtifactToProject, getActiveProjects, createProject } from "../files/projects.js";
 
 const execFile = promisify(execFileCb);
 
@@ -71,7 +72,6 @@ async function checkDiskSpace(minGb: number): Promise<boolean> {
     const { stdout } = await execFile("df", ["-k", "."]);
     const lines = stdout.trim().split("\n");
     if (lines.length < 2) return false;
-    // df -k output: Filesystem 1K-blocks Used Available Use% Mounted
     const cols = lines[1].split(/\s+/);
     const availableKb = parseInt(cols[3], 10);
     if (isNaN(availableKb)) return false;
@@ -150,7 +150,6 @@ async function runCodeTests(
   const artifactContent = serializeArtifact(artifact.files);
   let totalUsage = { input: 0, output: 0 };
 
-  // Phase A: Get test plan from Tester
   const planResult = await dispatchTesterTestPlan(
     ctx.config, ctx.models, ctx.iteration, proposal, criticNotes, artifactContent,
   );
@@ -159,38 +158,31 @@ async function runCodeTests(
 
   const testPlan = planResult.data.test_plan;
   if (!testPlan) {
-    // Tester didn't provide a test plan — use its verdict as-is
     return { report: planResult.data, usage: totalUsage };
   }
 
-  // Phase B: Execute tests in sandbox
   let sandbox: SandboxSession | null = null;
   let executionOutput: string;
   let sandboxUnavailable = false;
   try {
     sandbox = await createSandbox({ timeoutMs: 90_000 });
 
-    // Write artifact files to sandbox
     for (const f of artifact.files) {
       await sandbox.writeFile(f.path, f.content);
     }
 
-    // Write test files to sandbox
     for (const f of testPlan.files) {
       await sandbox.writeFile(f.path, f.content);
     }
 
-    // Run setup commands
     for (const cmd of testPlan.setup_commands) {
       const setupResult = await sandbox.exec(cmd, 120_000);
       if (setupResult.exitCode !== 0) {
         executionOutput = `Setup command failed: ${cmd}\nExit code: ${setupResult.exitCode}\nStderr: ${setupResult.stderr}\nStdout: ${setupResult.stdout}`;
-        // Don't bail entirely — let the Tester interpret the failure
         break;
       }
     }
 
-    // Run tests
     if (!executionOutput!) {
       const testResult = await sandbox.exec(testPlan.run_command, 60_000);
       executionOutput = [
@@ -211,13 +203,11 @@ async function runCodeTests(
     if (sandbox) await sandbox.close();
   }
 
-  // If sandbox infrastructure is missing, fall back to lightweight testing
   if (sandboxUnavailable) {
     console.warn("  ⚠ Sandbox unavailable (QEMU not installed) — falling back to lightweight verification.");
     return runLightweightTests(ctx, proposal, criticNotes, artifact);
   }
 
-  // Phase C: Get final verdict from Tester
   const verdictResult = await dispatchTesterVerdict(
     ctx.config, ctx.models, ctx.iteration, proposal, artifactContent, executionOutput!,
   );
@@ -319,7 +309,6 @@ export async function runIteration(
       ideaAttempt < config.iteration.max_idea_retries;
       ideaAttempt++
     ) {
-      // Phase 1: Ideation
       console.log(`\n▶ Phase 1: Ideation${ideaAttempt > 0 ? ` (retry ${ideaAttempt})` : ""}`);
 
       const rejectionContext = ideaAttempt > 0
@@ -332,7 +321,6 @@ export async function runIteration(
       const ideas = ideatorResult.data.ideas;
       console.log(`  Ideator proposed: ${ideas.map((i) => `"${i.title}" [${i.domain}]`).join(", ")}`);
 
-      // Phase 2: Idea Gate
       console.log("\n▶ Phase 2: Idea Gate (Critic)");
 
       const proposalsYaml = yaml.stringify({ ideas });
@@ -345,7 +333,6 @@ export async function runIteration(
         console.log(`  ${icon} "${ev.title}": ${ev.decision}${ev.reasons ? " — " + ev.reasons.slice(0, 80) : ""}`);
       }
 
-      // Find approved proposal
       const approved = gate1.evaluations.find((e) => e.decision === "approve");
       if (approved) {
         approvedProposal = ideas.find((i) => i.title === approved.title) ?? ideas[0];
@@ -354,7 +341,6 @@ export async function runIteration(
         break;
       }
 
-      // All rejected — collect reasons for retry
       const rejectionReasons = gate1.evaluations
         .map((e) => `"${e.title}": ${e.reasons || "no reason given"}`)
         .join("; ");
@@ -363,20 +349,18 @@ export async function runIteration(
     }
 
     if (!approvedProposal) {
-      // Curator deadlock override — try to force an idea through
       console.log("\n  ⚠ Ideation deadlock — invoking Curator override.");
       const curatorForced = await dispatchCuratorDeadlockOverride(config, models, iteration, approvedNotes);
       if (curatorForced) {
         approvedProposal = curatorForced.proposal;
         approvedNotes = curatorForced.notes;
-        addUsage({ input: 0, output: 0 }); // usage already tracked inside dispatch
+        addUsage({ input: 0, output: 0 });
         await appendJournal(`**Iteration ${iteration}:** [FORCED] Curator override after ideation deadlock. Forced: "${approvedProposal.title}"`);
         console.log(`  ✓ Curator forced: "${approvedProposal.title}"`);
       }
     }
 
     if (!approvedProposal) {
-      // Deadlock after max retries AND curator override failed
       console.log("\n  ⚠ Ideation deadlock — skipping iteration.");
       const reason = `Ideation deadlock after ${config.iteration.max_idea_retries} attempts. Curator override also failed. Last rejection reasons: ${approvedNotes}`;
       await appendJournal(`**Iteration ${iteration}:** Skipped. ${reason}`);
@@ -402,11 +386,24 @@ export async function runIteration(
   const proposal = approvedProposal!;
   const criticNotes = approvedNotes;
 
+  // Handle XL project proposals
+  let effectiveComplexity = proposal.complexity;
+  if (proposal.complexity === "XL" && proposal.xl_mode === "project" && proposal.project) {
+    console.log(`\n  ▶ Creating project: "${proposal.project.name}"`);
+    const projectId = await createProject(proposal.project, iteration);
+    proposal.project_id = projectId;
+    effectiveComplexity = "L";
+    await appendJournal(
+      `**Iteration ${iteration}:** Started project ${projectId}: "${proposal.project.name}" (${proposal.project.estimated_iterations} iterations planned)`,
+    );
+  }
+
   // ── Phase 3–5 loop: Create → Test → Review (with revision cycles) ──
   let artifact: CreatorResponse | null = null;
   let testerReport: TesterResponse | null = null;
   let gate2: CriticGate2Response | null = null;
   let artifactId = "";
+  let iterationPhaseData: { phasesRun: string[]; phaseTokens: Record<string, number> } | null = null;
 
   for (
     let revisionRound = 0;
@@ -420,11 +417,23 @@ export async function runIteration(
       ? gate2.revision_notes
       : undefined;
 
-    const creatorResult = await dispatchCreator(
-      ctx.config, ctx.models, ctx.iteration, proposal, criticNotes, revisionNotes,
+    const pipelineProposal = effectiveComplexity !== proposal.complexity
+      ? { ...proposal, complexity: effectiveComplexity as any }
+      : proposal;
+    const pipelineResult = await runCreatorPipeline(
+      { config: ctx.config, models: ctx.models, iteration: ctx.iteration },
+      pipelineProposal, criticNotes, revisionNotes,
     );
-    addUsage(creatorResult.usage);
-    artifact = creatorResult.data;
+    addUsage(pipelineResult.usage);
+    artifact = pipelineResult.artifact;
+
+    // Track phase data for logging
+    if (!iterationPhaseData) {
+      iterationPhaseData = { phasesRun: pipelineResult.phasesRun, phaseTokens: pipelineResult.phaseTokens };
+    } else {
+      iterationPhaseData.phasesRun.push(...pipelineResult.phasesRun);
+      Object.assign(iterationPhaseData.phaseTokens, pipelineResult.phaseTokens);
+    }
 
     console.log(`  Created: "${artifact.title}" (${artifact.files.length} file${artifact.files.length > 1 ? "s" : ""})`);
 
@@ -468,7 +477,6 @@ export async function runIteration(
         break;
       }
 
-      // fail_fixable — let Creator fix it
       testFixCycles++;
       if (testFixCycles >= config.iteration.max_test_fix_cycles) {
         console.log(`  ✗ Max fix cycles (${config.iteration.max_test_fix_cycles}) exhausted.`);
@@ -480,12 +488,13 @@ export async function runIteration(
         ?.map((i) => `[${i.severity}] ${i.description} at ${i.location}${i.suggested_fix ? " — fix: " + i.suggested_fix : ""}`)
         .join("\n") || testerReport.summary;
 
-      const fixResult = await dispatchCreator(
-        ctx.config, ctx.models, ctx.iteration, proposal, criticNotes,
+      const fixResult = await runCreatorPipeline(
+        { config: ctx.config, models: ctx.models, iteration: ctx.iteration },
+        pipelineProposal, criticNotes,
         `Fix these issues from the Tester:\n\n${fixNotes}`,
       );
       addUsage(fixResult.usage);
-      artifact = fixResult.data;
+      artifact = fixResult.artifact;
 
       await clearWorkspace();
       for (const f of artifact.files) {
@@ -569,6 +578,9 @@ export async function runIteration(
       title: proposal.title,
       domain: proposal.domain,
       reason: gate2!.kill_reason || gate2!.review,
+      complexity: proposal.complexity,
+      phases_run: iterationPhaseData?.phasesRun,
+      phase_tokens: iterationPhaseData?.phaseTokens,
       token_usage: totalUsage,
       duration_ms: durationMs,
     });
@@ -645,6 +657,9 @@ export async function runIteration(
     ratings: gate2!.ratings,
     mean_rating: mean,
     review: gate2!.review,
+    complexity: proposal.complexity,
+    phases_run: iterationPhaseData?.phasesRun,
+    phase_tokens: iterationPhaseData?.phaseTokens,
     token_usage: totalUsage,
     duration_ms: durationMs,
   });

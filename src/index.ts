@@ -148,6 +148,91 @@ export async function startFoundry(opts?: { rootDir?: string }): Promise<void> {
   process.on("SIGTERM", onSignal);
 
   // ── Main loop ────────────────────────────────────────────────
+  const concurrency = config.loop?.concurrency ?? 1;
+
+  if (concurrency > 1) {
+    // ── Parallel mode using IterationPool ────────────────────
+    const { IterationPool, FoundryEventBus, ConsoleRenderer } = await import("./pool/index.js");
+    const bus = new FoundryEventBus();
+    const renderer = new ConsoleRenderer();
+    renderer.attach(bus);
+
+    const pool = new IterationPool(concurrency, iteration, bus);
+
+    // Override signal handler for pool mode
+    const onSignalPool = () => {
+      if (shutdownRequested) { console.log("\nForce shutdown."); process.exit(1); }
+      shutdownRequested = true;
+      pool.requestShutdown();
+      console.log("\nShutdown requested — draining in-flight iterations...");
+    };
+    process.removeListener("SIGINT", onSignal);
+    process.removeListener("SIGTERM", onSignal);
+    process.on("SIGINT", onSignalPool);
+    process.on("SIGTERM", onSignalPool);
+
+    console.log(`Mode: ${concurrency} parallel iterations`);
+
+    const lastIteration = await pool.run(config, models, {
+      runIteration: async (cfg, mdls, iter, slot) => {
+        stats.setIteration(iter);
+        return runIteration(cfg, mdls, iter, slot);
+      },
+      onIterationComplete: async (result, slot) => {
+        // Record stats
+        if (result.outcome === "shipped" || result.outcome === "killed" || result.outcome === "skipped") {
+          stats.recordOutcome(result.iteration, result.outcome, result.domain);
+        }
+        stats.recordTokens(result.token_usage.input, result.token_usage.output);
+
+        console.log(`\n${"━".repeat(60)}`);
+        console.log(`  Iteration ${result.iteration}: ${result.outcome}${result.title ? " — " + result.title : ""}`);
+        console.log(`${"━".repeat(60)}\n`);
+
+        // Git commit (serialized via mutex)
+        if (autoGitCommit && (result.outcome === "shipped" || result.outcome === "killed")) {
+          const release = await pool.gitLock.acquire();
+          try {
+            const meanRating = result.ratings
+              ? Object.values(result.ratings).reduce((a, b) => a + b, 0) / Object.values(result.ratings).length
+              : null;
+            autoCommitAndPush(
+              result.iteration, result.outcome, result.artifact_id ?? null,
+              result.title ?? "untitled", result.domain ?? "unknown",
+              meanRating, autoGitPush,
+            );
+          } finally {
+            release();
+          }
+        }
+
+        // Checkpoint periodically
+        if (result.iteration % config.recovery.checkpoint_every === 0) {
+          await saveState(config, result.iteration, lastCuratorRun, stats, stimuliRefreshStates);
+        }
+      },
+      shouldStop: async () => shutdownRequested || await checkStopFile(config),
+      shouldRunCurator: (iter) => shouldRunCurator(iter, lastCuratorRun, config),
+      runCurator: async (iter) => {
+        console.log(`\n▶ Curator full cycle (iteration ${iter})`);
+        try {
+          const curatorResponse = await dispatchCuratorFull(config, models, iter, stats);
+          await applyCuratorCycle(curatorResponse, iter);
+          lastCuratorRun = iter;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`  Curator cycle failed (non-fatal): ${msg}`);
+        }
+      },
+    });
+
+    iteration = lastIteration + 1;
+    await saveState(config, lastIteration, lastCuratorRun, stats, stimuliRefreshStates);
+    renderer.detach();
+    process.removeListener("SIGINT", onSignalPool);
+    process.removeListener("SIGTERM", onSignalPool);
+  } else {
+  // ── Sequential mode (original loop) ─────────────────────────
   while (true) {
     // Check STOP file or shutdown signal
     if (shutdownRequested || await checkStopFile(config)) {
@@ -281,6 +366,7 @@ export async function startFoundry(opts?: { rootDir?: string }): Promise<void> {
 
   process.removeListener("SIGINT", onSignal);
   process.removeListener("SIGTERM", onSignal);
+  } // end sequential mode
 
   console.log("\nThe Foundry has stopped.");
 }

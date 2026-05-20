@@ -35,14 +35,12 @@ function parseJsonlLines<T>(raw: string): T[] {
 }
 
 export async function readJsonlEntries<T>(filePath: string): Promise<T[]> {
-  // Read current file + any rotated archives (e.g., iterations.2026-05-18T....jsonl)
   const dir = path.dirname(filePath);
   const base = path.basename(filePath, ".jsonl");
   let allEntries: T[] = [];
 
   try {
     const files = await readdir(dir);
-    // Rotated files sort chronologically before the current file
     const rotated = files
       .filter((f) => f.startsWith(base + ".") && f.endsWith(".jsonl") && f !== path.basename(filePath))
       .sort();
@@ -57,7 +55,6 @@ export async function readJsonlEntries<T>(filePath: string): Promise<T[]> {
     // dir doesn't exist yet
   }
 
-  // Current file
   const raw = await safeRead(filePath);
   allEntries.push(...parseJsonlLines<T>(raw));
 
@@ -125,7 +122,6 @@ export function selectDiverseReviews(
     byDomain.set(domain, existing);
   }
 
-  // Round-robin across domains to get diversity
   const domains = [...byDomain.keys()];
   let idx = 0;
   while (selected.size < maxCount && selected.size < reviews.length) {
@@ -146,7 +142,6 @@ export function selectDiverseReviews(
     }
   }
 
-  // Return in original order
   return [...selected.entries()]
     .sort(([a], [b]) => a - b)
     .map(([, v]) => v);
@@ -176,4 +171,28 @@ export async function pickRandomSkills(count: number): Promise<string> {
     if (text.trim()) contents.push(`### ${file}\n\n${text.trim()}`);
   }
   return contents.length > 0 ? contents.join("\n\n") : "*No skill files available.*";
+}
+
+// ── Complexity Distribution ──────────────────────────────────────
+
+export async function getComplexityDistribution(
+  window: number,
+): Promise<Record<string, number>> {
+  const entries = await readJsonlEntries<{ complexity?: string }>(resolve("logs", "iterations.jsonl"));
+  const recent = entries.slice(-window);
+  const counts: Record<string, number> = { S: 0, M: 0, L: 0, XL: 0 };
+  for (const entry of recent) {
+    const tier = entry.complexity ?? "S";
+    counts[tier] = (counts[tier] ?? 0) + 1;
+  }
+  return counts;
+}
+
+export function formatComplexityDistribution(counts: Record<string, number>): string {
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  if (total === 0) return "*No iteration data yet.*";
+  const parts = Object.entries(counts)
+    .map(([tier, count]) => `${tier}: ${count} (${Math.round((count / total) * 100)}%)`)
+    .join("  ");
+  return parts;
 }

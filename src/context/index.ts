@@ -10,6 +10,8 @@ export {
   readLiveStimuli,
   pickRandomSkills,
   selectDiverseReviews,
+  getComplexityDistribution,
+  formatComplexityDistribution,
 } from "./data.js";
 export {
   buildIdeatorContext,

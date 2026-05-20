@@ -443,3 +443,71 @@ describe('selectDiverseReviews', () => {
     expect(selected).toHaveLength(3);
   });
 });
+
+// --- getComplexityDistribution / formatComplexityDistribution ---
+
+import { getComplexityDistribution, formatComplexityDistribution } from '../src/context/data.js';
+
+describe('getComplexityDistribution', () => {
+  it('counts complexity tiers from iteration log', async () => {
+    const logContent = [
+      '{"iteration":1,"complexity":"S"}',
+      '{"iteration":2,"complexity":"M"}',
+      '{"iteration":3,"complexity":"S"}',
+      '{"iteration":4,"complexity":"L"}',
+    ].join('\n');
+    writeFileSync(path.join(tempDir, 'logs', 'iterations.jsonl'), logContent);
+
+    const dist = await getComplexityDistribution(10);
+    expect(dist.S).toBe(2);
+    expect(dist.M).toBe(1);
+    expect(dist.L).toBe(1);
+    expect(dist.XL).toBe(0);
+  });
+
+  it('defaults missing complexity to S', async () => {
+    const logContent = '{"iteration":1}';
+    writeFileSync(path.join(tempDir, 'logs', 'iterations.jsonl'), logContent);
+
+    const dist = await getComplexityDistribution(10);
+    expect(dist.S).toBe(1);
+  });
+
+  it('respects window size', async () => {
+    const logContent = [
+      '{"iteration":1,"complexity":"S"}',
+      '{"iteration":2,"complexity":"S"}',
+      '{"iteration":3,"complexity":"M"}',
+      '{"iteration":4,"complexity":"L"}',
+    ].join('\n');
+    writeFileSync(path.join(tempDir, 'logs', 'iterations.jsonl'), logContent);
+
+    const dist = await getComplexityDistribution(2);
+    expect(dist.M).toBe(1);
+    expect(dist.L).toBe(1);
+    expect(dist.S).toBe(0);
+  });
+
+  it('returns zeros when no iteration log exists', async () => {
+    const dist = await getComplexityDistribution(10);
+    expect(dist.S).toBe(0);
+    expect(dist.M).toBe(0);
+    expect(dist.L).toBe(0);
+    expect(dist.XL).toBe(0);
+  });
+});
+
+describe('formatComplexityDistribution', () => {
+  it('formats distribution with percentages', () => {
+    const result = formatComplexityDistribution({ S: 5, M: 3, L: 1, XL: 1 });
+    expect(result).toContain('S: 5 (50%)');
+    expect(result).toContain('M: 3 (30%)');
+    expect(result).toContain('L: 1 (10%)');
+    expect(result).toContain('XL: 1 (10%)');
+  });
+
+  it('returns placeholder when total is zero', () => {
+    const result = formatComplexityDistribution({ S: 0, M: 0, L: 0, XL: 0 });
+    expect(result).toBe('*No iteration data yet.*');
+  });
+});

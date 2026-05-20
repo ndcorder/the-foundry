@@ -1,6 +1,6 @@
 import type { FoundryConfig } from "../types/index.js";
 import { loadDomainsConfig } from "./config.js";
-import { safeRead } from "./data.js";
+import { safeRead, getComplexityDistribution, formatComplexityDistribution } from "./data.js";
 import { resolve } from "../root.js";
 
 function truncateToTokenBudget(text: string, maxTokens: number): string {
@@ -54,19 +54,16 @@ function selectRelevantPortfolioEntries(
   const half = Math.floor(maxEntries / 2);
   const selected = new Map<string, PortfolioRow>();
 
-  // 1. Last entries by recency (they're ordered chronologically in the file)
   for (const row of rows.slice(-half)) {
     selected.set(row.id, row);
   }
 
-  // 2. Top entries by Critic score
   const byRating = [...rows].sort((a, b) => b.rating - a.rating);
   for (const row of byRating) {
     if (selected.size >= maxEntries) break;
     selected.set(row.id, row);
   }
 
-  // 3. Active project artifacts (always include)
   if (activeProjectIds.length > 0) {
     for (const row of rows) {
       if (activeProjectIds.some((pid) => row.project.includes(pid))) {
@@ -75,7 +72,6 @@ function selectRelevantPortfolioEntries(
     }
   }
 
-  // Preserve original order
   const kept = rows.filter((r) => selected.has(r.id)).map((r) => r.line);
   return [...headers, ...kept].join("\n");
 }
@@ -112,8 +108,6 @@ export async function buildSharedContext(
     config.context.journal_compressed_max_tokens,
   );
 
-  // Hard fallback: if compressed journal is still too long after truncation,
-  // keep only the most recent entries (from the bottom of the file)
   const maxChars = config.context.journal_compressed_max_tokens * 4;
   if (truncatedJournal.length > maxChars * 1.5) {
     const lines = journalCompressed.split("\n");
@@ -133,6 +127,12 @@ export async function buildSharedContext(
     activeProjectIds,
   );
 
+  // Complexity distribution
+  const complexityDist = await getComplexityDistribution(
+    config.iteration.novelty_window,
+  );
+  const complexitySection = formatComplexityDistribution(complexityDist);
+
   const sections = [
     "## Identity\n",
     manifesto || "*Manifesto not yet written.*",
@@ -144,6 +144,8 @@ export async function buildSharedContext(
     domainsSection,
     "\n## Active Projects\n",
     projectsIndex || "*No active projects.*",
+    "\n## Complexity Distribution (last " + config.iteration.novelty_window + " iterations)\n",
+    complexitySection,
   ];
 
   return sections.join("\n");

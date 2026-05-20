@@ -10,6 +10,10 @@ export async function loadPrompt(role: string): Promise<string> {
   return readFile(path.join(promptsDir(), `${role}.md`), "utf-8");
 }
 
+export async function loadCreatorPhasePrompt(phase: string): Promise<string> {
+  return readFile(path.join(promptsDir(), "creator", `${phase}.md`), "utf-8");
+}
+
 export async function loadCriticGate1Prompt(): Promise<string> {
   const full = await loadPrompt("critic");
   const gate2Start = full.indexOf("## GATE 2");

@@ -83,6 +83,11 @@ export async function startFoundry(opts?: { rootDir?: string }): Promise<void> {
   const autoGitCommit = config.git?.auto_commit !== false;
   const autoGitPush = config.git?.auto_push !== false;
 
+  // ── Auto-upgrade if CLI is newer than project ────────────
+  const { upgradeProject } = await import("./upgrade.js");
+  const upgraded = await upgradeProject({ silent: false });
+  if (upgraded) console.log();
+
   console.log(`The Foundry v${config.foundry.version} — Phase 3`);
   console.log(`Mode: infinite loop with crash recovery + observability`);
   if (autoGitCommit) console.log(`Git: auto-commit${autoGitPush ? " + push" : ""} enabled`);

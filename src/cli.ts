@@ -270,6 +270,14 @@ export async function run(): Promise<void> {
       break;
     }
 
+    case "upgrade": {
+      const { setRootDir } = await import("./root.js");
+      setRootDir(process.cwd());
+      const { upgradeProject } = await import("./upgrade.js");
+      await upgradeProject();
+      break;
+    }
+
     case "dashboard": {
       // Dashboard server lives in the package, not the workdir
       const serverPath = path.join(import.meta.dirname, "..", "dashboard", "server.ts");
@@ -286,6 +294,7 @@ export async function run(): Promise<void> {
       console.log(`  stop          Create STOP file to halt after current iteration`);
       console.log(`  status        Show current state (iteration, stats, checkpoint)`);
       console.log(`  version       Show installed version`);
+      console.log(`  upgrade       Sync managed files from CLI to project directory`);
       console.log(`  dashboard     Start the dashboard server`);
       console.log(`\nOptions:`);
       console.log(`  --workdir <path>   Set the foundry data directory (default: cwd)`);

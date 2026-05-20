@@ -58,6 +58,7 @@ recovery:
 loop:
   cooldown_seconds: 2
   disk_space_min_gb: 1
+  concurrency: 3
 
 git:
   auto_commit: true

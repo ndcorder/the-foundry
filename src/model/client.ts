@@ -33,11 +33,12 @@ const MAX_BACKOFF_MS = 120_000;
 
 const modelCache = new Map<string, Model<any>>();
 
-function resolveModel(modelId: string): Model<any> {
-  const cached = modelCache.get(modelId);
+function resolveModel(provider: string, modelId: string): Model<any> {
+  const cacheKey = `${provider}:${modelId}`;
+  const cached = modelCache.get(cacheKey);
   if (cached) return cached;
-  const model = getModel("zai", modelId as any);
-  modelCache.set(modelId, model);
+  const model = getModel(provider as any, modelId as any);
+  modelCache.set(cacheKey, model);
   return model;
 }
 
@@ -70,7 +71,8 @@ export async function callModel(
     await new Promise((r) => setTimeout(r, backoffMs));
   }
 
-  const model = resolveModel(effectiveConfig.model);
+  const provider = effectiveConfig.provider ?? "zai";
+  const model = resolveModel(provider, effectiveConfig.model);
 
   const context: Context = {
     systemPrompt,
@@ -88,6 +90,7 @@ export async function callModel(
       maxTokens: effectiveConfig.max_tokens,
       maxRetries: 5,
       timeoutMs: 180_000,
+      ...(effectiveConfig.reasoning_effort && { reasoningEffort: effectiveConfig.reasoning_effort }),
     });
     // Reset on success
     consecutiveErrors = 0;

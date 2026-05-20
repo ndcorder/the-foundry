@@ -22,6 +22,13 @@ const baseConfig: AgentModelConfig = {
   max_tokens: 4096,
 };
 
+const baseConfigWithProvider: AgentModelConfig = {
+  model: 'test-model',
+  provider: 'openai-codex',
+  temperature: 0.5,
+  max_tokens: 8192,
+};
+
 describe('model/client', () => {
   let callModel: typeof import('../src/model/client.js').callModel;
   let setModelOverrides: typeof import('../src/model/client.js').setModelOverrides;
@@ -39,6 +46,7 @@ describe('model/client', () => {
     setModelOverrides([]);
 
     mockGetModel.mockReturnValue({ id: 'test-model' });
+    resetModelState();
   });
 
   describe('setModelOverrides / resolveAgentConfig', () => {
@@ -133,6 +141,46 @@ describe('model/client', () => {
 
       await callModel(baseConfig, 'sys', 'usr', 5, 'ideator');
       expect(mockGetModel).toHaveBeenCalledWith('zai', 'fancy-model');
+    });
+
+    it('defaults provider to zai when not specified', async () => {
+      mockComplete.mockResolvedValueOnce({
+        content: [{ type: 'text', text: 'ok' }],
+        usage: { input: 10, output: 5 },
+        stopReason: 'end_turn',
+      });
+
+      await callModel(baseConfig, 'sys', 'usr', 1, 'test');
+      expect(mockGetModel).toHaveBeenCalledWith('zai', 'test-model');
+    });
+
+    it('passes configured provider to getModel', async () => {
+      mockComplete.mockResolvedValueOnce({
+        content: [{ type: 'text', text: 'ok' }],
+        usage: { input: 10, output: 5 },
+        stopReason: 'end_turn',
+      });
+
+      await callModel(baseConfigWithProvider, 'sys', 'usr', 1, 'test');
+      expect(mockGetModel).toHaveBeenCalledWith('openai-codex', 'test-model');
+    });
+
+    it('uses provider in cache key so same model on different providers is not shared', async () => {
+      const successResponse = {
+        content: [{ type: 'text', text: 'ok' }],
+        usage: { input: 10, output: 5 },
+        stopReason: 'end_turn',
+      };
+      mockComplete.mockResolvedValue(successResponse);
+
+      // Call with default provider (zai)
+      await callModel(baseConfig, 'sys', 'usr', 1, 'test');
+      expect(mockGetModel).toHaveBeenCalledWith('zai', 'test-model');
+
+      // Call with explicit provider — should NOT reuse cache
+      await callModel(baseConfigWithProvider, 'sys', 'usr', 2, 'test');
+      expect(mockGetModel).toHaveBeenCalledWith('openai-codex', 'test-model');
+      expect(mockGetModel).toHaveBeenCalledTimes(2);
     });
 
     it('resets backoff state via resetModelState', async () => {

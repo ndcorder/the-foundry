@@ -52,6 +52,7 @@ export interface FoundryConfig {
   loop: {
     cooldown_seconds: number;
     disk_space_min_gb: number;
+    concurrency?: number;
   };
   git?: {
     auto_commit?: boolean;
@@ -63,6 +64,8 @@ export interface AgentModelConfig {
   model: string;
   temperature: number;
   max_tokens: number;
+  provider?: string;
+  reasoning_effort?: string;
 }
 
 export interface ModelTierOverride {

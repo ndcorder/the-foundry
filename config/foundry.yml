@@ -1,6 +1,6 @@
 foundry:
   name: "The Foundry"
-  version: "0.3.0"
+  version: "1.0.0-rc.1"
 
 iteration:
   max_idea_retries: 3

@@ -240,6 +240,7 @@ export async function runIteration(
   config: FoundryConfig,
   models: ModelsConfig,
   iteration: number,
+  slot?: number,
 ): Promise<IterationResult> {
   const startMs = Date.now();
   let totalUsage = { input: 0, output: 0 };
@@ -446,9 +447,9 @@ export async function runIteration(
     console.log(`  Created: "${artifact.title}" (${artifact.files.length} file${artifact.files.length > 1 ? "s" : ""})`);
 
     // Write to workspace
-    await clearWorkspace();
+    await clearWorkspace(slot);
     for (const f of artifact.files) {
-      await writeWorkspaceFile(f.path, f.content);
+      await writeWorkspaceFile(f.path, f.content, slot);
     }
 
     // Phase 4: Testing
@@ -504,9 +505,9 @@ export async function runIteration(
       addUsage(fixResult.usage);
       artifact = fixResult.artifact;
 
-      await clearWorkspace();
+      await clearWorkspace(slot);
       for (const f of artifact.files) {
-        await writeWorkspaceFile(f.path, f.content);
+        await writeWorkspaceFile(f.path, f.content, slot);
       }
     }
 
@@ -672,7 +673,7 @@ export async function runIteration(
     duration_ms: durationMs,
   });
 
-  await clearWorkspace();
+  await clearWorkspace(slot);
 
   console.log(`\n  ✓ Shipped artifact ${artifactId}: "${proposal.title}" [${proposal.domain}] — rating ${mean}`);
   console.log(`  Duration: ${(durationMs / 1000).toFixed(1)}s | Tokens: ${totalUsage.input}in/${totalUsage.output}out`);

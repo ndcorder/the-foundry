@@ -2,25 +2,29 @@ import { rm, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { resolve } from "../root.js";
 
-export async function clearWorkspace(): Promise<void> {
-  const dir = resolve("workspace", "current");
+function workspaceDir(slot?: number): string {
+  return slot != null ? resolve("workspace", `slot-${slot}`) : resolve("workspace", "current");
+}
+
+export async function clearWorkspace(slot?: number): Promise<void> {
+  const dir = workspaceDir(slot);
   await rm(dir, { recursive: true, force: true });
   await mkdir(dir, { recursive: true });
 }
 
-export async function writeWorkspaceFile(filePath: string, content: string): Promise<void> {
-  const full = resolve("workspace", "current", filePath);
-  const workspaceRoot = resolve("workspace", "current");
+export async function writeWorkspaceFile(filePath: string, content: string, slot?: number): Promise<void> {
+  const wsRoot = workspaceDir(slot);
+  const full = path.join(wsRoot, filePath);
   const resolved = path.resolve(full);
-  if (!resolved.startsWith(path.resolve(workspaceRoot) + path.sep) && resolved !== path.resolve(workspaceRoot)) {
+  if (!resolved.startsWith(path.resolve(wsRoot) + path.sep) && resolved !== path.resolve(wsRoot)) {
     throw new Error(`Path traversal blocked: "${filePath}" escapes workspace`);
   }
   await mkdir(path.dirname(full), { recursive: true });
   await writeFile(full, content, "utf-8");
 }
 
-export async function readWorkspaceFiles(): Promise<Array<{ path: string; content: string }>> {
-  const dir = resolve("workspace", "current");
+export async function readWorkspaceFiles(slot?: number): Promise<Array<{ path: string; content: string }>> {
+  const dir = workspaceDir(slot);
   const results: Array<{ path: string; content: string }> = [];
 
   async function walk(base: string, rel: string): Promise<void> {

@@ -99,4 +99,51 @@ describe('workspace', () => {
       expect(paths).toEqual(['src/index.ts', 'src/lib/helper.ts']);
     });
   });
+
+  describe('per-slot workspaces', () => {
+    it('clearWorkspace(2) uses workspace/slot-2/', async () => {
+      await clearWorkspace(2);
+      expect(existsSync(path.join(tempDir, 'workspace', 'slot-2'))).toBe(true);
+    });
+
+    it('writeWorkspaceFile writes to slot directory', async () => {
+      await clearWorkspace(2);
+      await writeWorkspaceFile('main.py', 'print("hello")', 2);
+      const content = readFileSync(
+        path.join(tempDir, 'workspace', 'slot-2', 'main.py'),
+        'utf-8',
+      );
+      expect(content).toBe('print("hello")');
+    });
+
+    it('slot workspaces are isolated from each other', async () => {
+      await clearWorkspace(1);
+      await clearWorkspace(2);
+      await writeWorkspaceFile('data.txt', 'slot-1-data', 1);
+      await writeWorkspaceFile('data.txt', 'slot-2-data', 2);
+
+      const files1 = await readWorkspaceFiles(1);
+      const files2 = await readWorkspaceFiles(2);
+      expect(files1).toHaveLength(1);
+      expect(files1[0].content).toBe('slot-1-data');
+      expect(files2).toHaveLength(1);
+      expect(files2[0].content).toBe('slot-2-data');
+    });
+
+    it('no-arg calls still use workspace/current/', async () => {
+      await clearWorkspace();
+      await writeWorkspaceFile('file.txt', 'default');
+      expect(existsSync(path.join(tempDir, 'workspace', 'current', 'file.txt'))).toBe(true);
+      const files = await readWorkspaceFiles();
+      expect(files).toHaveLength(1);
+      expect(files[0].content).toBe('default');
+    });
+
+    it('path traversal is blocked in slot workspaces', async () => {
+      await clearWorkspace(3);
+      await expect(writeWorkspaceFile('../escape.txt', 'bad', 3)).rejects.toThrow(
+        /Path traversal blocked/,
+      );
+    });
+  });
 });

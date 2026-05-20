@@ -9,11 +9,25 @@ iteration:
   curator_interval: 15
   domain_cooldown: 10
   novelty_window: 20
+  complexity_profiles:
+    S:
+      max_tokens_per_phase: 16384
+      budget_warning_threshold: 25000
+    M:
+      max_tokens_per_phase: 32768
+      budget_warning_threshold: 120000
+    L:
+      max_tokens_per_phase: 65536
+      budget_warning_threshold: 400000
+    XL:
+      max_tokens_per_phase: 100000
+      budget_warning_threshold: 800000
 
 projects:
   max_active: 2
   max_iterations_per_project: 12
   allow_standalone_interrupts: true
+  kickstart_after: 15
 
 stimuli:
   enabled: true

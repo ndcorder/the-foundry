@@ -27,10 +27,12 @@ const SCHEMAS: Record<string, Record<string, unknown>> = {
             title: { type: "string" },
             domain: { type: "string" },
             pitch: { type: "string" },
-            complexity: { type: "string", enum: ["S", "M", "L"] },
+            complexity: { type: "string", enum: ["S", "M", "L", "XL"] },
             why: { type: "string" },
             project_id: {},
             stimulus_ref: {},
+            xl_mode: { type: "string", enum: ["single", "project"] },
+            project: { type: "object" },
           },
         },
       },
@@ -75,6 +77,41 @@ const SCHEMAS: Record<string, Record<string, unknown>> = {
         },
       },
       notes: { type: "string" },
+    },
+  },
+  "creator-plan": {
+    type: "object",
+    required: ["plan"],
+    properties: {
+      plan: {
+        type: "object",
+        required: ["approach", "file_manifest"],
+        properties: {
+          approach: { type: "string" },
+          file_manifest: { type: "array" },
+          key_decisions: { type: "array" },
+          challenges: { type: "array" },
+          build_order: { type: "array" },
+        },
+      },
+    },
+  },
+  "creator-build": {
+    type: "object",
+    required: ["files"],
+    properties: {
+      files: {
+        type: "array",
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["path", "content"],
+          properties: {
+            path: { type: "string" },
+            content: { type: "string" },
+          },
+        },
+      },
     },
   },
   tester: {
@@ -263,6 +300,39 @@ export function validateCuratorFull(data: unknown): data is CuratorFullResponse 
   return true;
 }
 
+// ── Creator pipeline validators ──────────────────────────────────
+
+export interface CreatorPlan {
+  approach: string;
+  file_manifest: Array<{ path: string; purpose: string; estimated_lines?: number }>;
+  key_decisions: string[];
+  challenges: string[];
+  build_order?: string[][];
+}
+
+export interface CreatorPlanResponse {
+  plan: CreatorPlan;
+}
+
+export interface CreatorBuildResponse {
+  files: Array<{ path: string; content: string }>;
+}
+
+export function validateCreatorPlan(data: unknown): data is CreatorPlanResponse {
+  if (!isObj(data) || !isObj(data.plan)) return false;
+  const p = data.plan as any;
+  return typeof p.approach === "string" && Array.isArray(p.file_manifest);
+}
+
+export function validateCreatorBuild(data: unknown): data is CreatorBuildResponse {
+  if (!isObj(data) || !Array.isArray(data.files)) return false;
+  return data.files.length > 0 && data.files.every(
+    (f: any) => typeof f.path === "string" && typeof f.content === "string",
+  );
+}
+
+// ── Registry ────────────────────────────────────────────────────
+
 export type Validator<T> = (data: unknown) => data is T;
 
 const validators: Record<string, Validator<any>> = {
@@ -273,6 +343,8 @@ const validators: Record<string, Validator<any>> = {
   "critic-gate2": validateCriticGate2,
   "curator-redirect": validateCuratorRedirect,
   "curator-full": validateCuratorFull,
+  "creator-plan": validateCreatorPlan,
+  "creator-build": validateCreatorBuild,
 };
 
 export function getValidator<T>(key: string): Validator<T> | undefined {

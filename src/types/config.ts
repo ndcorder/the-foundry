@@ -1,3 +1,8 @@
+export interface ComplexityProfileConfig {
+  max_tokens_per_phase: number;
+  budget_warning_threshold: number;
+}
+
 export interface FoundryConfig {
   foundry: {
     name: string;
@@ -10,11 +15,13 @@ export interface FoundryConfig {
     curator_interval: number;
     domain_cooldown: number;
     novelty_window: number;
+    complexity_profiles?: Record<string, ComplexityProfileConfig>;
   };
   projects: {
     max_active: number;
     max_iterations_per_project: number;
     allow_standalone_interrupts: boolean;
+    kickstart_after?: number;
   };
   stimuli: {
     enabled: boolean;

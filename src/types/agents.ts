@@ -4,10 +4,17 @@ export interface IdeatorProposal {
   title: string;
   domain: string;
   pitch: string;
-  complexity: "S" | "M" | "L";
+  complexity: "S" | "M" | "L" | "XL";
   why: string;
   project_id: string | null;
   stimulus_ref: string | null;
+  xl_mode?: "single" | "project";
+  project?: {
+    name: string;
+    description: string;
+    estimated_iterations: number;
+    structure: Array<Record<string, string>>;
+  };
 }
 
 export interface IdeatorResponse {

@@ -8,6 +8,7 @@ export type {
   ModelTierOverride,
   DomainEntry,
   DomainsConfig,
+  ComplexityProfileConfig,
 } from "./config.js";
 
 export type AgentRole = "ideator" | "creator" | "tester" | "critic" | "curator";

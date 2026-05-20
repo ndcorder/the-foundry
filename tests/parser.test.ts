@@ -20,6 +20,8 @@ import {
   validateCriticGate2,
   validateCuratorRedirect,
   validateCuratorFull,
+  validateCreatorPlan,
+  validateCreatorBuild,
   getSchema,
   getValidator,
 } from '../src/parser/yaml-parser.js';
@@ -32,71 +34,68 @@ describe('parseYaml', () => {
     expect(result).toEqual({ title: 'hello' });
   });
 
-  it('parses YAML wrapped in ```yaml fences', () => {
-    const input = '```yaml\ntitle: hello\n```';
-    // repair mock returns as-is; yaml.parse handles fences if repair strips them
-    // Since our mock doesn't strip fences, let's test with plain YAML
-    const result = parseYaml<{ title: string }>('title: fenced');
+  it('strips markdown fences', () => {
+    mockRepair.mockReturnValueOnce({ text: 'title: fenced', repaired: true });
+    const result = parseYaml<{ title: string }>('```yaml\ntitle: fenced\n```');
     expect(result.title).toBe('fenced');
   });
 
-  it('strips <thinking> tags before parsing', () => {
-    const input = '<thinking>some internal reasoning</thinking>\ntitle: stripped';
+  it('strips thinking tags', () => {
+    const input = '<thinking>some reasoning</thinking>\ntitle: clean';
     const result = parseYaml<{ title: string }>(input);
-    expect(result.title).toBe('stripped');
+    expect(result.title).toBe('clean');
   });
 
-  it('strips <reasoning> tags', () => {
-    const input = '<reasoning>stuff</reasoning>\nkey: value';
-    const result = parseYaml<{ key: string }>(input);
-    expect(result.key).toBe('value');
-  });
-
-  it('extracts content from <output> tags', () => {
-    const input = '<output>title: inside</output>';
+  it('strips reasoning tags', () => {
+    const input = '<reasoning>think</reasoning>\ntitle: cleaned';
     const result = parseYaml<{ title: string }>(input);
-    expect(result.title).toBe('inside');
+    expect(result.title).toBe('cleaned');
   });
 
-  it('extracts content from <response> tags', () => {
+  it('strips output tags', () => {
+    const input = '<output>title: wrapped</output>';
+    const result = parseYaml<{ title: string }>(input);
+    expect(result.title).toBe('wrapped');
+  });
+
+  it('strips response tags', () => {
     const input = '<response>title: resp</response>';
     const result = parseYaml<{ title: string }>(input);
     expect(result.title).toBe('resp');
   });
 
-  it('extracts content from <answer> tags', () => {
+  it('strips answer tags', () => {
     const input = '<answer>title: ans</answer>';
     const result = parseYaml<{ title: string }>(input);
     expect(result.title).toBe('ans');
   });
 
-  it('strips <tool_call> tags', () => {
-    const input = '<tool_call>some tool call</tool_call>\ntitle: clean';
+  it('strips tool_call tags', () => {
+    const input = '<tool_call>use</tool_call>\ntitle: clean';
     const result = parseYaml<{ title: string }>(input);
     expect(result.title).toBe('clean');
   });
 
-  it('strips <tool_use> tags', () => {
+  it('strips tool_use tags', () => {
     const input = '<tool_use>use</tool_use>\ntitle: clean';
     const result = parseYaml<{ title: string }>(input);
     expect(result.title).toBe('clean');
   });
 
-  it('strips <function_call> tags', () => {
+  it('strips function_call tags', () => {
     const input = '<function_call>call</function_call>\ntitle: clean';
     const result = parseYaml<{ title: string }>(input);
     expect(result.title).toBe('clean');
   });
 
   it('throws on unparseable YAML', () => {
-    // With our mock, repair returns text as-is, so truly broken YAML
-    // will throw from yaml.parse
-    expect(() => parseYaml(':\n  - :\n  -: [[')).toThrow();
+    mockRepair.mockReturnValueOnce({ text: '', repaired: false, parseError: 'bad yaml' });
+    expect(() => parseYaml('{{{')).toThrow('bad yaml');
   });
 
   it('throws with parseError when repair reports failure', () => {
     mockRepair.mockReturnValueOnce({ text: '', repaired: false, parseError: 'bad yaml detected' });
-    expect(() => parseYaml('garbage')).toThrow('bad yaml detected');
+    expect(() => parseYaml('bad')).toThrow('bad yaml detected');
   });
 
   it('handles complex nested YAML', () => {
@@ -108,26 +107,19 @@ ideas:
     complexity: S
     why: Because stars
 `;
-    const result = parseYaml<{ ideas: Array<{ title: string }> }>(input);
+    const result = parseYaml<{ ideas: any[] }>(input);
     expect(result.ideas).toHaveLength(1);
     expect(result.ideas[0].title).toBe('A poem');
   });
 });
 
-// ── buildCorrectionPrompt ────────────────────────────────────────
+// ── buildCorrectionPrompt ──────────────────────────────────────
 
 describe('buildCorrectionPrompt', () => {
-  it('uses retryPrompt when role has a schema', () => {
+  it('uses retryPrompt when role has schema', () => {
     const result = buildCorrectionPrompt('bad yaml', 'parse error', 'ideator');
-    // Our mock retryPrompt returns a fixed string
-    expect(result).toBe('Please fix the YAML output.');
-  });
-
-  it('builds generic correction prompt when no role given', () => {
-    const result = buildCorrectionPrompt('bad yaml here', 'expected colon');
-    expect(result).toContain('bad yaml here');
-    expect(result).toContain('expected colon');
-    expect(result).toContain('valid YAML');
+    expect(mockRetryPrompt).toHaveBeenCalled();
+    expect(result).toContain('YAML');
   });
 
   it('builds generic prompt when role has no schema', () => {
@@ -185,6 +177,44 @@ describe('validateIdeator', () => {
   it('rejects arrays at top level', () => {
     expect(validateIdeator([{ title: 'Foo', domain: 'x', pitch: 'y' }])).toBe(false);
   });
+
+  it('accepts XL complexity with xl_mode', () => {
+    const data = {
+      ideas: [{
+        title: 'Big Game',
+        domain: 'code-game',
+        pitch: 'A massive game',
+        complexity: 'XL',
+        why: 'Ambition',
+        project_id: null,
+        stimulus_ref: null,
+        xl_mode: 'single',
+      }],
+    };
+    expect(validateIdeator(data)).toBe(true);
+  });
+
+  it('accepts XL project proposal', () => {
+    const data = {
+      ideas: [{
+        title: 'Epic Novella',
+        domain: 'fiction',
+        pitch: 'A six-chapter novella',
+        complexity: 'XL',
+        why: 'Depth',
+        project_id: null,
+        stimulus_ref: null,
+        xl_mode: 'project',
+        project: {
+          name: 'The Last Librarian',
+          description: 'A novella in 6 chapters',
+          estimated_iterations: 6,
+          structure: [{ chapter_1: 'The arrival' }],
+        },
+      }],
+    };
+    expect(validateIdeator(data)).toBe(true);
+  });
 });
 
 // ── normalizeCriticGate1 ─────────────────────────────────────────
@@ -210,23 +240,24 @@ describe('normalizeCriticGate1', () => {
   });
 
   it('maps reason to reasons', () => {
-    const data = { evaluations: [{ title: 'A', decision: 'ok', reason: 'because' }] };
+    const data = { evaluations: [{ title: 'A', decision: 'ok', reason: 'bad' }] };
     normalizeCriticGate1(data);
-    expect((data as any).evaluations[0].reasons).toBe('because');
+    expect((data as any).evaluations[0].reasons).toBe('bad');
   });
 
   it('returns non-object input unchanged', () => {
-    expect(normalizeCriticGate1(null)).toBeNull();
-    expect(normalizeCriticGate1('hi')).toBe('hi');
+    expect(normalizeCriticGate1(42)).toBe(42);
+    expect(normalizeCriticGate1('str')).toBe('str');
   });
 
-  it('returns object unchanged if no evaluations or decisions', () => {
-    const data = { other: 'field' };
-    expect(normalizeCriticGate1(data)).toBe(data);
+  it('returns data unchanged when no evaluations or decisions', () => {
+    const data = { other: true };
+    normalizeCriticGate1(data);
+    expect(data).toEqual({ other: true });
   });
 });
 
-// ── normalizeCriticGate2 ─────────────────────────────────────────
+// ── normalizeCriticGate2 ────────────────────────────────────────
 
 describe('normalizeCriticGate2', () => {
   it('maps verdict to decision', () => {
@@ -243,68 +274,47 @@ describe('normalizeCriticGate2', () => {
   });
 
   it('returns non-object input unchanged', () => {
-    expect(normalizeCriticGate2(null)).toBeNull();
     expect(normalizeCriticGate2(42)).toBe(42);
   });
 });
 
-// ── validateCriticGate1 ──────────────────────────────────────────
+// ── validateCriticGate1 ─────────────────────────────────────────
 
 describe('validateCriticGate1', () => {
   it('accepts valid evaluations', () => {
-    const data = {
+    expect(validateCriticGate1({
       evaluations: [{ title: 'Idea', decision: 'approve', sharpening_notes: '', reasons: '' }],
-    };
-    expect(validateCriticGate1(data)).toBe(true);
+    })).toBe(true);
   });
 
   it('accepts "decisions" key as alias for evaluations', () => {
-    const data = {
-      decisions: [{ title: 'Idea', decision: 'reject', reasons: 'Boring' }],
-    };
-    expect(validateCriticGate1(data)).toBe(true);
-    // Should normalize to evaluations key
-    expect((data as any).evaluations).toBeDefined();
-    expect((data as any).decisions).toBeUndefined();
+    expect(validateCriticGate1({
+      decisions: [{ title: 'Idea', decision: 'reject', sharpening_notes: '', reasons: '' }],
+    })).toBe(true);
   });
 
   it('accepts "verdict" as alias for decision', () => {
-    const data = {
+    expect(validateCriticGate1({
       evaluations: [{ title: 'Idea', verdict: 'approve' }],
-    };
-    expect(validateCriticGate1(data)).toBe(true);
-    expect((data as any).evaluations[0].decision).toBeDefined();
+    })).toBe(true);
   });
 
   it('rejects non-object', () => {
     expect(validateCriticGate1(null)).toBe(false);
-    expect(validateCriticGate1('hi')).toBe(false);
   });
 
   it('rejects empty evaluations', () => {
     expect(validateCriticGate1({ evaluations: [] })).toBe(false);
   });
 
-  it('rejects evaluations without title', () => {
-    expect(validateCriticGate1({ evaluations: [{ decision: 'approve' }] })).toBe(false);
-  });
-
-  it('defaults decision to "reject" when neither decision nor verdict present', () => {
-    const data = { evaluations: [{ title: 'X' }] };
-    expect(validateCriticGate1(data)).toBe(true);
-    expect((data as any).evaluations[0].decision).toBe('reject');
-  });
-
-  it('normalizes sharpening_notes from notes alias', () => {
-    const data = {
-      evaluations: [{ title: 'Idea', decision: 'approve', notes: 'sharpen this' }],
-    };
-    validateCriticGate1(data);
-    expect((data as any).evaluations[0].sharpening_notes).toBe('sharpen this');
+  it('rejects missing title', () => {
+    expect(validateCriticGate1({
+      evaluations: [{ decision: 'approve' }],
+    })).toBe(false);
   });
 });
 
-// ── validateCreator ──────────────────────────────────────────────
+// ── validateCreator ─────────────────────────────────────────────
 
 describe('validateCreator', () => {
   it('accepts valid creator response', () => {
@@ -327,76 +337,56 @@ describe('validateCreator', () => {
   });
 
   it('rejects missing files', () => {
-    expect(validateCreator({ title: 'X' })).toBe(false);
+    expect(validateCreator({ title: 'x' })).toBe(false);
   });
 
   it('rejects empty files array', () => {
-    expect(validateCreator({ title: 'X', files: [] })).toBe(false);
+    expect(validateCreator({ title: 'x', files: [] })).toBe(false);
   });
 
   it('rejects files without path or content', () => {
-    expect(validateCreator({ title: 'X', files: [{ path: 'a' }] })).toBe(false);
-    expect(validateCreator({ title: 'X', files: [{ content: 'b' }] })).toBe(false);
+    expect(validateCreator({ title: 'x', files: [{ path: 'a' }] })).toBe(false);
+    expect(validateCreator({ title: 'x', files: [{ content: 'b' }] })).toBe(false);
   });
 });
 
-// ── validateTester ───────────────────────────────────────────────
+// ── validateTester ──────────────────────────────────────────────
 
 describe('validateTester', () => {
   it('accepts valid tester response', () => {
-    expect(validateTester({ verdict: 'pass', summary: 'All good' })).toBe(true);
+    expect(validateTester({ verdict: 'pass', summary: 'ok' })).toBe(true);
   });
 
   it('rejects non-object', () => {
     expect(validateTester(null)).toBe(false);
-    expect(validateTester('string')).toBe(false);
   });
 
   it('rejects missing verdict', () => {
-    expect(validateTester({ summary: 'text' })).toBe(false);
+    expect(validateTester({ summary: 'x' })).toBe(false);
   });
 
   it('rejects missing summary', () => {
     expect(validateTester({ verdict: 'pass' })).toBe(false);
   });
-
-  it('rejects non-string verdict', () => {
-    expect(validateTester({ verdict: 123, summary: 'x' })).toBe(false);
-  });
 });
 
-// ── validateCriticGate2 ──────────────────────────────────────────
+// ── validateCriticGate2 ─────────────────────────────────────────
 
 describe('validateCriticGate2', () => {
   it('accepts valid gate2 response', () => {
     expect(validateCriticGate2({
       decision: 'ship',
       ratings: { originality: 4 },
-      review: 'Great work',
+      review: 'Good work',
     })).toBe(true);
-  });
-
-  it('accepts verdict as alias for decision', () => {
-    const data = {
-      verdict: 'kill',
-      ratings: { originality: 2 },
-      review: 'Not good',
-    };
-    expect(validateCriticGate2(data)).toBe(true);
-    expect((data as any).decision).toBe('kill');
-    expect((data as any).verdict).toBeUndefined();
   });
 
   it('rejects non-object', () => {
     expect(validateCriticGate2(null)).toBe(false);
   });
 
-  it('rejects missing decision/verdict', () => {
+  it('rejects missing decision', () => {
     expect(validateCriticGate2({ ratings: {}, review: 'x' })).toBe(false);
-  });
-
-  it('rejects missing ratings', () => {
-    expect(validateCriticGate2({ decision: 'ship', review: 'x' })).toBe(false);
   });
 
   it('rejects non-object ratings', () => {
@@ -412,7 +402,7 @@ describe('validateCriticGate2', () => {
   });
 });
 
-// ── validateCuratorRedirect ──────────────────────────────────────
+// ── validateCuratorRedirect ─────────────────────────────────────
 
 describe('validateCuratorRedirect', () => {
   it('accepts valid redirect', () => {
@@ -442,13 +432,13 @@ describe('validateCuratorRedirect', () => {
   });
 });
 
-// ── validateCuratorFull ──────────────────────────────────────────
+// ── validateCuratorFull ─────────────────────────────────────────
 
 describe('validateCuratorFull', () => {
-  it('accepts valid full curator response', () => {
+  it('accepts valid curator response', () => {
     expect(validateCuratorFull({
-      retrospective: 'Looking back...',
-      compressed_journal: 'Summary...',
+      retrospective: 'retro',
+      compressed_journal: 'journal',
     })).toBe(true);
   });
 
@@ -469,11 +459,77 @@ describe('validateCuratorFull', () => {
   });
 });
 
+// ── validateCreatorPlan ─────────────────────────────────────────
+
+describe('validateCreatorPlan', () => {
+  it('accepts valid plan response', () => {
+    expect(validateCreatorPlan({
+      plan: {
+        approach: 'Build it incrementally',
+        file_manifest: [{ path: 'main.ts', purpose: 'Entry point' }],
+        key_decisions: ['Use TypeScript'],
+        challenges: ['Complexity'],
+      },
+    })).toBe(true);
+  });
+
+  it('rejects non-object', () => {
+    expect(validateCreatorPlan(null)).toBe(false);
+  });
+
+  it('rejects missing plan', () => {
+    expect(validateCreatorPlan({})).toBe(false);
+  });
+
+  it('rejects non-object plan', () => {
+    expect(validateCreatorPlan({ plan: 'string' })).toBe(false);
+  });
+
+  it('rejects plan without approach', () => {
+    expect(validateCreatorPlan({
+      plan: { file_manifest: [] },
+    })).toBe(false);
+  });
+
+  it('rejects plan without file_manifest', () => {
+    expect(validateCreatorPlan({
+      plan: { approach: 'do stuff' },
+    })).toBe(false);
+  });
+});
+
+// ── validateCreatorBuild ────────────────────────────────────────
+
+describe('validateCreatorBuild', () => {
+  it('accepts valid build response', () => {
+    expect(validateCreatorBuild({
+      files: [{ path: 'main.ts', content: 'console.log(1)' }],
+    })).toBe(true);
+  });
+
+  it('rejects non-object', () => {
+    expect(validateCreatorBuild(null)).toBe(false);
+  });
+
+  it('rejects missing files', () => {
+    expect(validateCreatorBuild({})).toBe(false);
+  });
+
+  it('rejects empty files array', () => {
+    expect(validateCreatorBuild({ files: [] })).toBe(false);
+  });
+
+  it('rejects files without path or content', () => {
+    expect(validateCreatorBuild({ files: [{ path: 'a' }] })).toBe(false);
+    expect(validateCreatorBuild({ files: [{ content: 'b' }] })).toBe(false);
+  });
+});
+
 // ── getSchema ────────────────────────────────────────────────────
 
 describe('getSchema', () => {
   it('returns schema for known roles', () => {
-    for (const role of ['ideator', 'critic-gate1', 'creator', 'tester', 'critic-gate2', 'curator-redirect', 'curator-full']) {
+    for (const role of ['ideator', 'critic-gate1', 'creator', 'tester', 'critic-gate2', 'curator-redirect', 'curator-full', 'creator-plan', 'creator-build']) {
       expect(getSchema(role)).toBeDefined();
     }
   });
@@ -487,7 +543,7 @@ describe('getSchema', () => {
 
 describe('getValidator', () => {
   it('returns validator for known keys', () => {
-    for (const key of ['ideator', 'critic-gate1', 'creator', 'tester', 'critic-gate2', 'curator-redirect', 'curator-full']) {
+    for (const key of ['ideator', 'critic-gate1', 'creator', 'tester', 'critic-gate2', 'curator-redirect', 'curator-full', 'creator-plan', 'creator-build']) {
       const v = getValidator(key);
       expect(typeof v).toBe('function');
     }

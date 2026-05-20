@@ -40,7 +40,11 @@ For each: is it progressing? Stalled? Should it be completed, extended, or aband
 Current stimuli age: {stimuli_staleness}
 Refresh any stale live stimuli via MCP. Are there knowledge gaps the Ideator keeps bumping into? If so, commission a new skill file — write it yourself and place it in stimuli/skills/.
 
-### 7. Human Requests
+### 7. Project Activation
+
+If no projects have been active for the last {kickstart_after} iterations, propose a specific project idea in your `domain_recommendations`. Frame it as: "Consider starting a project: [concrete idea]. This would span ~[N] iterations and produce [what]." The Ideator should pick this up in its next proposal set.
+
+### 8. Human Requests
 
 Contents of requests.md: {requests_content}
 If non-empty: translate the request into a proposal for next iteration, clear the file, and log the redirect in the journal.

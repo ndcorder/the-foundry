@@ -26,7 +26,9 @@ const mockPickRandomSkills = vi.fn().mockResolvedValue('skill content');
 const mockFormatDecisions = vi.fn().mockReturnValue('formatted decisions');
 const mockFormatTestReports = vi.fn().mockReturnValue('formatted reports');
 const mockSelectDiverseReviews = vi.fn().mockReturnValue([]);
-const mockSafeRead = vi.fn().mockResolvedValue('');
+const mockSafeRead = vi.fn().mockResolvedValue('')
+const mockGetComplexityDistribution = vi.fn().mockResolvedValue({ S: 5, M: 3, L: 1, XL: 0 })
+const mockFormatComplexityDistribution = vi.fn().mockReturnValue("S: 5 (56%)  M: 3 (33%)  L: 1 (11%)  XL: 0 (0%)");
 
 vi.mock('../src/context/index.js', () => ({
   buildSharedContext: mockBuildSharedContext,
@@ -39,6 +41,8 @@ vi.mock('../src/context/index.js', () => ({
   formatTestReports: mockFormatTestReports,
   selectDiverseReviews: mockSelectDiverseReviews,
   safeRead: mockSafeRead,
+  getComplexityDistribution: mockGetComplexityDistribution,
+  formatComplexityDistribution: mockFormatComplexityDistribution,
 }));
 
 // ── Fixtures ─────────────────────────────────────────────────────
@@ -53,7 +57,7 @@ beforeEach(() => {
   const promptsDir = path.join(tempDir, 'prompts');
   mkdirSync(promptsDir, { recursive: true });
   writeFileSync(path.join(promptsDir, 'ideator.md'), 'Ideator: {shared_context} {stimuli_live} {stimuli_skills} {critic_gate1_history} {domain_list} {domain_cooldown} {novelty_window}', 'utf-8');
-  writeFileSync(path.join(promptsDir, 'critic.md'), 'Gate1: {shared_context} {ideator_proposals} {critic_gate1_history}\n\n## GATE 2\n\nGate2: {shared_context} {critic_review_history} {artifact_content} {approved_proposal} {tester_report}', 'utf-8');
+  writeFileSync(path.join(promptsDir, 'critic.md'), 'Gate1: {shared_context} {ideator_proposals} {critic_gate1_history} {complexity_distribution}\n\n## GATE 2\n\nGate2: {shared_context} {critic_review_history} {artifact_content} {approved_proposal} {tester_report}', 'utf-8');
   writeFileSync(path.join(promptsDir, 'creator.md'), 'Creator: {shared_context} {critic_review_history} {approved_proposal} {critic_sharpening_notes} {project_context} {manifesto_quality_standards}', 'utf-8');
   writeFileSync(path.join(promptsDir, 'tester.md'), 'Tester: {approved_proposal} {critic_sharpening_notes} {artifact_content}', 'utf-8');
   writeFileSync(path.join(promptsDir, 'curator.md'), 'Curator prompt', 'utf-8');

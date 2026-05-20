@@ -28,14 +28,18 @@ You may propose standalone ideas or continuations of active projects. Not every 
   - title: a specific, evocative name
   - domain: one of {domain_list}
   - pitch: 2-3 sentences — what is it and why is it interesting?
-  - complexity: S / M / L
+  - complexity: S / M / L / XL
   - why: one sentence on what this adds to the portfolio
   - project_id: (optional) if continuing an active project
   - stimulus_ref: (optional) what external input inspired this, if any
+  - xl_mode: (required for XL) "single" for massive standalone artifacts, "project" for multi-iteration projects
+  - project: (required for xl_mode: "project") project definition block
 - At least one idea must be in a domain we haven't touched in the last {domain_cooldown} iterations
 - At least one idea must be something you're not sure we can pull off
 - No idea may be structurally identical to a portfolio entry from the last {novelty_window} iterations
 - If referencing a stimulus, you must TRANSFORM it — not just summarize
+- If no multi-iteration projects are currently active (check the Active Projects section above), at least one of your 3 proposals should be a project starter (complexity L or XL with `xl_mode: "project"`). Multi-iteration projects produce richer, more cohesive work.
+- For XL proposals, include `xl_mode: "single"` for massive standalone artifacts or `xl_mode: "project"` to start a multi-iteration project.
 
 ## Output Format
 
@@ -46,22 +50,28 @@ ideas:
   - title: "..."
     domain: "..."
     pitch: "..."
-    complexity: "S|M|L"
+    complexity: "S|M|L|XL"
     why: "..."
     project_id: null
     stimulus_ref: null
+    xl_mode: null          # "single" or "project" (required for XL)
+    project: null           # project block (required for xl_mode: "project")
   - title: "..."
     domain: "..."
     pitch: "..."
-    complexity: "S|M|L"
+    complexity: "S|M|L|XL"
     why: "..."
     project_id: null
     stimulus_ref: null
+    xl_mode: null
+    project: null
   - title: "..."
     domain: "..."
     pitch: "..."
-    complexity: "S|M|L"
+    complexity: "S|M|L|XL"
     why: "..."
     project_id: null
     stimulus_ref: null
+    xl_mode: null
+    project: null
 ```

@@ -34,6 +34,8 @@ import {
   formatTestReports,
   selectDiverseReviews,
   safeRead,
+  getComplexityDistribution,
+  formatComplexityDistribution,
 } from "../context/index.js";
 import { loadPrompt, loadCriticGate1Prompt, loadCriticGate2Prompt, injectVars } from "./prompt.js";
 import { resolve } from "../root.js";
@@ -149,11 +151,16 @@ export async function dispatchCriticGate1(
     .filter((d) => d.gate === "gate1")
     .slice(-config.context.critic_gate1_history);
 
+  // Complexity distribution for ambition scaling
+  const complexityDist = await getComplexityDistribution(config.iteration.novelty_window);
+  const complexityDistStr = formatComplexityDistribution(complexityDist);
+
   const template = await loadCriticGate1Prompt();
   const prompt = injectVars(template, {
     shared_context: shared,
     ideator_proposals: proposals,
     critic_gate1_history: formatDecisions(gate1),
+    complexity_distribution: complexityDistStr,
   });
 
   const result = await dispatchWithRetry<CriticGate1Response>(
@@ -244,7 +251,6 @@ function extractQualityStandards(manifesto: string): string {
 }
 
 // ── Tester (code) ────────────────────────────────────────────────
-// Two-phase for code: first call produces test plan, second interprets results.
 
 export async function dispatchTesterTestPlan(
   config: FoundryConfig,
@@ -263,7 +269,6 @@ export async function dispatchTesterTestPlan(
     artifact_content: artifactContent,
   });
 
-  // Append code-specific test plan output format
   const codePrompt = prompt + `\n\nIMPORTANT: This is a CODE artifact. In addition to the standard YAML fields, you MUST include a \`test_plan\` block:
 
 \`\`\`yaml

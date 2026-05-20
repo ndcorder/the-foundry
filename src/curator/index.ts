@@ -36,6 +36,7 @@ export async function dispatchCuratorFull(
     project_statuses: context.agentSpecific,
     stimuli_staleness: "see stimuli state in context",
     requests_content: context.agentSpecific,
+    kickstart_after: String(config.projects.kickstart_after ?? 15),
   });
 
   const agentConfig = models.agents.curator;

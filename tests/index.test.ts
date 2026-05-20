@@ -32,6 +32,7 @@ vi.mock('../src/context/config.js', () => ({
 
 vi.mock('../src/model/index.js', () => ({
   setModelOverrides: vi.fn(),
+  validateProvider: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../src/iteration/index.js', () => ({

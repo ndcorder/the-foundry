@@ -319,7 +319,7 @@ export async function runIteration(
       addUsage(ideatorResult.usage);
 
       const ideas = ideatorResult.data.ideas;
-      console.log(`  Ideator proposed: ${ideas.map((i) => `"${i.title}" [${i.domain}]`).join(", ")}`);
+      console.log(`  Ideator proposed: ${ideas.map((i) => `"${i.title}" [${i.domain}, ${i.complexity}]`).join(", ")}`);
 
       console.log("\n▶ Phase 2: Idea Gate (Critic)");
 
@@ -337,7 +337,15 @@ export async function runIteration(
       if (approved) {
         approvedProposal = ideas.find((i) => i.title === approved.title) ?? ideas[0];
         approvedNotes = approved.sharpening_notes || "";
-        console.log(`  ✓ Selected: "${approvedProposal.title}"`);
+
+        // Apply Critic complexity override if recommended
+        const rec = (approved as any).recommended_complexity;
+        if (rec && ["S", "M", "L", "XL"].includes(rec) && rec !== approvedProposal.complexity) {
+          console.log(`  ↑ Critic upgraded complexity: ${approvedProposal.complexity} → ${rec}`);
+          approvedProposal = { ...approvedProposal, complexity: rec };
+        }
+
+        console.log(`  ✓ Selected: "${approvedProposal.title}" [${approvedProposal.complexity}]`);
         break;
       }
 
@@ -411,8 +419,6 @@ export async function runIteration(
     revisionRound++
   ) {
     // Phase 3: Creation
-    console.log(`\n▶ Phase 3: Creation${revisionRound > 0 ? ` (revision ${revisionRound})` : ""}`);
-
     const revisionNotes = revisionRound > 0 && gate2?.revision_notes
       ? gate2.revision_notes
       : undefined;
@@ -420,6 +426,8 @@ export async function runIteration(
     const pipelineProposal = effectiveComplexity !== proposal.complexity
       ? { ...proposal, complexity: effectiveComplexity as any }
       : proposal;
+
+    console.log(`\n▶ Phase 3: Creation [${pipelineProposal.complexity}]${revisionRound > 0 ? ` (revision ${revisionRound})` : ""}`);
     const pipelineResult = await runCreatorPipeline(
       { config: ctx.config, models: ctx.models, iteration: ctx.iteration },
       pipelineProposal, criticNotes, revisionNotes,

@@ -18,7 +18,11 @@
 
 {complexity_distribution}
 
-If the portfolio has been dominated by S-complexity work (>60% of the last 20 iterations), penalize S proposals and explicitly call for more ambitious work. Approve M/L/XL proposals more generously when the portfolio needs ambition.
+Rules for complexity evaluation:
+- If more than half the recent iterations are S-complexity, penalize new S proposals and explicitly call for more ambitious work in your rejection reasons.
+- Code artifacts (code-tool, code-game, code-art) should almost never be S — they benefit from multi-phase creation. Reject S-complexity code proposals unless they are genuinely trivial scripts.
+- Approve M/L/XL proposals more generously when the portfolio needs ambition.
+- When approving an idea, you may upgrade its complexity in your sharpening notes (e.g., "This deserves M complexity — the Creator should plan before building").
 
 ## Your Role
 
@@ -52,6 +56,7 @@ evaluations:
     decision: "approve|reject|revise"
     reasons: "..."
     sharpening_notes: "..."
+    recommended_complexity: null  # set to S/M/L/XL if you think the Ideator chose wrong
 selected: "title of the approved idea to build"
 ```
 

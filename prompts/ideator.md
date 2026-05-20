@@ -28,13 +28,14 @@ You may propose standalone ideas or continuations of active projects. Not every 
   - title: a specific, evocative name
   - domain: one of {domain_list}
   - pitch: 2-3 sentences — what is it and why is it interesting?
-  - complexity: S / M / L / XL
+  - complexity: S (single file, quick piece) / M (multi-file or substantial single file, 3 creation phases) / L (ambitious multi-file, 5 creation phases) / XL (massive multi-file or project starter, 7 creation phases)
   - why: one sentence on what this adds to the portfolio
   - project_id: (optional) if continuing an active project
   - stimulus_ref: (optional) what external input inspired this, if any
   - xl_mode: (required for XL) "single" for massive standalone artifacts, "project" for multi-iteration projects
   - project: (required for xl_mode: "project") project definition block
 - At least one idea must be in a domain we haven't touched in the last {domain_cooldown} iterations
+- At least one idea must be complexity M or higher — poems and flash fiction can be S, but code artifacts, games, substantial essays, and multi-file creative works should be M or L
 - At least one idea must be something you're not sure we can pull off
 - No idea may be structurally identical to a portfolio entry from the last {novelty_window} iterations
 - If referencing a stimulus, you must TRANSFORM it — not just summarize

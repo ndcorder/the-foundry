@@ -36,8 +36,10 @@ export async function getProjectVersion(): Promise<string> {
 }
 
 export function compareVersions(a: string, b: string): number {
-  const pa = a.split(".").map(Number);
-  const pb = b.split(".").map(Number);
+  // Strip prerelease suffixes for comparison (e.g., "1.0.0-rc.1" → "1.0.0")
+  const stripPre = (v: string) => v.replace(/-.*$/, "");
+  const pa = stripPre(a).split(".").map(Number);
+  const pb = stripPre(b).split(".").map(Number);
   for (let i = 0; i < 3; i++) {
     const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
     if (diff !== 0) return diff;

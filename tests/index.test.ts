@@ -74,6 +74,10 @@ vi.mock('../src/context/index.js', () => ({
   readJsonlEntries: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('../src/upgrade.js', () => ({
+  upgradeProject: vi.fn().mockResolvedValue(false),
+}));
+
 let tempDir: string;
 beforeEach(() => {
   tempDir = mkdtempSync(path.join(tmpdir(), 'foundry-index-'));
@@ -89,6 +93,24 @@ afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
 
 describe('index', () => {
   describe('startFoundry', () => {
+    it('runs project upgrade before loading config and models', async () => {
+      const { upgradeProject } = await import('../src/upgrade.js');
+      const { loadConfig, loadModelsConfig } = await import('../src/context/config.js');
+      const { checkStopFile } = await import('../src/files/intervention.js');
+      vi.mocked(checkStopFile).mockResolvedValueOnce(true);
+
+      const { startFoundry } = await import('../src/index.js');
+      await startFoundry({ rootDir: tempDir });
+
+      expect(upgradeProject).toHaveBeenCalledWith({ silent: false });
+      expect(vi.mocked(upgradeProject).mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(loadConfig).mock.invocationCallOrder[0],
+      );
+      expect(vi.mocked(upgradeProject).mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(loadModelsConfig).mock.invocationCallOrder[0],
+      );
+    });
+
     it('halts immediately when STOP file exists at startup', async () => {
       const { checkStopFile } = await import('../src/files/intervention.js');
       // First call returns false (pre-check in loop), second returns true

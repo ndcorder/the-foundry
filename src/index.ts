@@ -77,16 +77,17 @@ async function getLastIterationFromLog(): Promise<number> {
 
 export async function startFoundry(opts?: { rootDir?: string }): Promise<void> {
   if (opts?.rootDir) setRootDir(opts.rootDir);
-  const config = await loadConfig();
-  const models = await loadModelsConfig();
-
-  const autoGitCommit = config.git?.auto_commit !== false;
-  const autoGitPush = config.git?.auto_push !== false;
 
   // ── Auto-upgrade if CLI is newer than project ────────────
   const { upgradeProject } = await import("./upgrade.js");
   const upgraded = await upgradeProject({ silent: false });
   if (upgraded) console.log();
+
+  const config = await loadConfig();
+  const models = await loadModelsConfig();
+
+  const autoGitCommit = config.git?.auto_commit !== false;
+  const autoGitPush = config.git?.auto_push !== false;
 
   // ── Provider health check ────────────────────────────────
   const agentEntries = Object.entries(models.agents) as [string, AgentModelConfig][];

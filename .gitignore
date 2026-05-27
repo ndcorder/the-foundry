@@ -22,6 +22,9 @@ workspace/
 logs/*.jsonl
 curator-recommendations.md
 
+# Coverage
+coverage/
+
 # Generated content — users produce their own
 portfolio/*
 !portfolio/index.md
@@ -30,7 +33,11 @@ portfolio/projects/*
 !portfolio/projects/index.md
 identity/journal.md
 identity/journal-compressed.md
+identity/lineage.yml
+identity/mood.yml
+identity/dreams.yml
 stimuli/live/
+stimuli/skills/stimuli/
 
 # Runtime intervention
 requests.md
@@ -46,3 +53,4 @@ docs/superpowers/
 .DS_Store
 .superpowers/
 pnpm-lock.yaml
+package-lock.json

@@ -51,7 +51,8 @@
     "test:coverage": "vitest run --coverage",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "dashboard": "tsx dashboard/server.ts"
+    "dashboard": "tsx dashboard/server.ts",
+    "lineage": "tsx -e 'import{buildLineageGraph,saveLineageGraph}from\"./src/lineage/index.js\";const g=await buildLineageGraph();await saveLineageGraph(g);console.log(g.nodes.length+\" nodes, \"+g.edges.length+\" edges, \"+g.constellations.length+\" constellations\")'"
   },
   "dependencies": {
     "@earendil-works/gondolin": "^0.10.0",

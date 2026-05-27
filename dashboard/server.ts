@@ -151,16 +151,15 @@ const server = http.createServer((req, res) => {
   }
 
   // Serve other static files from public/
-  const safePath = path.normalize(pathname).replace(/^\.\.\//, "");
-  const staticPath = path.join(PUBLIC_DIR, safePath);
-  if (staticPath.startsWith(PUBLIC_DIR) && fs.existsSync(staticPath)) {
+  const staticPath = path.resolve(PUBLIC_DIR, pathname.slice(1));
+  if (staticPath.startsWith(PUBLIC_DIR + path.sep) && fs.existsSync(staticPath)) {
     return sendFile(res, staticPath);
   }
 
   send404(res);
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, "127.0.0.1", () => {
   console.log(`\n  The Foundry — Observatory`);
   console.log(`  http://localhost:${PORT}\n`);
 });

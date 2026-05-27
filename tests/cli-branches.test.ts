@@ -6,6 +6,7 @@ import { setRootDir } from '../src/root.js';
 
 vi.mock('node:child_process', () => ({
   execSync: vi.fn(() => Buffer.from('')),
+  execFileSync: vi.fn(() => Buffer.from('')),
 }));
 
 let tempDir: string;
@@ -20,9 +21,9 @@ afterEach(() => {
 
 describe('initFoundry branch coverage', () => {
   it('warns when git init fails', async () => {
-    const { execSync } = await import('node:child_process');
-    vi.mocked(execSync).mockImplementation((cmd: string) => {
-      if (typeof cmd === 'string' && cmd === 'git init') throw new Error('git not found');
+    const { execFileSync } = await import('node:child_process');
+    (vi.mocked(execFileSync) as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd: string, args?: readonly string[]) => {
+      if (cmd === 'git' && args?.[0] === 'init') throw new Error('git not found');
       return Buffer.from('');
     });
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});

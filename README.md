@@ -1,5 +1,9 @@
 # The Foundry
 
+[![CI](https://github.com/ndcorder/the-foundry/actions/workflows/ci.yml/badge.svg)](https://github.com/ndcorder/the-foundry/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/the-foundry)](https://www.npmjs.com/package/the-foundry)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 > An autonomous multi-agent system that makes things — code, prose, poetry, games, music, experiments — and argues with itself about whether they're good enough to keep.
 
 Five AI agents collaborate adversarially: one proposes, one builds, one tests, one critiques, one curates. The system runs indefinitely, developing aesthetic preferences and a collective voice that evolves with the portfolio. It maintains a living manifesto, tracks its own creative DNA, remembers its failures, and knows when it's in a rut.

@@ -23,7 +23,7 @@ export function parseWorkdir(argv: string[]): string[] {
 export async function initFoundry(name: string): Promise<void> {
   const { existsSync } = await import("node:fs");
   const { mkdir, cp, writeFile } = await import("node:fs/promises");
-  const { execSync } = await import("node:child_process");
+  const { execSync, execFileSync } = await import("node:child_process");
 
   const dest = path.resolve(name);
 
@@ -43,7 +43,7 @@ export async function initFoundry(name: string): Promise<void> {
 
   // ── Step 2: git init ─────────────────────────────────────
   try {
-    execSync("git init", { cwd: dest, stdio: "pipe" });
+    execFileSync("git", ["init"], { cwd: dest, stdio: "pipe" });
     console.log("  git init          ✓");
   } catch {
     console.warn("  git init          ✗ (git not available, continuing without)");
@@ -166,8 +166,8 @@ export async function initFoundry(name: string): Promise<void> {
 
   // ── Step 9: git add + commit ─────────────────────────────
   try {
-    execSync("git add -A", { cwd: dest, stdio: "pipe" });
-    execSync('git commit -m "Initialize Foundry portfolio"', { cwd: dest, stdio: "pipe" });
+    execFileSync("git", ["add", "-A"], { cwd: dest, stdio: "pipe" });
+    execFileSync("git", ["commit", "-m", "Initialize Foundry portfolio"], { cwd: dest, stdio: "pipe" });
     console.log("  git commit        ✓");
   } catch {
     console.warn("  git commit        ✗ (failed or nothing to commit)");
@@ -176,27 +176,27 @@ export async function initFoundry(name: string): Promise<void> {
   // ── Step 10: Create GitHub repo ──────────────────────────
   let ghUser = "";
   try {
-    ghUser = execSync("gh api user --jq '.login'", { stdio: "pipe" }).toString().trim();
+    ghUser = execFileSync("gh", ["api", "user", "--jq", ".login"], { stdio: "pipe" }).toString().trim();
   } catch {
     // gh not authenticated
   }
 
   try {
-    execSync(`gh repo create ${name} --public --source . --push`, { cwd: dest, stdio: "pipe" });
+    execFileSync("gh", ["repo", "create", name, "--public", "--source", ".", "--push"], { cwd: dest, stdio: "pipe" });
     console.log("  GitHub repo       ✓");
   } catch {
     console.warn("  GitHub repo       ✗ (create manually: gh repo create)");
     if (ghUser) {
       console.log(`  Manual steps:`);
-      console.log(`    gh repo create ${ghUser}/${name} --public --source ${dest} --push`);
+      console.log(`    gh repo create ${ghUser}/${name} --public --source ${JSON.stringify(dest)} --push`);
     }
   }
 
   // ── Step 11: Enable GitHub Pages ─────────────────────────
   if (ghUser) {
     try {
-      execSync(
-        `gh api repos/${ghUser}/${name}/pages -X POST -f build_type=workflow`,
+      execFileSync(
+        "gh", ["api", `repos/${ghUser}/${name}/pages`, "-X", "POST", "-f", "build_type=workflow"],
         { cwd: dest, stdio: "pipe" },
       );
       console.log("  GitHub Pages      ✓");

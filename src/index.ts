@@ -51,11 +51,11 @@ function autoCommitAndPush(
   }
 
   try {
-    execSync("git add portfolio/ identity/ logs/iterations.jsonl logs/decisions.jsonl", { cwd: rootDir, stdio: "pipe" });
+    execFileSync("git", ["add", "portfolio/", "identity/", "logs/iterations.jsonl", "logs/decisions.jsonl"], { cwd: rootDir, stdio: "pipe" });
     execFileSync("git", ["commit", "-m", msg], { cwd: rootDir, stdio: "pipe" });
     if (autoGitPush) {
       /* v8 ignore next */
-      execSync("git push origin HEAD", { cwd: rootDir, stdio: "pipe", timeout: 30000 });
+      execFileSync("git", ["push", "origin", "HEAD"], { cwd: rootDir, stdio: "pipe", timeout: 30000 });
     }
   } catch {
     console.warn("[git] auto-commit/push failed, will retry next iteration");

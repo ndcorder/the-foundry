@@ -7,6 +7,7 @@ import { parseWorkdir, initFoundry } from '../src/cli.js';
 
 vi.mock('node:child_process', () => ({
   execSync: vi.fn(() => Buffer.from('')),
+  execFileSync: vi.fn(() => Buffer.from('')),
 }));
 
 let tempDir: string;
@@ -249,7 +250,7 @@ describe('run', () => {
 
   it('runs dashboard command', async () => {
     const mockExecSync = vi.fn();
-    vi.doMock('node:child_process', () => ({ execSync: mockExecSync }));
+    vi.doMock('node:child_process', () => ({ execSync: mockExecSync, execFileSync: vi.fn(() => Buffer.from('')) }));
     const { run: runFresh } = await import('../src/cli.js');
     const origArgv = process.argv;
     process.argv = ['node', 'cli.js', 'dashboard'];
@@ -261,10 +262,6 @@ describe('run', () => {
 
 describe('initFoundry — branch coverage', () => {
   it('warns when site/ does not exist in package root', async () => {
-    // We need to control existsSync for the site/ path check
-    // The mock for child_process is already set up globally.
-    // We'll create a minimal foundry target and ensure site/ is NOT in packageRoot
-    const { execSync } = await import('node:child_process');
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const consoleLSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
@@ -282,7 +279,6 @@ describe('initFoundry — branch coverage', () => {
   it('handles npm install failure', async () => {
     const { execSync } = await import('node:child_process');
     const mockExec = vi.mocked(execSync);
-    // Make npm install throw
     mockExec.mockImplementation((cmd: string) => {
       if (typeof cmd === 'string' && cmd.includes('npm install')) {
         throw new Error('npm install failed');
@@ -304,10 +300,10 @@ describe('initFoundry — branch coverage', () => {
   });
 
   it('handles git commit failure', async () => {
-    const { execSync } = await import('node:child_process');
-    const mockExec = vi.mocked(execSync);
-    mockExec.mockImplementation((cmd: string) => {
-      if (typeof cmd === 'string' && (cmd.includes('git commit') || cmd.includes('git add -A'))) {
+    const { execFileSync } = await import('node:child_process');
+    const mockExecFile = vi.mocked(execFileSync) as unknown as ReturnType<typeof vi.fn>;
+    mockExecFile.mockImplementation((cmd: string, args?: readonly string[]) => {
+      if (cmd === 'git' && args && (args[0] === 'commit' || args[0] === 'add')) {
         throw new Error('git commit failed');
       }
       return Buffer.from('');
@@ -320,23 +316,23 @@ describe('initFoundry — branch coverage', () => {
 
     const warnOutput = consoleSpy.mock.calls.map(c => String(c[0])).join('\n');
     expect(warnOutput).toContain('git commit');
-    mockExec.mockReset();
-    mockExec.mockReturnValue(Buffer.from(''));
+    mockExecFile.mockReset();
+    mockExecFile.mockReturnValue(Buffer.from(''));
     consoleSpy.mockRestore();
     consoleLSpy.mockRestore();
   });
 
   it('handles gh user detection and repo creation with ghUser', async () => {
-    const { execSync } = await import('node:child_process');
-    const mockExec = vi.mocked(execSync);
-    mockExec.mockImplementation((cmd: string) => {
-      if (typeof cmd === 'string' && cmd.includes('gh api user')) {
+    const { execFileSync } = await import('node:child_process');
+    const mockExecFile = vi.mocked(execFileSync) as unknown as ReturnType<typeof vi.fn>;
+    mockExecFile.mockImplementation((cmd: string, args?: readonly string[]) => {
+      if (cmd === 'gh' && args?.[0] === 'api' && args?.[1] === 'user') {
         return Buffer.from('testuser\n');
       }
-      if (typeof cmd === 'string' && cmd.includes('gh repo create')) {
+      if (cmd === 'gh' && args?.[0] === 'repo') {
         return Buffer.from('');
       }
-      if (typeof cmd === 'string' && cmd.includes('gh api repos/')) {
+      if (cmd === 'gh' && args?.[0] === 'api' && typeof args?.[1] === 'string' && args[1].startsWith('repos/')) {
         return Buffer.from('');
       }
       return Buffer.from('');
@@ -351,23 +347,23 @@ describe('initFoundry — branch coverage', () => {
     expect(allOutput).toContain('GitHub repo');
     expect(allOutput).toContain('GitHub Pages');
     expect(allOutput).toContain('testuser');
-    mockExec.mockReset();
-    mockExec.mockReturnValue(Buffer.from(''));
+    mockExecFile.mockReset();
+    mockExecFile.mockReturnValue(Buffer.from(''));
     consoleSpy.mockRestore();
     warnSpy.mockRestore();
   });
 
   it('handles gh repo create failure with ghUser set', async () => {
-    const { execSync } = await import('node:child_process');
-    const mockExec = vi.mocked(execSync);
-    mockExec.mockImplementation((cmd: string) => {
-      if (typeof cmd === 'string' && cmd.includes('gh api user')) {
+    const { execFileSync } = await import('node:child_process');
+    const mockExecFile = vi.mocked(execFileSync) as unknown as ReturnType<typeof vi.fn>;
+    mockExecFile.mockImplementation((cmd: string, args?: readonly string[]) => {
+      if (cmd === 'gh' && args?.[0] === 'api' && args?.[1] === 'user') {
         return Buffer.from('testuser\n');
       }
-      if (typeof cmd === 'string' && cmd.includes('gh repo create')) {
+      if (cmd === 'gh' && args?.[0] === 'repo') {
         throw new Error('repo create failed');
       }
-      if (typeof cmd === 'string' && cmd.includes('gh api repos/')) {
+      if (cmd === 'gh' && args?.[0] === 'api' && typeof args?.[1] === 'string' && args[1].startsWith('repos/')) {
         throw new Error('pages failed');
       }
       return Buffer.from('');
@@ -383,10 +379,9 @@ describe('initFoundry — branch coverage', () => {
     expect(allWarn).toContain('GitHub repo');
     expect(allLog).toContain('Manual steps');
     expect(allLog).toContain('testuser');
-    // Pages should also warn since it tries to enable
     expect(allWarn).toContain('GitHub Pages');
-    mockExec.mockReset();
-    mockExec.mockReturnValue(Buffer.from(''));
+    mockExecFile.mockReset();
+    mockExecFile.mockReturnValue(Buffer.from(''));
     consoleSpy.mockRestore();
     warnSpy.mockRestore();
   });

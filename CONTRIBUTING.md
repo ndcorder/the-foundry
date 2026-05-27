@@ -5,9 +5,9 @@ Thanks for your interest in contributing. The Foundry is a multi-agent autonomou
 ## Getting Started
 
 1. Fork the repository and clone your fork
-2. `npm install` (requires Node 22+)
-3. Copy `.env.example` to `.env` and configure your model provider
-4. Run a few iterations and inspect `logs/` to verify everything works
+2. `pnpm install` (requires Node 22+)
+3. Configure your model provider in `config/models.yml`
+4. Run `pnpm dev` and inspect `logs/` to verify everything works
 
 ## Code Style
 
@@ -16,21 +16,28 @@ Thanks for your interest in contributing. The Foundry is a multi-agent autonomou
 - Agent prompt templates live in `prompts/` as markdown — not hardcoded strings
 - YAML for all structured agent output
 
-## How to Test Changes
+## Testing
 
-There's no traditional test suite (yet). The best way to verify a change:
+The project uses [Vitest](https://vitest.dev/) with 600+ tests covering all modules.
 
-1. Run 3–5 iterations with your change applied
-2. Check `logs/` for errors or regressions
-3. Review the artifacts produced — did quality hold or improve?
-4. For prompt changes, compare output before/after on the same seed
+```bash
+pnpm test              # run full suite
+pnpm test:watch        # watch mode
+pnpm test:coverage     # with coverage report
+```
+
+When submitting changes:
+- Run the full test suite and confirm everything passes
+- Add tests for new functionality
+- For prompt changes, also run 3–5 iterations and compare output quality
 
 ## Submitting Changes
 
 1. Create a feature branch: `git checkout -b feat/your-change`
 2. Make your changes with clear, atomic commits
-3. Open a PR with a description of what changed and why
-4. If it's a prompt change, include before/after examples
+3. Run `pnpm test` to verify nothing breaks
+4. Open a PR with a description of what changed and why
+5. If it's a prompt change, include before/after examples
 
 ## Where Contributions Are Welcome
 

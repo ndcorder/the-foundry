@@ -97,6 +97,22 @@ describe('initFoundry branch coverage', () => {
     process.argv = origArgv;
   });
 
+  it('handles upgrade command with --workdir via run()', async () => {
+    const mockUpgrade = vi.fn().mockResolvedValue(true);
+    vi.doMock('../src/upgrade.js', () => ({ upgradeProject: mockUpgrade }));
+    const dest = path.join(tempDir, 'upgrade-via-run');
+    const origArgv = process.argv;
+    process.argv = ['node', 'cli.js', '--workdir', dest, 'upgrade'];
+
+    const { run } = await import('../src/cli.js');
+    await run();
+    const { getRootDir } = await import('../src/root.js');
+
+    expect(getRootDir()).toBe(path.resolve(dest));
+    expect(mockUpgrade).toHaveBeenCalled();
+    process.argv = origArgv;
+  });
+
   it('handles init command via run()', async () => {
     const { execSync } = await import('node:child_process');
     vi.mocked(execSync).mockReturnValue(Buffer.from(''));

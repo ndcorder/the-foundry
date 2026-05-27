@@ -271,8 +271,6 @@ export async function run(): Promise<void> {
     }
 
     case "upgrade": {
-      const { setRootDir } = await import("./root.js");
-      setRootDir(process.cwd());
       const { upgradeProject } = await import("./upgrade.js");
       await upgradeProject();
       break;

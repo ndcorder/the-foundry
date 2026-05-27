@@ -1,6 +1,7 @@
 ---
 import DomainTag from './DomainTag.astro';
 import type { Artifact } from '@lib/types';
+import { sitePath } from '@lib/paths';
 
 interface Props {
   artifact: Artifact;
@@ -8,7 +9,7 @@ interface Props {
 }
 
 const { artifact, killed = false } = Astro.props;
-const href = killed ? `/killed#${artifact.id}` : `/portfolio/${artifact.id}`;
+const href = sitePath(killed ? `/killed#${artifact.id}` : `/portfolio/${artifact.id}`);
 ---
 
 <a href={href} class="block bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 no-underline hover:border-[var(--text-dim)] transition-colors group">

@@ -2,21 +2,12 @@
 import Base from '../../layouts/Base.astro';
 import RatingSidebar from '@components/RatingSidebar.astro';
 import ArtifactEmbed from '@components/ArtifactEmbed.astro';
-import { loadPortfolio, getInteractiveFiles } from '@lib/portfolio';
+import { loadPortfolio } from '@lib/portfolio';
 import { marked } from 'marked';
-import fs from 'node:fs';
-import path from 'node:path';
 
 export async function getStaticPaths() {
   const artifacts = await loadPortfolio();
   const shipped = artifacts.filter(a => !a.killed);
-
-  const interactiveFiles = getInteractiveFiles();
-  for (const { id, sourcePath, fileName } of interactiveFiles) {
-    const destDir = path.join(process.cwd(), 'public', 'artifacts', id);
-    fs.mkdirSync(destDir, { recursive: true });
-    fs.copyFileSync(sourcePath, path.join(destDir, fileName));
-  }
 
   return shipped.map((artifact, index) => ({
     params: { id: artifact.id },

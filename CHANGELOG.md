@@ -4,6 +4,15 @@ All notable changes to The Foundry are documented here.
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] — 2026-05-27
+
+### Fixed
+
+- GitHub CI now runs automatically for both package repos and initialized portfolio workdirs.
+- GitHub Pages deploys workdir portfolio sites from `main` or `master` pushes.
+- Interactive artifact workdirs now publish their HTML, JavaScript, CSS, and sibling assets into the Pages build.
+- Portfolio links and embedded artifacts now respect GitHub Pages project base paths.
+
 ## [1.0.0] — 2026-05-27
 
 First stable release. Five adversarial agents collaborate to produce an ever-growing portfolio of creative artifacts across any domain.
@@ -55,4 +64,5 @@ First stable release. Five adversarial agents collaborate to produce an ever-gro
 - [CONTRIBUTING.md](CONTRIBUTING.md) — Contribution guide with testing instructions
 - [FOUNDRY-SPEC.md](FOUNDRY-SPEC.md) — Full system specification
 
+[1.1.0]: https://github.com/ndcorder/the-foundry/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ndcorder/the-foundry/releases/tag/v1.0.0

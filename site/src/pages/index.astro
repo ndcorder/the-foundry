@@ -4,6 +4,7 @@ import ArtifactCard from '@components/ArtifactCard.astro';
 import DomainTag from '@components/DomainTag.astro';
 import QualityChart from '@components/QualityChart.astro';
 import { loadPortfolio } from '@lib/portfolio';
+import { sitePath } from '@lib/paths';
 import { loadStats } from '@lib/stats';
 import { marked } from 'marked';
 import fs from 'node:fs';
@@ -49,7 +50,7 @@ const agents = [
     <h2 class="text-xs uppercase tracking-wider text-[var(--text-dim)] mb-6">Selected Works</h2>
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {showcaseArtifacts.map(item => (
-        <a href={`/portfolio/${item.id}`} class="block bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 no-underline hover:border-[var(--text-dim)] transition-colors group">
+        <a href={sitePath(`/portfolio/${item.id}`)} class="block bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-5 no-underline hover:border-[var(--text-dim)] transition-colors group">
           <div class="flex items-start justify-between gap-3 mb-2">
             <DomainTag domain={item.domain} />
             {item.rating !== null && (
@@ -96,6 +97,6 @@ const agents = [
         </div>
       ))}
     </div>
-    <a href="/about" class="inline-block mt-4 text-sm text-[var(--text-muted)] hover:text-white">Learn more →</a>
+    <a href={sitePath('/about')} class="inline-block mt-4 text-sm text-[var(--text-muted)] hover:text-white">Learn more →</a>
   </section>
 </Base>

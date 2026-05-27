@@ -115,8 +115,31 @@ export async function loadPortfolio(): Promise<Artifact[]> {
   return artifacts.sort((a, b) => a.id.localeCompare(b.id));
 }
 
-export function getInteractiveFiles(): { id: string; sourcePath: string; fileName: string }[] {
-  const results: { id: string; sourcePath: string; fileName: string }[] = [];
+export interface ArtifactAssetFile {
+  id: string;
+  sourcePath: string;
+  routePath: string;
+  fileName: string;
+}
+
+function walkArtifactFiles(dirPath: string, relPath = ''): string[] {
+  const results: string[] = [];
+  const entries = fs.readdirSync(path.join(dirPath, relPath), { withFileTypes: true });
+
+  for (const entry of entries) {
+    const entryRel = relPath ? `${relPath}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      results.push(...walkArtifactFiles(dirPath, entryRel));
+    } else {
+      results.push(entryRel);
+    }
+  }
+
+  return results;
+}
+
+export function getArtifactAssetFiles(): ArtifactAssetFile[] {
+  const results: ArtifactAssetFile[] = [];
   const domainDirs = fs.readdirSync(PORTFOLIO_ROOT, { withFileTypes: true })
     .filter(d => d.isDirectory() && d.name !== 'projects' && d.name !== 'killed');
 
@@ -127,15 +150,26 @@ export function getInteractiveFiles(): { id: string; sourcePath: string; fileNam
 
     for (const artDir of artifactDirs) {
       const artPath = path.join(domainPath, artDir.name);
-      const files = fs.readdirSync(artPath);
-      const htmlFile = files.find(f => f.endsWith('.html'));
-      if (htmlFile) {
-        const readme = fs.readFileSync(path.join(artPath, 'README.md'), 'utf-8');
-        const idMatch = readme.match(/\*\*ID:\*\*\s*(\d+)/);
-        const id = idMatch?.[1]?.padStart(4, '0') ?? '0000';
-        results.push({ id, sourcePath: path.join(artPath, htmlFile), fileName: htmlFile });
+      const readmePath = path.join(artPath, 'README.md');
+      if (!fs.existsSync(readmePath)) continue;
+
+      const artifactFiles = walkArtifactFiles(artPath);
+      if (!artifactFiles.some(f => f.endsWith('.html'))) continue;
+
+      const readme = fs.readFileSync(readmePath, 'utf-8');
+      const idMatch = readme.match(/\*\*ID:\*\*\s*(\d+)/);
+      const id = idMatch?.[1]?.padStart(4, '0') ?? '0000';
+
+      for (const fileName of artifactFiles.filter(f => f !== 'README.md')) {
+        results.push({
+          id,
+          sourcePath: path.join(artPath, fileName),
+          routePath: `${id}/${fileName}`,
+          fileName,
+        });
       }
     }
   }
+
   return results;
 }

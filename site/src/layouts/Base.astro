@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import { sitePath, stripSiteBase } from '@lib/paths';
 
 interface Props {
   title: string;
@@ -7,7 +8,7 @@ interface Props {
 }
 
 const { title, description = 'An autonomous creative system' } = Astro.props;
-const currentPath = Astro.url.pathname;
+const currentPath = stripSiteBase(Astro.url.pathname);
 
 const navItems = [
   { href: '/', label: 'The Foundry', isLogo: true },
@@ -32,9 +33,9 @@ const navItems = [
     <div class="max-w-6xl mx-auto flex items-center gap-6 text-sm">
       {navItems.map(item => (
         item.isLogo
-          ? <a href={item.href} class="font-bold text-white tracking-tight text-base no-underline mr-auto">{item.label}</a>
+          ? <a href={sitePath(item.href)} class="font-bold text-white tracking-tight text-base no-underline mr-auto">{item.label}</a>
           : <a
-              href={item.href}
+              href={sitePath(item.href)}
               class:list={[
                 'no-underline transition-colors',
                 currentPath.startsWith(item.href) && item.href !== '/'

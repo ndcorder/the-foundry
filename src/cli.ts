@@ -79,15 +79,14 @@ export async function initFoundry(name: string): Promise<void> {
     console.warn("  site/             ✗ (not found in package)");
   }
 
-  // .github/workflows/site.yml
-  const workflowSrc = path.join(packageRoot, ".github", "workflows", "site.yml");
-  if (existsSync(workflowSrc)) {
-    await mkdir(path.join(dest, ".github", "workflows"), { recursive: true });
-    await cp(workflowSrc, path.join(dest, ".github", "workflows", "site.yml"));
+  // .github/ — CI and Pages workflows for generated portfolio repos
+  const githubSrc = path.join(packageRoot, ".github");
+  if (existsSync(githubSrc)) {
+    await cp(githubSrc, path.join(dest, ".github"), { recursive: true });
     console.log("  .github/          ✓");
   } else {
     /* v8 ignore next */
-    console.warn("  .github/          ✗ (workflow not found in package)");
+    console.warn("  .github/          ✗ (not found in package)");
   }
 
   console.log("  config/           ✓");

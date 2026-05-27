@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import DomainTag from '@components/DomainTag.astro';
 import { loadJournal } from '@lib/journal';
+import { sitePath } from '@lib/paths';
 
 const entries = await loadJournal();
 ---
@@ -40,7 +41,7 @@ const entries = await loadJournal();
             <div class="flex items-center gap-2">
               {entry.domain && <DomainTag domain={entry.domain} />}
               {entry.artifactId ? (
-                <a href={entry.status === 'shipped' ? `/portfolio/${entry.artifactId}` : undefined}
+                <a href={entry.status === 'shipped' ? sitePath(`/portfolio/${entry.artifactId}`) : undefined}
                    class="text-sm text-[var(--text-primary)] hover:text-white no-underline truncate">
                   {entry.title}
                 </a>

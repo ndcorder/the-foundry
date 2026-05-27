@@ -1,15 +1,18 @@
 ---
+import { sitePath } from '@lib/paths';
+
 interface Props {
   src: string;
   title: string;
 }
 
 const { src, title } = Astro.props;
+const embedSrc = sitePath(src);
 ---
 
 <div class="relative border border-[var(--border)] rounded-lg overflow-hidden">
   <iframe
-    src={src}
+    src={embedSrc}
     sandbox="allow-scripts"
     title={title}
     class="w-full bg-white"
@@ -17,7 +20,7 @@ const { src, title } = Astro.props;
     loading="lazy"
   ></iframe>
   <a
-    href={src}
+    href={embedSrc}
     target="_blank"
     rel="noopener"
     class="absolute top-2 right-2 text-xs bg-[var(--bg-primary)] border border-[var(--border)] rounded px-2 py-1 text-[var(--text-muted)] hover:text-white no-underline"

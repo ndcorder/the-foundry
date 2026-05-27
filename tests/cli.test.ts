@@ -81,6 +81,14 @@ describe('initFoundry', () => {
     expect(existsSync(path.join(name, 'README.md'))).toBe(true);
   });
 
+  it('copies CI and Pages workflows into initialized portfolio workdirs', async () => {
+    const name = path.join(tempDir, 'test-foundry');
+    await initFoundry(name);
+
+    expect(existsSync(path.join(name, '.github', 'workflows', 'ci.yml'))).toBe(true);
+    expect(existsSync(path.join(name, '.github', 'workflows', 'site.yml'))).toBe(true);
+  });
+
   it('creates seed portfolio index with table header', async () => {
     const name = path.join(tempDir, 'test-foundry');
     await initFoundry(name);

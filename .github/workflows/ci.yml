@@ -20,14 +20,52 @@ jobs:
           node-version: ${{ matrix.node-version }}
 
       - uses: pnpm/action-setup@v4
+        if: ${{ hashFiles('pnpm-lock.yaml') != '' }}
         with:
           version: 9
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install package dependencies
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            pnpm install --frozen-lockfile
+          elif [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       - name: Type check
-        run: pnpm run build
+        if: ${{ hashFiles('package.json') != '' && hashFiles('tsconfig.json') != '' }}
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            pnpm run build
+          else
+            npm run build --if-present
+          fi
 
       - name: Run tests
-        run: pnpm test
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          if node -e "const p=require('./package.json'); process.exit(p.scripts?.test ? 0 : 1)"; then
+            if [ -f pnpm-lock.yaml ]; then
+              pnpm test
+            else
+              npm test
+            fi
+          fi
+
+      - name: Install site dependencies
+        if: ${{ hashFiles('site/package.json') != '' }}
+        working-directory: site
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build portfolio site
+        if: ${{ hashFiles('site/package.json') != '' }}
+        working-directory: site
+        run: npm run build

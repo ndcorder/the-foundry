@@ -38,6 +38,7 @@ import { createSandbox, type SandboxSession } from "../sandbox/index.js";
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 import { updateProjectStatus, linkArtifactToProject, getActiveProjects, createProject } from "../files/projects.js";
+import { buildLineageGraph, saveLineageGraph } from "../lineage/index.js";
 
 const execFile = promisify(execFileCb);
 
@@ -398,13 +399,18 @@ export async function runIteration(
   // Handle XL project proposals
   let effectiveComplexity = proposal.complexity;
   if (proposal.complexity === "XL" && proposal.xl_mode === "project" && proposal.project) {
-    console.log(`\n  ▶ Creating project: "${proposal.project.name}"`);
-    const projectId = await createProject(proposal.project, iteration);
-    proposal.project_id = projectId;
-    effectiveComplexity = "L";
-    await appendJournal(
-      `**Iteration ${iteration}:** Started project ${projectId}: "${proposal.project.name}" (${proposal.project.estimated_iterations} iterations planned)`,
-    );
+    if (!proposal.project.name) {
+      console.log("  ⚠ XL project proposal missing name — falling back to single artifact.");
+      proposal.project = undefined;
+    } else {
+      console.log(`\n  ▶ Creating project: "${proposal.project.name}"`);
+      const projectId = await createProject(proposal.project, iteration);
+      proposal.project_id = projectId;
+      effectiveComplexity = "L";
+      await appendJournal(
+        `**Iteration ${iteration}:** Started project ${projectId}: "${proposal.project.name}" (${proposal.project.estimated_iterations} iterations planned)`,
+      );
+    }
   }
 
   // ── Phase 3–5 loop: Create → Test → Review (with revision cycles) ──
@@ -674,6 +680,15 @@ export async function runIteration(
   });
 
   await clearWorkspace(slot);
+
+  // Rebuild lineage graph after shipping
+  try {
+    const lineageGraph = await buildLineageGraph();
+    await saveLineageGraph(lineageGraph);
+    console.log(`  ★ Lineage: ${lineageGraph.edges.length} connections, ${lineageGraph.constellations.length} constellations`);
+  } catch (err) {
+    console.warn("  ⚠ Lineage rebuild failed:", err instanceof Error ? err.message : String(err));
+  }
 
   console.log(`\n  ✓ Shipped artifact ${artifactId}: "${proposal.title}" [${proposal.domain}] — rating ${mean}`);
   console.log(`  Duration: ${(durationMs / 1000).toFixed(1)}s | Tokens: ${totalUsage.input}in/${totalUsage.output}out`);

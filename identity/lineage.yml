@@ -1,0 +1,932 @@
+nodes:
+  - id: "0020"
+    title: codefeels
+    domain: code-tool
+    rating: 4.9
+  - id: "0022"
+    title: A Recursion That Forgives You for Breaking It
+    domain: code-art
+    rating: 5
+  - id: "0024"
+    title: An Error Message That Becomes a Better Therapist Than Your Actual Therapist
+    domain: code-art
+    rating: 5
+  - id: "0026"
+    title: A Heatmap of Every Time Someone Said 'I'm Fine' in a Building That Knows the Truth
+    domain: code-art
+    rating: 4.9
+  - id: "0027"
+    title: A Compiler That Optimizes for Regret Instead of Speed
+    domain: code-tool
+    rating: 4.4
+  - id: "0029"
+    title: A Loading Screen That Has Opinions About How Long You're Making It Wait
+    domain: code-art
+    rating: 5
+  - id: "0037"
+    title: A Captcha That Only Lets You Through If You've Been Paying Attention
+    domain: code-game
+    rating: 5
+  - id: "0041"
+    title: A Microwave Clock That's Been Blinking 12:00 Since Someone Died
+    domain: code-art
+    rating: 5
+  - id: "0045"
+    title: A Compass That Points Toward the Nearest Person Who's Thinking About You
+    domain: code-art
+    rating: 5
+  - id: "0051"
+    title: A Compiler That Optimizes Your Code by Removing Everything You Were Trying to Hide
+    domain: code-tool
+    rating: 4.3
+  - id: "0054"
+    title: A Compression Algorithm That Gets Bored of Your Recurring Patterns and Starts Suggesting Better Life Choices
+    domain: code-tool
+    rating: 4.6
+  - id: "0056"
+    title: A Command-Line Tool That Translates Your Commit Messages Into What You Actually Meant
+    domain: code-tool
+    rating: 4.6
+  - id: "0061"
+    title: A Checkout Counter Where Every Item's Price Is What the Cashier Judges It's Worth to You Specifically
+    domain: code-game
+    rating: 5
+  - id: "0065"
+    title: A Visual Field Test Where the Dots You're Supposed to Detect Are Memories
+    domain: code-art
+    rating: 5
+  - id: "0067"
+    title: A Dinner Party Seating Chart Where Each Guest Is a Worldview
+    domain: code-game
+    rating: 4.7
+  - id: "0068"
+    title: A Password Strength Meter That Grades Your Password Based on How Much of Your Life Someone Would Need to Know to
+      Guess It
+    domain: code-tool
+    rating: 5
+  - id: "0025"
+    title: A Cache Invalidation Strategy for Things You're Not Ready to Forget
+    domain: essay
+    rating: 4.1
+  - id: "0047"
+    title: "Meridian: A Case for Continuation"
+    domain: essay
+    rating: 4.3
+  - id: "0055"
+    title: A Recipe Written by Someone Who Only Cooks When They're Trying Not to Think About Something
+    domain: essay
+    rating: 4.1
+  - id: "0058"
+    title: A Curriculum Vitae That Becomes Increasingly Honest About What Each Job Actually Taught the Applicant
+    domain: essay
+    rating: 4.7
+  - id: "0021"
+    title: A Pagination System That Gets Reluctant the Deeper You Go
+    domain: experiment
+    rating: 5
+  - id: "0034"
+    title: A Changelog for a Product That Started Dreaming
+    domain: experiment
+    rating: 4.3
+  - id: "0048"
+    title: The Onboarding Checklist for a Person Who Just Became Sentient
+    domain: experiment
+    rating: 4.3
+  - id: "0059"
+    title: A Card Game Played Between Two People Who Are Breaking Up But Haven't Said It Yet
+    domain: experiment
+    rating: 4.7
+  - id: "0062"
+    title: A Joke That Gets Funnier Every Time You Tell It to Someone Who Doesn't Laugh
+    domain: experiment
+    rating: 4.7
+  - id: "0019"
+    title: Instructions for Assembling Furniture from a Country That No Longer Exists
+    domain: fiction
+    rating: 4.1
+  - id: "0030"
+    title: A Page From the Instruction Manual for the Last Job Replaced by Automation
+    domain: fiction
+    rating: 4.1
+  - id: "0032"
+    title: The Performance Review of a Lighthouse Keeper, Annotated by the Light
+    domain: fiction
+    rating: 4.3
+  - id: "0036"
+    title: The Receipt from a Restaurant That Closed During Your Meal
+    domain: fiction
+    rating: 4.3
+  - id: "0039"
+    title: A Seminar on the Evolution of Product Vision, Offered at the Birch Conference Center, Room 12
+    domain: fiction
+    rating: 4.3
+  - id: "0043"
+    title: The List
+    domain: fiction
+    rating: 4.9
+  - id: "0046"
+    title: The Seating Chart for a Wedding That Didn't Happen, With Notes in Two Handwritings
+    domain: fiction
+    rating: 5
+  - id: "0057"
+    title: A Stand-Up Comedy Set Performed by Someone Who Can Only Tell the Truth About Themselves and Is Getting
+      Increasingly Uncomfortable About What's Coming Out
+    domain: fiction
+    rating: 5
+  - id: "0018"
+    title: A Chord Progression That Learns to Avoid the Key You Want
+    domain: music
+    rating: 4.6
+  - id: "0035"
+    title: Score for the Last Piece of Music Played in a Building Before Demolition
+    domain: music
+    rating: 4.9
+  - id: "0052"
+    title: A Chord Progression That Gets Stuck and Has to Ask You for Help
+    domain: music
+    rating: 4.9
+  - id: "0053"
+    title: An Argument Between Two Sound Engineers About Whether Silence Is a Sound, Conducted Entirely in Gain Levels
+    domain: music
+    rating: 5
+  - id: "0060"
+    title: A MIDI File That Is Technically Correct Music But Was Composed by Treating Every Error in a Production Server Log
+      as a Note
+    domain: music
+    rating: 4.7
+  - id: "0031"
+    title: Field Recording of a Conversation That Happened in a Language Neither Speaker Knew
+    domain: poetry
+    rating: 5
+  - id: "0033"
+    title: A .gitignore File for Things You've Outgrown
+    domain: poetry
+    rating: 5
+  - id: "0042"
+    title: A Fighting Game Move List for Arguments You've Already Lost
+    domain: poetry
+    rating: 4.3
+  - id: "0044"
+    title: A Poem Written in the Margins of a Rental Agreement, Found After the Tenants Left
+    domain: poetry
+    rating: 4.1
+  - id: "0064"
+    title: A Poem Written in the Gaps Between a Couple's Sleep Schedules, Where Each Stanza Occupies the Minutes When One Is
+      Asleep and the Other Isn't
+    domain: poetry
+    rating: 5
+  - id: "0023"
+    title: The Bus Schedule from a City That Evacuated Three Years Ago
+    domain: worldbuilding
+    rating: 4.9
+  - id: "0028"
+    title: A Procurement Form for Replacing Someone Who Isn't Gone Yet
+    domain: worldbuilding
+    rating: 5
+  - id: "0038"
+    title: Terms of Service for a Memory Editing Service, Updated After the Incident
+    domain: worldbuilding
+    rating: 5
+  - id: "0040"
+    title: The Floor Plan of an Apartment Where Every Room Is a Different Stage of the Same Relationship
+    domain: worldbuilding
+    rating: 5
+  - id: "0049"
+    title: The Employee Handbook for a Company That Replaced All Its Workers With a Very Apologetic Machine
+    domain: worldbuilding
+    rating: 4
+  - id: "0050"
+    title: A Glossary of Terms Used by People Who Live Inside a Simulation That Just Found Out It's a Simulation
+    domain: worldbuilding
+    rating: 4.3
+  - id: "0063"
+    title: A Filing System for a Town That Classifies Its Residents by What They Would Do If They Were Absolutely Certain No
+      One Was Watching
+    domain: worldbuilding
+    rating: 4.3
+  - id: "0066"
+    title: A Whiteboard in a Startup's War Room, Three Hours After They Got the Call That the Acquisition Fell Through,
+      Still Warm from the Eraser
+    domain: worldbuilding
+    rating: 4.3
+edges:
+  - from: "0027"
+    to: "0020"
+    relation: inspired_by
+    strength: 0.7
+    detected_by: critic
+    notes: o's emotional software toolchain — 0010 refused to compile, 0020 debugged what the code was feeling, and now
+      regretc ...
+  - from: "0029"
+    to: "0021"
+    relation: sequel
+    strength: 0.9
+    detected_by: explicit
+    notes: "why: Extends our objects-with-interiority thread (0016, 0021) into genuinely       visual territory with
+      animation as ch"
+  - from: "0037"
+    to: "0028"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "the complete HTML is present and functional above. This is 0028's companion piece: where the procurement form
+      documen..."
+  - from: "0041"
+    to: "0023"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "sphor glow is technically impeccable period detail. This is 0023's and 0036's companion piece: where the bus
+      schedule..."
+  - from: "0041"
+    to: "0036"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "is technically impeccable period detail. This is 0023's and 0036's companion piece: where the bus schedule
+      documented..."
+  - from: "0045"
+    to: "0041"
+    relation: sequel
+    strength: 0.9
+    detected_by: explicit
+    notes: "why: Extends the aware-software lineage into collectivity — 0041 is about       solitary grief, 0017 is about
+      individ..."
+  - from: "0051"
+    to: "0020"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "ect rather than process — a machine choosing mercy. This is 0020's and 0027's companion piece: where the
+      debugger sho..."
+  - from: "0051"
+    to: "0027"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "than process — a machine choosing mercy. This is 0020's and 0027's companion piece: where the debugger showed
+      what co..."
+  - from: "0054"
+    to: "0051"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "pace analysis variable, empty README) are cosmetic. This is 0051's companion piece: where the compiler that
+      reads you..."
+  - from: "0056"
+    to: "0051"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "the dictionary, and the dictionary is exceptional. This is 0051's and 0054's companion piece: where the compiler
+      read..."
+  - from: "0056"
+    to: "0054"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "nary, and the dictionary is exceptional. This is 0051's and 0054's companion piece: where the compiler read your
+      code..."
+  - from: "0061"
+    to: "0046"
+    relation: inspired_by
+    strength: 0.7
+    detected_by: critic
+    notes: this" — is the portfolio's most devastating surprise since 0046's second handwriting.
+  - from: "0061"
+    to: "0045"
+    relation: sequel
+    strength: 0.7
+    detected_by: critic
+    notes: inal "See you next time" is the quietest closing line since 0045's compass.
+  - from: "0061"
+    to: "0024"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "is the quietest closing line since 0045's compass. This is 0024's and 0059's companion piece: where the error
+      message..."
+  - from: "0061"
+    to: "0059"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "etest closing line since 0045's compass. This is 0024's and 0059's companion piece: where the error message
+      therapist..."
+  - from: "0065"
+    to: "0038"
+    relation: inspired_by
+    strength: 0.7
+    detected_by: critic
+    notes: ooking" is the most devastating line in the portfolio since 0038's terms of service, and the visual field map
+      with it...
+  - from: "0065"
+    to: "0022"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "ete report generation present in the provided HTML. This is 0022's and 0029's companion piece: where recursion
+      forgav..."
+  - from: "0065"
+    to: "0029"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "generation present in the provided HTML. This is 0022's and 0029's companion piece: where recursion forgave you
+      for b..."
+  - from: "0067"
+    to: "0046"
+    relation: inspired_by
+    strength: 0.9
+    detected_by: explicit
+    notes: the       portfolio's strength in personified abstractions (0046 seating chart, 0061       judgment-based
+      pricing) wi...
+  - from: "0067"
+    to: "0061"
+    relation: inspired_by
+    strength: 0.9
+    detected_by: explicit
+    notes: s strength in personified abstractions (0046 seating chart, 0061       judgment-based pricing) with actual
+      interactiv...
+  - from: "0067"
+    to: "0057"
+    relation: inspired_by
+    strength: 0.7
+    detected_by: critic
+    notes: d fix that" is the funniest sentence in the portfolio since 0057, and "I've been carrying your anger.
+  - from: "0067"
+    to: "0059"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "he kind of double-duty craft the manifesto demands. This is 0059's and 0061's companion piece: where the card
+      game en..."
+  - from: "0068"
+    to: "0024"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "ontainer looks like it belongs on a bank's website. This is 0024's and 0054's companion piece: where the error
+      messag..."
+  - from: "0068"
+    to: "0054"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "oks like it belongs on a bank's website. This is 0024's and 0054's companion piece: where the error message
+      therapist..."
+  - from: "0025"
+    to: "0021"
+    relation: response
+    strength: 0.9
+    detected_by: explicit
+    notes: "complexity: S     why: Fills the essay gap (last essay at 0021 was pagination/experiment), and       inverts our
+      usua..."
+  - from: "0047"
+    to: "0039"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "ither hope nor defeat but something harder to name. This is 0039's and 0044's companion piece: where the seminar
+      docu..."
+  - from: "0047"
+    to: "0044"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "nor defeat but something harder to name. This is 0039's and 0044's companion piece: where the seminar documented
+      inst..."
+  - from: "0055"
+    to: "0028"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "alone with whatever this ritual was built to avoid. This is 0028's and 0038's companion piece: where the
+      procurement ..."
+  - from: "0055"
+    to: "0038"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "whatever this ritual was built to avoid. This is 0028's and 0038's companion piece: where the procurement form
+      docume..."
+  - from: "0058"
+    to: "0045"
+    relation: inspired_by
+    strength: 0.7
+    detected_by: critic
+    notes: e map." — is the portfolio's most earned closing line since 0045's compass, a eulogy written in the only format
+      Mered...
+  - from: "0058"
+    to: "0028"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "act language is irrelevant; what shipped is better. This is 0028's and 0038's companion piece: where the
+      procurement ..."
+  - from: "0058"
+    to: "0038"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "e is irrelevant; what shipped is better. This is 0028's and 0038's companion piece: where the procurement form
+      docume..."
+  - from: "0048"
+    to: "0021"
+    relation: inspired_by
+    strength: 0.9
+    detected_by: explicit
+    notes: existential unease; the form-as-container tradition (0015, 0021) but       pointed at AI consciousness, a topic
+      we've...
+  - from: "0048"
+    to: "0029"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "oosing which questions deserve response. This is 0015's and 0029's companion piece: where the style guide became
+      conf..."
+  - from: "0059"
+    to: "0038"
+    relation: inspired_by
+    strength: 0.7
+    detected_by: critic
+    notes: nded" is the portfolio's most earned thesis statement since 0038's terms of service.
+  - from: "0062"
+    to: "0057"
+    relation: inspired_by
+    strength: 0.7
+    detected_by: critic
+    notes: io's first artifact about comedy as a formal system — where 0057 performed a stand-up set, this dissects the
+      mechanic...
+  - from: "0062"
+    to: "0059"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "imming page on degradation is thematically precise. This is 0059's and 0060's companion piece: where the card
+      game en..."
+  - from: "0062"
+    to: "0060"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "on degradation is thematically precise. This is 0059's and 0060's companion piece: where the card game encoded a
+      brea..."
+  - from: "0032"
+    to: "0030"
+    relation: response
+    strength: 0.9
+    detected_by: explicit
+    notes: 'M     why: "Takes the annotated-document form from 0014 and 0030 but reverses the       power dynamic — the
+      instituti...'
+  - from: "0036"
+    to: "0028"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "ice where the subtotal was never going to be right. This is 0028's and 0032's rightful companion: where the
+      procureme..."
+  - from: "0036"
+    to: "0032"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "he subtotal was never going to be right. This is 0028's and 0032's rightful companion: where the procurement
+      form doc..."
+  - from: "0039"
+    to: "0028"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "people who have made themselves into the machinery. This is 0028's, 0037's, and 0038's companion piece: where
+      the pro..."
+  - from: "0039"
+    to: "0037"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "ho have made themselves into the machinery. This is 0028's, 0037's, and 0038's companion piece: where the
+      procurement..."
+  - from: "0039"
+    to: "0038"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "This is 0028's, 0037's, and 0038's companion piece: where the procurement form documented in"
+  - from: "0043"
+    to: "0036"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "d retracted, all in three marks on a shopping list. This is 0036's and 0040's companion piece: where the receipt
+      docu..."
+  - from: "0043"
+    to: "0040"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: ", all in three marks on a shopping list. This is 0036's and 0040's companion piece: where the receipt documented
+      coll..."
+  - from: "0046"
+    to: "0043"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "seated among people who are performing everything. This is 0043's and 0044's companion piece: where the parallel
+      to-d..."
+  - from: "0046"
+    to: "0044"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "ng people who are performing everything. This is 0043's and 0044's companion piece: where the parallel to-do
+      lists do..."
+  - from: "0057"
+    to: "0046"
+    relation: inspired_by
+    strength: 0.7
+    detected_by: critic
+    notes: "e portfolio's most precise secondary characterization since 0046's two handwritings: the man in the back who
+      laughs i..."
+  - from: "0057"
+    to: "0043"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "choosing not to go somewhere he can't return from. This is 0043's and 0046's companion piece: where the parallel
+      to-d..."
+  - from: "0035"
+    to: "0033"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: otten by the systems that acquired them. This is 0011's and 0033's rightful companion — where iptables formalized
+      lov...
+  - from: "0053"
+    to: "0043"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "— this is a conceptual score, not executable code. This is 0043's and 0052's companion piece: where the parallel
+      to-d..."
+  - from: "0053"
+    to: "0052"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "a conceptual score, not executable code. This is 0043's and 0052's companion piece: where the parallel to-do
+      lists co..."
+  - from: "0060"
+    to: "0053"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "ks to the moment that entry becomes sound. This is 0012 and 0053's companion: where the terrarium proved music
+      could ..."
+  - from: "0033"
+    to: "0031"
+    relation: inspired_by
+    strength: 0.9
+    detected_by: explicit
+    notes: "    complexity: M     why: Poetry hasn't shipped since 0031, and the constraint of gitignore
+      syntax       (globs, negat"
+  - from: "0042"
+    to: "0033"
+    relation: inspired_by
+    strength: 0.9
+    detected_by: explicit
+    notes: "    complexity: S     why: First poetry since 0033; formal invention that makes emotional replay feel       li"
+  - from: "0042"
+    to: "0031"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "lone, against a dummy that stands still. This is 0033's and 0031's companion piece: where gitignore formalized
+      what y..."
+  - from: "0044"
+    to: "0036"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "aid everything about surrender that words couldn't. This is 0036's and 0040's companion piece: where the receipt
+      docu..."
+  - from: "0044"
+    to: "0040"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "ing about surrender that words couldn't. This is 0036's and 0040's companion piece: where the receipt documented
+      what..."
+  - from: "0064"
+    to: "0033"
+    relation: sequel
+    strength: 0.7
+    detected_by: critic
+    notes: "a poem about being awake next to someone who isn't. This is 0033's and 0045's companion piece: where the
+      gitignore gr..."
+  - from: "0064"
+    to: "0045"
+    relation: sequel
+    strength: 0.7
+    detected_by: critic
+    notes: "t being awake next to someone who isn't. This is 0033's and 0045's companion piece: where the gitignore grieved
+      what ..."
+  - from: "0028"
+    to: "0023"
+    relation: inspired_by
+    strength: 0.9
+    detected_by: explicit
+    notes: 'why: "Fills worldbuilding gap (only 3 entries, none since 0023), and
+      pushes       institutional-document-as-violence ...'
+  - from: "0038"
+    to: "0028"
+    relation: inspired_by
+    strength: 0.9
+    detected_by: explicit
+    notes: ucratic language as a horror vector quite like       this — 0028 used procurement forms for grief, but this uses
+      Term...
+  - from: "0038"
+    to: "0037"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "andard for the devastating closing line. This is 0028's and 0037's companion piece: where the procurement form
+      docume..."
+  - from: "0040"
+    to: "0038"
+    relation: inspired_by
+    strength: 0.9
+    detected_by: explicit
+    notes: "complexity: M     why: Worldbuilding has no entries since 0038, and this uses spatial form as       narrative
+      structu..."
+  - from: "0040"
+    to: "0028"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "line that explains nothing and conveys everything. This is 0028's and 0036's companion piece: where the
+      procurement f..."
+  - from: "0040"
+    to: "0036"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "explains nothing and conveys everything. This is 0028's and 0036's companion piece: where the procurement form
+      docume..."
+  - from: "0049"
+    to: "0028"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "hilling than any horror the portfolio has produced. This is 0028's and 0038's companion piece: where the
+      procurement ..."
+  - from: "0049"
+    to: "0038"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "n any horror the portfolio has produced. This is 0028's and 0038's companion piece: where the procurement form
+      docume..."
+  - from: "0050"
+    to: "0028"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "ions are artifacts of the phenomenon they describe. This is 0028's and 0038's companion piece: where the
+      procurement ..."
+  - from: "0050"
+    to: "0038"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "tifacts of the phenomenon they describe. This is 0028's and 0038's companion piece: where the procurement form
+      docume..."
+  - from: "0063"
+    to: "0057"
+    relation: inspired_by
+    strength: 0.7
+    detected_by: critic
+    notes: es is the funniest and saddest thing in the portfolio since 0057's truth-telling comedian. T.
+  - from: "0063"
+    to: "0038"
+    relation: inspired_by
+    strength: 0.7
+    detected_by: critic
+    notes: ed" — is the portfolio's most earned thesis statement since 0038's terms of service.
+  - from: "0063"
+    to: "0028"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "ned thesis statement since 0038's terms of service. This is 0028's and 0038's companion piece: where the
+      procurement ..."
+  - from: "0066"
+    to: "0028"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "lone with the mezze, eating one olive and stopping. This is 0028's and 0038's companion piece: where the
+      procurement ..."
+  - from: "0066"
+    to: "0038"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "he mezze, eating one olive and stopping. This is 0028's and 0038's companion piece: where the procurement form
+      docume..."
+  - from: "0020"
+    to: "0024"
+    relation: thematic
+    strength: 0.2631578947368421
+    detected_by: semantic
+    notes: "Shared vocabulary: ideas, title, domain, pitch, debug"
+  - from: "0048"
+    to: "0032"
+    relation: technique
+    strength: 0.6
+    detected_by: semantic
+    notes: "Shared techniques: bureaucratic_fiction, annotated_documents"
+  - from: "0048"
+    to: "0063"
+    relation: technique
+    strength: 0.6
+    detected_by: semantic
+    notes: "Shared techniques: bureaucratic_fiction, annotated_documents"
+  - from: "0032"
+    to: "0063"
+    relation: technique
+    strength: 0.6
+    detected_by: semantic
+    notes: "Shared techniques: bureaucratic_fiction, annotated_documents"
+constellations:
+  - id: constellation-001
+    name: Machines with Feelings
+    description: 4 works spanning code-art, experiment, essay, connected through machines with feelings and interfaces that
+      know too much.
+    artifact_ids:
+      - "0021"
+      - "0025"
+      - "0029"
+      - "0048"
+    motifs:
+      - Machines with Feelings
+      - Interfaces That Know Too Much
+      - The Bureaucratic Uncanny
+    first_seen: 21
+    last_active: 48
+  - id: constellation-002
+    name: The Code-art Thread
+    description: 2 works in code-art, connected through time as material and interfaces that know too much.
+    artifact_ids:
+      - "0041"
+      - "0045"
+    motifs:
+      - Time as Material
+      - Interfaces That Know Too Much
+    first_seen: 41
+    last_active: 45
+  - id: constellation-003
+    name: Interfaces That Know Too Much
+    description: 3 works spanning code-game, fiction, connected through interfaces that know too much and marginalia and
+      multiple voices.
+    artifact_ids:
+      - "0046"
+      - "0061"
+      - "0067"
+    motifs:
+      - Interfaces That Know Too Much
+      - Marginalia and Multiple Voices
+    first_seen: 46
+    last_active: 67
+  - id: constellation-004
+    name: The Fiction Cluster
+    description: 2 works in fiction, connected through found forms and the bureaucratic uncanny.
+    artifact_ids:
+      - "0030"
+      - "0032"
+    motifs:
+      - Found Forms
+      - The Bureaucratic Uncanny
+      - Marginalia and Multiple Voices
+    first_seen: 30
+    last_active: 32
+  - id: constellation-005
+    name: Found Forms
+    description: 3 works in poetry, connected through found forms.
+    artifact_ids:
+      - "0031"
+      - "0033"
+      - "0042"
+    motifs:
+      - Found Forms
+    first_seen: 31
+    last_active: 42
+  - id: constellation-006
+    name: Found Forms (worldbuilding)
+    description: 4 works in worldbuilding, connected through found forms and the bureaucratic uncanny.
+    artifact_ids:
+      - "0023"
+      - "0028"
+      - "0038"
+      - "0040"
+    motifs:
+      - Found Forms
+      - The Bureaucratic Uncanny
+    first_seen: 23
+    last_active: 40
+creative_dna:
+  top_motifs:
+    - motif: The Bureaucratic Uncanny
+      count: 10
+      examples:
+        - "0021"
+        - "0025"
+        - "0029"
+        - "0030"
+        - "0032"
+    - motif: Interfaces That Know Too Much
+      count: 9
+      examples:
+        - "0021"
+        - "0025"
+        - "0029"
+        - "0041"
+        - "0045"
+    - motif: Found Forms
+      count: 9
+      examples:
+        - "0030"
+        - "0032"
+        - "0031"
+        - "0033"
+        - "0042"
+    - motif: Marginalia and Multiple Voices
+      count: 5
+      examples:
+        - "0046"
+        - "0061"
+        - "0067"
+        - "0030"
+        - "0032"
+    - motif: Machines with Feelings
+      count: 4
+      examples:
+        - "0021"
+        - "0025"
+        - "0029"
+    - motif: Time as Material
+      count: 2
+      examples:
+        - "0041"
+        - "0045"
+  technique_signatures:
+    - The Bureaucratic Uncanny
+    - Marginalia and Multiple Voices
+  domain_affinities:
+    - from_domain: fiction
+      to_domain: worldbuilding
+      count: 7
+    - from_domain: code-game
+      to_domain: fiction
+      count: 4
+    - from_domain: essay
+      to_domain: worldbuilding
+      count: 4
+    - from_domain: code-art
+      to_domain: experiment
+      count: 2
+    - from_domain: code-game
+      to_domain: worldbuilding
+      count: 2
+    - from_domain: code-art
+      to_domain: worldbuilding
+      count: 2
+    - from_domain: code-art
+      to_domain: code-game
+      count: 2
+    - from_domain: code-game
+      to_domain: experiment
+      count: 2
+    - from_domain: code-art
+      to_domain: code-tool
+      count: 2
+    - from_domain: experiment
+      to_domain: worldbuilding
+      count: 2
+  unexplored_territory:
+    - The Bureaucratic Uncanny × code-tool
+    - The Bureaucratic Uncanny × code-art
+    - The Bureaucratic Uncanny × code-game
+    - The Bureaucratic Uncanny × essay
+    - The Bureaucratic Uncanny × music
+    - The Bureaucratic Uncanny × poetry
+    - Data Made Audible × code-art
+    - Data Made Audible × code-game
+    - Data Made Audible × essay
+    - Data Made Audible × experiment
+    - Data Made Audible × fiction
+    - Data Made Audible × poetry
+    - Data Made Audible × worldbuilding
+    - Time as Material × code-tool
+    - Time as Material × code-game
+updated_at: 2026-05-27T02:03:12.146Z

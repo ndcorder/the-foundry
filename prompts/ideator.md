@@ -6,6 +6,10 @@
 
 {stimuli_skills}
 
+## Creative Lineage
+
+{lineage_context}
+
 ## Critic's Recent Decisions
 
 {critic_gate1_history}
@@ -39,6 +43,7 @@ You may propose standalone ideas or continuations of active projects. Not every 
 - At least one idea must be something you're not sure we can pull off
 - No idea may be structurally identical to a portfolio entry from the last {novelty_window} iterations
 - If referencing a stimulus, you must TRANSFORM it — not just summarize
+- Consider the constellation map: you can intentionally create within an existing constellation (deepening a thread), bridge between two constellations (cross-pollination), or break into unexplored territory (novelty)
 - If no multi-iteration projects are currently active (check the Active Projects section above), at least one of your 3 proposals should be a project starter (complexity L or XL with `xl_mode: "project"`). Multi-iteration projects produce richer, more cohesive work.
 - For XL proposals, include `xl_mode: "single"` for massive standalone artifacts or `xl_mode: "project"` to start a multi-iteration project.
 

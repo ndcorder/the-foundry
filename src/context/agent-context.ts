@@ -14,6 +14,7 @@ import {
   selectDiverseReviews,
 } from "./data.js";
 import { getActiveProjects } from "../files/projects.js";
+import { loadLineageGraph } from "../lineage/index.js";
 import { resolve } from "../root.js";
 
 function assembleBlock(shared: string, agentSpecific: string): ContextBlock {
@@ -55,7 +56,33 @@ export async function buildIdeatorContext(
     sections.push("\n## Curator's Recommendations\n", curatorRecs);
   }
 
+  let constellationContext = "*No lineage data yet.*";
+  try {
+    const lineage = await loadLineageGraph();
+    if (lineage && lineage.constellations.length > 0) {
+      const constellationLines = lineage.constellations
+        .slice(0, 6)
+        .map((c) => `- **${c.name}** (${c.artifact_ids.length} works): ${c.description}`);
+      const dnaLines = lineage.creative_dna.technique_signatures
+        .slice(0, 5)
+        .map((t) => `- ${t}`);
+      const unexplored = lineage.creative_dna.unexplored_territory
+        .slice(0, 4)
+        .map((t) => `- ${t}`);
+      constellationContext = [
+        "### Active Constellations\n",
+        ...constellationLines,
+        "\n### Our Creative DNA\n",
+        ...dnaLines,
+        "\n### Unexplored Territory\n",
+        ...unexplored,
+      ].join("\n");
+    }
+  } catch { /* lineage not available yet */ }
+
   sections.push(
+    "\n## Creative Lineage\n",
+    constellationContext,
     "\n## Active Projects\n",
     projectSummary,
     "\n## External Stimuli\n",

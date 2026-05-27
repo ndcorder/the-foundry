@@ -1,6 +1,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import yaml from "yaml";
 import { resolve } from "../src/root.js";
 
 const PORT = parseInt(process.env.PORT || "3333", 10);
@@ -118,6 +119,14 @@ const server = http.createServer((req, res) => {
   }
   if (pathname === "/api/journal") {
     return sendJson(res, { content: readTextFile("identity/journal.md") });
+  }
+  if (pathname === "/api/lineage") {
+    try {
+      const raw = fs.readFileSync(resolve("identity", "lineage.yml"), "utf-8");
+      return sendJson(res, yaml.parse(raw));
+    } catch {
+      return sendJson(res, { nodes: [], edges: [], constellations: [], creative_dna: { top_motifs: [], technique_signatures: [], domain_affinities: [], unexplored_territory: [] }, updated_at: null });
+    }
   }
 
   // Static files

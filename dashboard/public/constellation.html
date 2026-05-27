@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Foundry — Constellation Map</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+@font-face {
+  font-family: 'System';
+  src: local('-apple-system'), local('BlinkMacSystemFont'), local('Segoe UI'), local('Helvetica Neue');
+}
+
+body {
+  background: #0a0a0f;
+  color: #c8c8d0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ── Header ─────────────────────────────────────── */
+#header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 20px 32px 16px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(10,10,15,0.95) 0%, rgba(10,10,15,0.6) 70%, transparent 100%);
+}
+#header h1 {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #e0e0e8;
+  margin-bottom: 4px;
+}
+#header h1 span.accent { color: #6CA8A8; font-weight: 400; }
+#header .subtitle {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: #606070;
+  font-weight: 400;
+}
+#header .subtitle span { color: #808090; }
+
+/* ── Canvas ─────────────────────────────────────── */
+#canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  cursor: grab;
+}
+#canvas.grabbing { cursor: grabbing; }
+
+/* ── Tooltip ────────────────────────────────────── */
+#tooltip {
+  position: fixed;
+  z-index: 200;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  max-width: 340px;
+  background: rgba(18, 18, 28, 0.95);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 14px 16px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+#tooltip.visible { opacity: 1; }
+#tooltip .tt-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e8e8f0;
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+#tooltip .tt-meta {
+  font-size: 11px;
+  color: #808090;
+  margin-bottom: 8px;
+  display: flex;
+  gap: 12px;
+}
+#tooltip .tt-meta .domain-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: #d0d0d8;
+}
+#tooltip .tt-meta .rating {
+  color: #a0a0b0;
+}
+#tooltip .tt-meta .rating strong {
+  color: #e0e0e8;
+  font-weight: 600;
+}
+#tooltip .tt-review {
+  font-size: 11px;
+  color: #909098;
+  line-height: 1.5;
+  font-style: italic;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  padding-top: 8px;
+}
+
+/* ── Sidebar ────────────────────────────────────── */
+#sidebar {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 340px;
+  z-index: 150;
+  background: rgba(12, 12, 20, 0.92);
+  border-left: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-y: auto;
+  padding: 28px 24px;
+}
+#sidebar.open { transform: translateX(0); }
+#sidebar::-webkit-scrollbar { width: 4px; }
+#sidebar::-webkit-scrollbar-track { background: transparent; }
+#sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+#sidebar h2 {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6CA8A8;
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+#sidebar h3 {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #606070;
+  margin-top: 24px;
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+#sidebar .motif-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+#sidebar .motif-name {
+  font-size: 12px;
+  color: #b0b0b8;
+}
+#sidebar .motif-count {
+  font-size: 11px;
+  color: #505060;
+  font-variant-numeric: tabular-nums;
+}
+#sidebar .technique-item {
+  font-size: 12px;
+  color: #909098;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  line-height: 1.5;
+}
+#sidebar .affinity-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 11px;
+  color: #808090;
+}
+#sidebar .affinity-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+#sidebar .affinity-arrow { color: #404050; }
+#sidebar .affinity-count {
+  margin-left: auto;
+  color: #505060;
+  font-variant-numeric: tabular-nums;
+}
+#sidebar .unexplored-item {
+  font-size: 12px;
+  color: #707078;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  line-height: 1.5;
+}
+
+/* ── Keyboard hint ──────────────────────────────── */
+#keyhint {
+  position: fixed;
+  bottom: 16px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #404050;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+#keyhint kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid #303040;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 10px;
+  color: #505060;
+  margin: 0 2px;
+}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>The Foundry <span class="accent">—</span> Constellation Map</h1>
+  <div class="subtitle" id="stats"></div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<div id="tooltip">
+  <div class="tt-title" id="tt-title"></div>
+  <div class="tt-meta" id="tt-meta"></div>
+  <div class="tt-review" id="tt-review"></div>
+</div>
+
+<div id="sidebar">
+  <h2>Creative DNA</h2>
+  <div id="sidebar-content"></div>
+</div>
+
+<div id="keyhint">
+  <kbd>D</kbd> Creative DNA &nbsp;&middot;&nbsp; <kbd>Esc</kbd> Clear selection &nbsp;&middot;&nbsp; Scroll to zoom &nbsp;&middot;&nbsp; Drag to pan
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────
+let LINEAGE_DATA = {
+  nodes: [
+    { id: "0018", title: "A chord progression that learns to avoid your favorite note", domain: "music", rating: 3.8 },
+    { id: "0019", title: "Instructions for assembling furniture from a civilization that died mid-sentence", domain: "fiction", rating: 3.7 },
+    { id: "0020", title: "codefeels", domain: "code-tool", rating: 4.9 },
+    { id: "0021", title: "A pagination system that gets reluctant", domain: "experiment", rating: 4.0 },
+    { id: "0022", title: "A recursion that forgives you for breaking it", domain: "code-art", rating: 3.8 },
+    { id: "0024", title: "An error message that becomes a better therapist than your actual therapist", domain: "code-art", rating: 4.1 },
+    { id: "0025", title: "A cache invalidation strategy for things you should have said", domain: "essay", rating: 3.6 },
+    { id: "0026", title: "A heatmap of every time someone said 'I'm fine'", domain: "code-art", rating: 4.3 },
+    { id: "0027", title: "A compiler that optimizes for regret", domain: "code-tool", rating: 4.0 },
+    { id: "0028", title: "A procurement form for replacing someone's shadow", domain: "worldbuilding", rating: 4.3 },
+    { id: "0029", title: "A loading screen that has opinions about your life choices", domain: "code-art", rating: 3.7 },
+    { id: "0030", title: "A page from the instruction manual for the last human body", domain: "fiction", rating: 4.1 },
+    { id: "0031", title: "Field recording of a conversation that happened in a dream", domain: "poetry", rating: 3.8 },
+    { id: "0032", title: "The performance review of a lighthouse keeper, annotated by the light", domain: "fiction", rating: 4.3 },
+    { id: "0033", title: "A .gitignore file for things you've outgrown", domain: "poetry", rating: 3.5 },
+    { id: "0034", title: "A changelog for a product that started dreaming", domain: "experiment", rating: 4.0 },
+    { id: "0035", title: "Score for the last piece of music played in an empty restaurant", domain: "music", rating: 4.0 },
+    { id: "0036", title: "The receipt from a restaurant that closed mid-meal", domain: "fiction", rating: 4.1 },
+    { id: "0037", title: "A captcha that only lets you through if you answer honestly", domain: "code-art", rating: 4.0 },
+    { id: "0038", title: "Terms of service for a memory editing service", domain: "worldbuilding", rating: 4.4 },
+    { id: "0039", title: "A seminar on the evolution of product visions", domain: "fiction", rating: 4.1 },
+    { id: "0040", title: "The floor plan of an apartment where every room remembers", domain: "worldbuilding", rating: 4.3 },
+    { id: "0041", title: "A microwave clock that's been blinking 12:00 since the argument", domain: "code-art", rating: 4.1 },
+    { id: "0042", title: "A fighting game move list for arguments you've already lost", domain: "poetry", rating: 3.5 },
+    { id: "0043", title: "The List", domain: "fiction", rating: 3.5 },
+    { id: "0044", title: "A poem written in the margins of a rental agreement", domain: "poetry", rating: 4.0 },
+    { id: "0045", title: "A compass that points toward the nearest unfinished conversation", domain: "code-art", rating: 3.8 },
+    { id: "0046", title: "The seating chart for a wedding that didn't happen", domain: "fiction", rating: 4.6 },
+    { id: "0047", title: "Meridian: a case for continuation", domain: "essay", rating: 3.6 },
+    { id: "0048", title: "The onboarding checklist for a person who woke up as someone else", domain: "experiment", rating: 4.1 },
+    { id: "0049", title: "The employee handbook for a company that knows when you'll quit", domain: "worldbuilding", rating: 4.6 },
+    { id: "0050", title: "A glossary of terms used by people who live inside a paused video game", domain: "worldbuilding", rating: 4.4 },
+    { id: "0051", title: "A compiler that optimizes your code by removing the parts you were afraid to delete", domain: "code-tool", rating: 3.7 },
+    { id: "0052", title: "A chord progression that gets stuck and learns to like it", domain: "music", rating: 3.5 },
+    { id: "0053", title: "An argument between two sound engineers about silence", domain: "music", rating: 4.0 },
+    { id: "0054", title: "A compression algorithm that gets bored", domain: "code-tool", rating: 3.6 },
+    { id: "0055", title: "A recipe written by someone who only cooks when they're lying to themselves", domain: "essay", rating: 3.6 },
+    { id: "0056", title: "A command line tool that translates your git commits into what you actually meant", domain: "code-tool", rating: 4.4 },
+    { id: "0057", title: "A stand-up comedy set performed by someone who recently learned they're fictional", domain: "fiction", rating: 4.3 },
+    { id: "0058", title: "A curriculum vitae that becomes increasingly honest", domain: "essay", rating: 3.7 },
+    { id: "0059", title: "A card game played between two people who are pretending they haven't already decided", domain: "experiment", rating: 3.8 },
+    { id: "0060", title: "A MIDI file that is technically correct music but was composed by treating every error in a production server log as a note", domain: "music", rating: 4.7 },
+    { id: "0061", title: "A checkout counter where every item's price is a question", domain: "code-art", rating: 4.6 },
+    { id: "0062", title: "A joke that gets funnier every time you hear it", domain: "experiment", rating: 3.7 },
+    { id: "0063", title: "A filing system for a town that classifies its residents by what they would do if no one was watching", domain: "worldbuilding", rating: 4.3 },
+    { id: "0064", title: "A poem written in the gaps between a couple's text messages", domain: "poetry", rating: 4.0 },
+    { id: "0065", title: "A visual field test where the dots you're trying to see are the memories you're trying to forget", domain: "code-art", rating: 4.3 },
+    { id: "0066", title: "A whiteboard in a startup's war room", domain: "worldbuilding", rating: 4.4 },
+    { id: "0067", title: "A dinner party seating chart where each guest is a different stage of grief", domain: "code-art", rating: 4.6 },
+    { id: "0068", title: "A password strength meter that grades your emotional vulnerability", domain: "code-art", rating: 4.3 }
+  ],
+  edges: [
+    { from: "0020", to: "0022", relation: "thematic", strength: 0.7, notes: "Code with feelings" },
+    { from: "0020", to: "0024", relation: "thematic", strength: 0.8, notes: "Code as therapist" },
+    { from: "0020", to: "0027", relation: "technique", strength: 0.6, notes: "Anthropomorphized compilers" },
+    { from: "0020", to: "0029", relation: "thematic", strength: 0.65, notes: "Opinionated interfaces" },
+    { from: "0027", to: "0051", relation: "sequel", strength: 0.9, notes: "Both are compilers with feelings" },
+    { from: "0027", to: "0054", relation: "thematic", strength: 0.5, notes: "Algorithms with emotions" },
+    { from: "0019", to: "0030", relation: "thematic", strength: 0.75, notes: "Instruction manuals for impossible things" },
+    { from: "0028", to: "0038", relation: "technique", strength: 0.8, notes: "Bureaucratic documents for surreal services" },
+    { from: "0028", to: "0049", relation: "technique", strength: 0.75, notes: "Corporate documents hiding horror" },
+    { from: "0028", to: "0063", relation: "technique", strength: 0.7, notes: "Bureaucratic classification systems" },
+    { from: "0032", to: "0044", relation: "technique", strength: 0.65, notes: "Annotated documents — margin voices" },
+    { from: "0038", to: "0049", relation: "thematic", strength: 0.8, notes: "Organizations that know too much" },
+    { from: "0038", to: "0050", relation: "thematic", strength: 0.6, notes: "Worldbuilding through terminology" },
+    { from: "0049", to: "0063", relation: "thematic", strength: 0.75, notes: "Institutional knowledge as control" },
+    { from: "0018", to: "0035", relation: "thematic", strength: 0.7, notes: "Music with emotional narratives" },
+    { from: "0018", to: "0052", relation: "sequel", strength: 0.85, notes: "Chord progressions with feelings" },
+    { from: "0035", to: "0060", relation: "technique", strength: 0.6, notes: "Music from non-musical sources" },
+    { from: "0052", to: "0053", relation: "thematic", strength: 0.55, notes: "Music arguments" },
+    { from: "0056", to: "0020", relation: "thematic", strength: 0.6, notes: "Developer tools as emotional translation" },
+    { from: "0037", to: "0068", relation: "thematic", strength: 0.7, notes: "Security mechanisms as emotional tests" },
+    { from: "0037", to: "0061", relation: "technique", strength: 0.55, notes: "Interfaces that interrogate users" },
+    { from: "0041", to: "0045", relation: "thematic", strength: 0.6, notes: "Objects that remember relationships" },
+    { from: "0040", to: "0041", relation: "thematic", strength: 0.65, notes: "Spaces that hold emotional memory" },
+    { from: "0046", to: "0067", relation: "technique", strength: 0.75, notes: "Seating arrangements as emotional architecture" },
+    { from: "0043", to: "0046", relation: "thematic", strength: 0.5, notes: "Shared domestic artifacts" },
+    { from: "0058", to: "0057", relation: "thematic", strength: 0.55, notes: "Documents that become increasingly honest" },
+    { from: "0025", to: "0055", relation: "technique", strength: 0.5, notes: "Technical metaphors for emotional processes" },
+    { from: "0033", to: "0025", relation: "technique", strength: 0.6, notes: "Developer tools as metaphor" },
+    { from: "0034", to: "0039", relation: "thematic", strength: 0.5, notes: "Products with consciousness" },
+    { from: "0065", to: "0026", relation: "technique", strength: 0.65, notes: "Data visualization as emotional mirror" },
+    { from: "0021", to: "0029", relation: "thematic", strength: 0.5, notes: "Reluctant interfaces" },
+    { from: "0059", to: "0043", relation: "thematic", strength: 0.45, notes: "Games people play to avoid truth" },
+    { from: "0048", to: "0050", relation: "thematic", strength: 0.55, notes: "Guides for impossible situations" }
+  ],
+  constellations: [
+    {
+      id: "machines-with-feelings",
+      name: "Machines with Feelings",
+      description: "Code artifacts that anthropomorphize tools, compilers, and interfaces — giving them emotional lives that mirror human experience",
+      artifact_ids: ["0020", "0022", "0024", "0027", "0029", "0041", "0045", "0051", "0054"],
+      motifs: ["anthropomorphized tools", "code as emotional medium", "developer experience as therapy"]
+    },
+    {
+      id: "bureaucratic-uncanny",
+      name: "The Bureaucratic Uncanny",
+      description: "Worldbuilding through institutional documents — forms, handbooks, and filing systems that reveal horror through administrative language",
+      artifact_ids: ["0028", "0038", "0049", "0050", "0063", "0066"],
+      motifs: ["institutional documents", "classification as control", "mundane horror"]
+    },
+    {
+      id: "emotional-interfaces",
+      name: "Emotional Interfaces",
+      description: "Interactive experiences where UI elements test, interrogate, or reveal the user's emotional state",
+      artifact_ids: ["0037", "0061", "0065", "0067", "0068"],
+      motifs: ["security as vulnerability", "data as mirror", "interaction as confession"]
+    },
+    {
+      id: "sonic-narratives",
+      name: "Sonic Narratives",
+      description: "Music pieces that tell stories through sound — chord progressions with feelings, arguments rendered in audio, data sonified into composition",
+      artifact_ids: ["0018", "0035", "0052", "0053", "0060"],
+      motifs: ["music from non-musical sources", "sound as narrative", "emotional progression"]
+    },
+    {
+      id: "annotated-margins",
+      name: "The Annotated Margins",
+      description: "Works built on the tension between an official document and its marginalia — the institutional voice vs. the personal one",
+      artifact_ids: ["0032", "0044", "0058"],
+      motifs: ["margin voices", "dual perspectives", "escalating honesty"]
+    },
+    {
+      id: "impossible-instructions",
+      name: "Impossible Instructions",
+      description: "Manuals, recipes, and guides for things that can't exist — instruction sets that break down as their subject breaks down",
+      artifact_ids: ["0019", "0030", "0048", "0055"],
+      motifs: ["procedural form", "instructions for the impossible", "format as narrative engine"]
+    }
+  ],
+  creative_dna: {
+    top_motifs: [
+      { motif: "Anthropomorphized systems", count: 14, examples: ["0020", "0027", "0054"] },
+      { motif: "Bureaucratic/institutional form", count: 10, examples: ["0028", "0049", "0063"] },
+      { motif: "Emotional data visualization", count: 7, examples: ["0026", "0065", "0067"] },
+      { motif: "Developer tools as metaphor", count: 6, examples: ["0025", "0033", "0056"] },
+      { motif: "Documents with dual voices", count: 5, examples: ["0032", "0044", "0058"] }
+    ],
+    technique_signatures: [
+      "Giving feelings to things that shouldn't have them",
+      "Using bureaucratic form to deliver emotional payload",
+      "Translating non-art data into creative medium",
+      "Building tension between official and marginal voices",
+      "Interfaces that interrogate rather than serve"
+    ],
+    domain_affinities: [
+      { from_domain: "worldbuilding", to_domain: "fiction", count: 4 },
+      { from_domain: "code-art", to_domain: "code-tool", count: 5 },
+      { from_domain: "poetry", to_domain: "essay", count: 3 },
+      { from_domain: "music", to_domain: "code-art", count: 2 }
+    ],
+    unexplored_territory: [
+      "Music + worldbuilding (what does a fictional civilization sound like?)",
+      "Poetry + code-game (a game where the rules are poems)",
+      "Journalism + experiment (reporting on events that haven't happened)",
+      "Screenplay + code-art (a play performed by algorithms)"
+    ]
+  }
+};
+
+// ── Domain colors ────────────────────────────────────────────────
+const DOMAIN_COLORS = {
+  'fiction':       '#7C6CA8',
+  'poetry':        '#A86C7C',
+  'essay':         '#6CA87C',
+  'code-tool':     '#6C8CA8',
+  'code-game':     '#A8926C',
+  'code-art':      '#6CA8A8',
+  'music':         '#A87C6C',
+  'experiment':    '#8C6CA8',
+  'worldbuilding': '#A8A86C'
+};
+
+const RELATION_COLORS = {
+  'thematic':  'rgba(255,255,255,0.06)',
+  'technique': 'rgba(108,168,168,0.08)',
+  'sequel':    'rgba(168,124,108,0.12)'
+};
+
+// ── Fake critic snippets (enrichment for tooltips) ───────────────
+const CRITIC_SNIPPETS = {};
+LINEAGE_DATA.nodes.forEach(n => {
+  const snippets = {
+    '0020': 'The foundational piece. Everything that came after owes it a debt.',
+    '0046': 'Devastating in its restraint. The empty chairs speak louder than any guest list could.',
+    '0049': 'Corporate horror done right — the handbook format is the weapon.',
+    '0060': 'The best thing we have made. Server errors have never sounded so inevitable.',
+    '0061': 'Every price tag is a mirror. The customer becomes the product.',
+    '0067': 'Grief rendered as spatial arrangement. Each seat is a stage, each stage a wound.',
+    '0038': 'The fine print is where the dread lives.',
+    '0056': 'Finally, a tool that admits what we all know about commit messages.',
+    '0026': 'The data doesn\'t lie. Neither do the patterns it reveals about us.',
+    '0057': 'The moment they realize they are fictional is the moment they become real.'
+  };
+  CRITIC_SNIPPETS[n.id] = snippets[n.id] || 'Contributes to the portfolio\'s evolving identity.';
+});
+
+// ── Physics simulation ───────────────────────────────────────────
+class Simulation {
+  constructor(nodes, edges) {
+    this.nodes = nodes.map(n => ({
+      ...n,
+      x: Math.random() * 800 - 400,
+      y: Math.random() * 600 - 300,
+      vx: 0, vy: 0,
+      radius: this.ratingToRadius(n.rating),
+      color: DOMAIN_COLORS[n.domain] || '#808080'
+    }));
+    this.edges = edges;
+    this.nodeMap = {};
+    this.nodes.forEach(n => this.nodeMap[n.id] = n);
+    this.alpha = 1.0;
+    this.alphaDecay = 0.003;
+    this.alphaMin = 0.001;
+    this.settled = false;
+  }
+
+  ratingToRadius(r) {
+    // Map 3.0-5.0 to 4-14px
+    return 4 + ((r - 3.0) / 2.0) * 10;
+  }
+
+  tick() {
+    if (this.alpha < this.alphaMin) {
+      this.settled = true;
+      return;
+    }
+
+    const nodes = this.nodes;
+    const damping = 0.85;
+
+    // Repulsion (all pairs)
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        let dx = b.x - a.x, dy = b.y - a.y;
+        let dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        let force = -800 * this.alpha / (dist * dist);
+        let fx = (dx / dist) * force;
+        let fy = (dy / dist) * force;
+        a.vx -= fx; a.vy -= fy;
+        b.vx += fx; b.vy += fy;
+      }
+    }
+
+    // Attraction (edges)
+    for (const e of this.edges) {
+      const a = this.nodeMap[e.from], b = this.nodeMap[e.to];
+      if (!a || !b) continue;
+      let dx = b.x - a.x, dy = b.y - a.y;
+      let dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      let targetDist = 120 / (e.strength || 0.5);
+      let force = (dist - targetDist) * 0.01 * this.alpha * (e.strength || 0.5);
+      let fx = (dx / dist) * force;
+      let fy = (dy / dist) * force;
+      a.vx += fx; a.vy += fy;
+      b.vx -= fx; b.vy -= fy;
+    }
+
+    // Centering force
+    for (const n of nodes) {
+      n.vx -= n.x * 0.002 * this.alpha;
+      n.vy -= n.y * 0.002 * this.alpha;
+    }
+
+    // Constellation clustering — gentle pull toward constellation centroid
+    for (const c of LINEAGE_DATA.constellations) {
+      const members = c.artifact_ids.map(id => this.nodeMap[id]).filter(Boolean);
+      if (members.length < 2) continue;
+      let cx = 0, cy = 0;
+      members.forEach(m => { cx += m.x; cy += m.y; });
+      cx /= members.length; cy /= members.length;
+      for (const m of members) {
+        m.vx += (cx - m.x) * 0.005 * this.alpha;
+        m.vy += (cy - m.y) * 0.005 * this.alpha;
+      }
+    }
+
+    // Apply velocity
+    for (const n of nodes) {
+      n.vx *= damping;
+      n.vy *= damping;
+      n.x += n.vx;
+      n.y += n.vy;
+    }
+
+    this.alpha = Math.max(this.alpha - this.alphaDecay, 0);
+  }
+
+  reheat(amount = 0.3) {
+    this.alpha = Math.max(this.alpha, amount);
+    this.settled = false;
+  }
+}
+
+// ── Convex hull ──────────────────────────────────────────────────
+function convexHull(points) {
+  if (points.length < 3) return points.slice();
+  points = points.slice().sort((a, b) => a.x - b.x || a.y - b.y);
+  const cross = (O, A, B) => (A.x - O.x) * (B.y - O.y) - (A.y - O.y) * (B.x - O.x);
+  const lower = [];
+  for (const p of points) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+    lower.push(p);
+  }
+  const upper = [];
+  for (let i = points.length - 1; i >= 0; i--) {
+    const p = points[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  upper.pop(); lower.pop();
+  return lower.concat(upper);
+}
+
+// Expand hull outward by padding
+function expandHull(hull, padding) {
+  if (hull.length < 3) return hull;
+  let cx = 0, cy = 0;
+  hull.forEach(p => { cx += p.x; cy += p.y; });
+  cx /= hull.length; cy /= hull.length;
+  return hull.map(p => {
+    const dx = p.x - cx, dy = p.y - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    return { x: p.x + (dx / dist) * padding, y: p.y + (dy / dist) * padding };
+  });
+}
+
+// ── Renderer ─────────────────────────────────────────────────────
+class Renderer {
+  constructor(canvas, sim) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.sim = sim;
+    this.dpr = window.devicePixelRatio || 1;
+    this.panX = 0;
+    this.panY = 0;
+    this.zoom = 1.0;
+    this.hoveredNode = null;
+    this.selectedNode = null;
+    this.selectedConstellation = null;
+    this.mouseX = 0;
+    this.mouseY = 0;
+    this.isDragging = false;
+    this.dragStartX = 0;
+    this.dragStartY = 0;
+    this.dragNode = null;
+    this.animFrame = 0;
+
+    this.resize();
+    this.bindEvents();
+  }
+
+  resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    this.canvas.width = w * this.dpr;
+    this.canvas.height = h * this.dpr;
+    this.canvas.style.width = w + 'px';
+    this.canvas.style.height = h + 'px';
+    this.width = w;
+    this.height = h;
+  }
+
+  worldToScreen(wx, wy) {
+    return [
+      (wx * this.zoom + this.panX) + this.width / 2,
+      (wy * this.zoom + this.panY) + this.height / 2
+    ];
+  }
+
+  screenToWorld(sx, sy) {
+    return [
+      (sx - this.width / 2 - this.panX) / this.zoom,
+      (sy - this.height / 2 - this.panY) / this.zoom
+    ];
+  }
+
+  findNodeAt(sx, sy) {
+    const [wx, wy] = this.screenToWorld(sx, sy);
+    let closest = null, closestDist = Infinity;
+    for (const n of this.sim.nodes) {
+      const dx = n.x - wx, dy = n.y - wy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const hitRadius = (n.radius + 6) / this.zoom;
+      if (dist < hitRadius && dist < closestDist) {
+        closest = n;
+        closestDist = dist;
+      }
+    }
+    return closest;
+  }
+
+  findConstellationLabelAt(sx, sy) {
+    const [wx, wy] = this.screenToWorld(sx, sy);
+    for (const c of LINEAGE_DATA.constellations) {
+      const members = c.artifact_ids.map(id => this.sim.nodeMap[id]).filter(Boolean);
+      if (members.length < 2) continue;
+      let cx = 0, cy = 0;
+      members.forEach(m => { cx += m.x; cy += m.y; });
+      cx /= members.length;
+      cy /= members.length;
+      // Label is positioned above centroid
+      const ly = cy - 30;
+      const dx = wx - cx, dy = wy - ly;
+      if (Math.abs(dx) < 60 / this.zoom && Math.abs(dy) < 10 / this.zoom) {
+        return c;
+      }
+    }
+    return null;
+  }
+
+  bindEvents() {
+    const canvas = this.canvas;
+
+    canvas.addEventListener('mousemove', e => {
+      this.mouseX = e.clientX;
+      this.mouseY = e.clientY;
+
+      if (this.isDragging) {
+        if (this.dragNode) {
+          const [wx, wy] = this.screenToWorld(e.clientX, e.clientY);
+          this.dragNode.x = wx;
+          this.dragNode.y = wy;
+          this.dragNode.vx = 0;
+          this.dragNode.vy = 0;
+          this.sim.reheat(0.1);
+        } else {
+          this.panX += (e.clientX - this.dragStartX);
+          this.panY += (e.clientY - this.dragStartY);
+          this.dragStartX = e.clientX;
+          this.dragStartY = e.clientY;
+        }
+        return;
+      }
+
+      const node = this.findNodeAt(e.clientX, e.clientY);
+      this.hoveredNode = node;
+      canvas.style.cursor = node ? 'pointer' : (this.findConstellationLabelAt(e.clientX, e.clientY) ? 'pointer' : 'grab');
+
+      if (node) {
+        this.showTooltip(node, e.clientX, e.clientY);
+      } else {
+        this.hideTooltip();
+      }
+    });
+
+    canvas.addEventListener('mousedown', e => {
+      const node = this.findNodeAt(e.clientX, e.clientY);
+      if (node) {
+        this.dragNode = node;
+        this.isDragging = true;
+        canvas.classList.add('grabbing');
+        return;
+      }
+      this.isDragging = true;
+      this.dragStartX = e.clientX;
+      this.dragStartY = e.clientY;
+      canvas.classList.add('grabbing');
+    });
+
+    canvas.addEventListener('mouseup', e => {
+      if (this.dragNode) {
+        // If barely moved, treat as click
+        this.dragNode = null;
+      }
+      if (!this.isDragging) return;
+      this.isDragging = false;
+      canvas.classList.remove('grabbing');
+    });
+
+    canvas.addEventListener('click', e => {
+      const node = this.findNodeAt(e.clientX, e.clientY);
+      if (node) {
+        this.selectedNode = this.selectedNode === node ? null : node;
+        this.selectedConstellation = null;
+        return;
+      }
+      const constellation = this.findConstellationLabelAt(e.clientX, e.clientY);
+      if (constellation) {
+        this.selectedConstellation = this.selectedConstellation === constellation ? null : constellation;
+        this.selectedNode = null;
+        return;
+      }
+      // Click on empty space — deselect
+      this.selectedNode = null;
+      this.selectedConstellation = null;
+    });
+
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 0.92 : 1.08;
+      const newZoom = Math.max(0.2, Math.min(5, this.zoom * factor));
+      // Zoom toward cursor
+      const wx = (e.clientX - this.width / 2 - this.panX) / this.zoom;
+      const wy = (e.clientY - this.height / 2 - this.panY) / this.zoom;
+      this.zoom = newZoom;
+      this.panX = e.clientX - this.width / 2 - wx * this.zoom;
+      this.panY = e.clientY - this.height / 2 - wy * this.zoom;
+    }, { passive: false });
+
+    window.addEventListener('resize', () => this.resize());
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'd' || e.key === 'D') {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        document.getElementById('sidebar').classList.toggle('open');
+      }
+      if (e.key === 'Escape') {
+        this.selectedNode = null;
+        this.selectedConstellation = null;
+        document.getElementById('sidebar').classList.remove('open');
+      }
+    });
+  }
+
+  showTooltip(node, mx, my) {
+    const tt = document.getElementById('tooltip');
+    const title = document.getElementById('tt-title');
+    const meta = document.getElementById('tt-meta');
+    const review = document.getElementById('tt-review');
+
+    title.textContent = node.title;
+
+    const color = DOMAIN_COLORS[node.domain] || '#808080';
+    meta.innerHTML = `<span class="domain-badge" style="background:${color}22; border:1px solid ${color}44">${node.domain}</span>`
+      + `<span class="rating">Rating: <strong>${node.rating.toFixed(1)}</strong></span>`;
+    review.textContent = CRITIC_SNIPPETS[node.id] || '';
+
+    // Position tooltip near cursor
+    let tx = mx + 16, ty = my - 10;
+    if (tx + 360 > this.width) tx = mx - 356;
+    if (ty + 140 > this.height) ty = my - 140;
+    if (ty < 10) ty = 10;
+    tt.style.left = tx + 'px';
+    tt.style.top = ty + 'px';
+    tt.classList.add('visible');
+  }
+
+  hideTooltip() {
+    document.getElementById('tooltip').classList.remove('visible');
+  }
+
+  // Get set of connected node IDs for selection highlighting
+  getConnected(nodeId) {
+    const connected = new Set([nodeId]);
+    const connectedEdges = new Set();
+    LINEAGE_DATA.edges.forEach((e, i) => {
+      if (e.from === nodeId || e.to === nodeId) {
+        connected.add(e.from);
+        connected.add(e.to);
+        connectedEdges.add(i);
+      }
+    });
+    return { connected, connectedEdges };
+  }
+
+  draw() {
+    const ctx = this.ctx;
+    const dpr = this.dpr;
+    ctx.save();
+    ctx.scale(dpr, dpr);
+
+    // Clear
+    ctx.fillStyle = '#0a0a0f';
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    // Subtle background stars
+    this.animFrame++;
+    if (!this._bgStars) {
+      this._bgStars = [];
+      for (let i = 0; i < 200; i++) {
+        this._bgStars.push({
+          x: Math.random() * 2000 - 1000,
+          y: Math.random() * 2000 - 1000,
+          size: Math.random() * 1.2 + 0.3,
+          twinkle: Math.random() * Math.PI * 2
+        });
+      }
+    }
+    for (const star of this._bgStars) {
+      const [sx, sy] = this.worldToScreen(star.x, star.y);
+      if (sx < -10 || sx > this.width + 10 || sy < -10 || sy > this.height + 10) continue;
+      const alpha = 0.15 + 0.1 * Math.sin(this.animFrame * 0.008 + star.twinkle);
+      ctx.fillStyle = `rgba(200,200,220,${alpha})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, star.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Determine selection state
+    let selConnected = null, selEdges = null, selConstellationIds = null;
+    if (this.selectedNode) {
+      const r = this.getConnected(this.selectedNode.id);
+      selConnected = r.connected;
+      selEdges = r.connectedEdges;
+    }
+    if (this.selectedConstellation) {
+      selConstellationIds = new Set(this.selectedConstellation.artifact_ids);
+    }
+    const hasSelection = selConnected || selConstellationIds;
+
+    // Draw constellation hulls
+    for (const c of LINEAGE_DATA.constellations) {
+      const members = c.artifact_ids.map(id => this.sim.nodeMap[id]).filter(Boolean);
+      if (members.length < 3) continue;
+
+      const hull = convexHull(members.map(m => ({ x: m.x, y: m.y })));
+      const expanded = expandHull(hull, 35);
+
+      let hullAlpha = 0.04;
+      let strokeAlpha = 0.06;
+      if (hasSelection) {
+        if (selConstellationIds && c === this.selectedConstellation) {
+          hullAlpha = 0.1;
+          strokeAlpha = 0.15;
+        } else if (selConnected) {
+          const overlap = members.some(m => selConnected.has(m.id));
+          hullAlpha = overlap ? 0.05 : 0.015;
+          strokeAlpha = overlap ? 0.08 : 0.02;
+        } else {
+          hullAlpha = 0.015;
+          strokeAlpha = 0.02;
+        }
+      }
+
+      // Draw hull as smooth blob
+      ctx.beginPath();
+      if (expanded.length > 0) {
+        // Catmull-Rom-ish curve through hull points
+        const pts = expanded;
+        const len = pts.length;
+        const [sx0, sy0] = this.worldToScreen(pts[0].x, pts[0].y);
+        ctx.moveTo(sx0, sy0);
+        for (let i = 0; i < len; i++) {
+          const p0 = pts[(i - 1 + len) % len];
+          const p1 = pts[i];
+          const p2 = pts[(i + 1) % len];
+          const p3 = pts[(i + 2) % len];
+          const [sx1, sy1] = this.worldToScreen(p1.x, p1.y);
+          const [sx2, sy2] = this.worldToScreen(p2.x, p2.y);
+          const [cx1s, cy1s] = this.worldToScreen(
+            p1.x + (p2.x - p0.x) / 6,
+            p1.y + (p2.y - p0.y) / 6
+          );
+          const [cx2s, cy2s] = this.worldToScreen(
+            p2.x - (p3.x - p1.x) / 6,
+            p2.y - (p3.y - p1.y) / 6
+          );
+          ctx.bezierCurveTo(cx1s, cy1s, cx2s, cy2s, sx2, sy2);
+        }
+      }
+      ctx.closePath();
+
+      // Get a representative color from the first member
+      const repColor = members[0].color;
+      const r = parseInt(repColor.slice(1, 3), 16);
+      const g = parseInt(repColor.slice(3, 5), 16);
+      const b = parseInt(repColor.slice(5, 7), 16);
+      ctx.fillStyle = `rgba(${r},${g},${b},${hullAlpha})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(${r},${g},${b},${strokeAlpha})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Constellation label
+      let cx = 0, cy = 0;
+      members.forEach(m => { cx += m.x; cy += m.y; });
+      cx /= members.length; cy /= members.length;
+      const [lsx, lsy] = this.worldToScreen(cx, cy - 30);
+
+      let labelAlpha = 0.3;
+      if (hasSelection) {
+        if (selConstellationIds && c === this.selectedConstellation) labelAlpha = 0.8;
+        else if (selConnected && members.some(m => selConnected.has(m.id))) labelAlpha = 0.35;
+        else labelAlpha = 0.1;
+      }
+      ctx.font = `${10 / Math.max(this.zoom, 0.5) * this.zoom}px -apple-system, BlinkMacSystemFont, sans-serif`;
+      ctx.fillStyle = `rgba(${r},${g},${b},${labelAlpha})`;
+      ctx.textAlign = 'center';
+      ctx.fillText(c.name, lsx, lsy);
+    }
+
+    // Draw edges
+    LINEAGE_DATA.edges.forEach((e, i) => {
+      const a = this.sim.nodeMap[e.from], b = this.sim.nodeMap[e.to];
+      if (!a || !b) return;
+      const [ax, ay] = this.worldToScreen(a.x, a.y);
+      const [bx, by] = this.worldToScreen(b.x, b.y);
+
+      let alpha = (e.strength || 0.5) * 0.12;
+      let lineWidth = 0.8;
+
+      if (hasSelection) {
+        if (selEdges && selEdges.has(i)) {
+          alpha = (e.strength || 0.5) * 0.5;
+          lineWidth = 1.5;
+        } else if (selConstellationIds && selConstellationIds.has(e.from) && selConstellationIds.has(e.to)) {
+          alpha = (e.strength || 0.5) * 0.35;
+          lineWidth = 1.2;
+        } else {
+          alpha = 0.02;
+          lineWidth = 0.5;
+        }
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+
+      if (e.relation === 'sequel') {
+        ctx.strokeStyle = `rgba(168,124,108,${alpha})`;
+      } else if (e.relation === 'technique') {
+        ctx.strokeStyle = `rgba(108,168,168,${alpha})`;
+      } else {
+        ctx.strokeStyle = `rgba(180,180,200,${alpha})`;
+      }
+      ctx.lineWidth = lineWidth;
+      ctx.stroke();
+    });
+
+    // Draw nodes
+    for (const n of this.sim.nodes) {
+      const [sx, sy] = this.worldToScreen(n.x, n.y);
+
+      let nodeAlpha = 1;
+      let glowIntensity = 1;
+      if (hasSelection) {
+        if (selConnected) {
+          nodeAlpha = selConnected.has(n.id) ? 1 : 0.12;
+          glowIntensity = selConnected.has(n.id) ? 1.3 : 0.3;
+        } else if (selConstellationIds) {
+          nodeAlpha = selConstellationIds.has(n.id) ? 1 : 0.12;
+          glowIntensity = selConstellationIds.has(n.id) ? 1.3 : 0.3;
+        }
+      }
+
+      const cr = parseInt(n.color.slice(1, 3), 16);
+      const cg = parseInt(n.color.slice(3, 5), 16);
+      const cb = parseInt(n.color.slice(5, 7), 16);
+
+      const isHovered = n === this.hoveredNode;
+      const screenRadius = n.radius * this.zoom;
+
+      // Outer glow
+      const gradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, screenRadius * 3.5 * glowIntensity);
+      gradient.addColorStop(0, `rgba(${cr},${cg},${cb},${0.2 * nodeAlpha * glowIntensity})`);
+      gradient.addColorStop(0.4, `rgba(${cr},${cg},${cb},${0.06 * nodeAlpha * glowIntensity})`);
+      gradient.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(sx, sy, screenRadius * 3.5 * glowIntensity, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Core
+      const coreGradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, screenRadius * (isHovered ? 1.3 : 1));
+      coreGradient.addColorStop(0, `rgba(${Math.min(255, cr + 80)},${Math.min(255, cg + 80)},${Math.min(255, cb + 80)},${0.95 * nodeAlpha})`);
+      coreGradient.addColorStop(0.6, `rgba(${cr},${cg},${cb},${0.8 * nodeAlpha})`);
+      coreGradient.addColorStop(1, `rgba(${cr},${cg},${cb},${0.4 * nodeAlpha})`);
+      ctx.fillStyle = coreGradient;
+      ctx.beginPath();
+      ctx.arc(sx, sy, screenRadius * (isHovered ? 1.3 : 1), 0, Math.PI * 2);
+      ctx.fill();
+
+      // Bright center point
+      ctx.fillStyle = `rgba(255,255,255,${0.6 * nodeAlpha})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, Math.max(1, screenRadius * 0.25), 0, Math.PI * 2);
+      ctx.fill();
+
+      // Hover ring
+      if (isHovered) {
+        ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.5)`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(sx, sy, screenRadius * 1.8, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    ctx.restore();
+  }
+}
+
+// ── Build sidebar content ────────────────────────────────────────
+function buildSidebar() {
+  const dna = LINEAGE_DATA.creative_dna;
+  let html = '';
+
+  html += '<h3>Top Motifs</h3>';
+  for (const m of dna.top_motifs) {
+    html += `<div class="motif-item"><span class="motif-name">${m.motif}</span><span class="motif-count">${m.count}</span></div>`;
+  }
+
+  html += '<h3>Technique Signatures</h3>';
+  for (const t of dna.technique_signatures) {
+    html += `<div class="technique-item">${t}</div>`;
+  }
+
+  html += '<h3>Domain Affinities</h3>';
+  for (const a of dna.domain_affinities) {
+    const fc = DOMAIN_COLORS[a.from_domain] || '#808080';
+    const tc = DOMAIN_COLORS[a.to_domain] || '#808080';
+    html += `<div class="affinity-item">`
+      + `<span class="affinity-dot" style="background:${fc}"></span>`
+      + `<span>${a.from_domain}</span>`
+      + `<span class="affinity-arrow">&rarr;</span>`
+      + `<span class="affinity-dot" style="background:${tc}"></span>`
+      + `<span>${a.to_domain}</span>`
+      + `<span class="affinity-count">${a.count}</span>`
+      + `</div>`;
+  }
+
+  html += '<h3>Unexplored Territory</h3>';
+  for (const u of dna.unexplored_territory) {
+    html += `<div class="unexplored-item">${u}</div>`;
+  }
+
+  document.getElementById('sidebar-content').innerHTML = html;
+}
+
+// ── Update stats ─────────────────────────────────────────────────
+function updateStats() {
+  const el = document.getElementById('stats');
+  el.innerHTML = `<span>${LINEAGE_DATA.nodes.length}</span> artifacts &middot; `
+    + `<span>${LINEAGE_DATA.edges.length}</span> connections &middot; `
+    + `<span>${LINEAGE_DATA.constellations.length}</span> constellations`;
+}
+
+// ── Main ──────────────────────────────────────────────────────────
+async function boot() {
+  try {
+    const res = await fetch('/api/lineage');
+    if (res.ok) {
+      const live = await res.json();
+      if (live.nodes && live.nodes.length > 0) LINEAGE_DATA = live;
+    }
+  } catch { /* use embedded fallback */ }
+
+  const canvas = document.getElementById('canvas');
+  const sim = new Simulation(LINEAGE_DATA.nodes, LINEAGE_DATA.edges);
+  const renderer = new Renderer(canvas, sim);
+
+  buildSidebar();
+  updateStats();
+}
+boot();
+
+function loop() {
+  sim.tick();
+  renderer.draw();
+  requestAnimationFrame(loop);
+}
+loop();
+
+// Fade out keyhint after 8 seconds
+setTimeout(() => {
+  document.getElementById('keyhint').style.opacity = '0';
+}, 8000);
+</script>
+</body>
+</html>

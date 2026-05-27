@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Foundry — Evolution</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #0a0a0f;
+  color: #c8c8d0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ── Nav ──────────────────────────────────────────── */
+#nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: baseline;
+  gap: 24px;
+  padding: 18px 32px 14px;
+  background: linear-gradient(to bottom, rgba(10,10,15,0.97) 0%, rgba(10,10,15,0.7) 70%, transparent 100%);
+  pointer-events: none;
+}
+#nav h1 {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #e0e0e8;
+  pointer-events: auto;
+}
+#nav h1 span.accent { color: #6CA8A8; font-weight: 400; }
+#nav .nav-links {
+  display: flex;
+  gap: 18px;
+  pointer-events: auto;
+}
+#nav .nav-links a {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: #505060;
+  transition: color 0.2s;
+}
+#nav .nav-links a:hover { color: #909098; }
+#nav .nav-links a.active { color: #6CA8A8; }
+#nav .stats {
+  margin-left: auto;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #404050;
+  pointer-events: none;
+}
+#nav .stats span { color: #606070; }
+
+/* ── Layout ─────────────────────────────────────── */
+#main {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── River container ────────────────────────────── */
+#river-wrap {
+  flex: 1 1 0;
+  position: relative;
+  overflow: hidden;
+  margin-top: 56px;
+  cursor: grab;
+}
+#river-wrap.grabbing { cursor: grabbing; }
+#river-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Side panel ─────────────────────────────────── */
+#panel {
+  position: fixed;
+  top: 56px; right: 0; bottom: 0;
+  width: 320px;
+  z-index: 90;
+  background: rgba(12, 12, 20, 0.94);
+  border-left: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  overflow-y: auto;
+  padding: 24px 20px 32px;
+  transform: translateX(0);
+  transition: transform 0.3s ease;
+}
+#panel.collapsed { transform: translateX(100%); }
+#panel::-webkit-scrollbar { width: 4px; }
+#panel::-webkit-scrollbar-track { background: transparent; }
+#panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+#panel h2 {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6CA8A8;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+#panel h3 {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #505060;
+  margin-top: 20px;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.phase-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.arc-text {
+  font-size: 12px;
+  color: #909098;
+  line-height: 1.6;
+  margin-bottom: 4px;
+}
+
+.sparkline-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.sparkline-row:hover { background: rgba(255,255,255,0.03); }
+.sparkline-row.active { background: rgba(108,168,168,0.08); }
+.sparkline-label {
+  font-size: 11px;
+  color: #808090;
+  width: 80px;
+  flex-shrink: 0;
+  text-align: right;
+  padding-right: 4px;
+}
+.sparkline-canvas {
+  flex: 1;
+  height: 20px;
+}
+.sparkline-count {
+  font-size: 10px;
+  color: #505060;
+  width: 24px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.moment-item {
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.moment-label {
+  font-size: 10px;
+  color: #505060;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.moment-value {
+  font-size: 12px;
+  color: #b0b0b8;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+.moment-value .iter-ref {
+  color: #6CA8A8;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Tooltip ────────────────────────────────────── */
+#tooltip {
+  position: fixed;
+  z-index: 200;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  max-width: 320px;
+  background: rgba(18, 18, 28, 0.95);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 12px 14px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+#tooltip.visible { opacity: 1; }
+#tooltip .tt-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e8e8f0;
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+#tooltip .tt-meta {
+  font-size: 11px;
+  color: #808090;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+#tooltip .tt-meta .domain-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: #d0d0d8;
+}
+#tooltip .tt-meta .rating { color: #a0a0b0; }
+#tooltip .tt-meta .rating strong { color: #e0e0e8; font-weight: 600; }
+#tooltip .tt-review {
+  font-size: 11px;
+  color: #909098;
+  line-height: 1.5;
+  font-style: italic;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  padding-top: 6px;
+}
+
+/* ── Detail card (inline expand) ────────────────── */
+#detail-card {
+  position: fixed;
+  z-index: 180;
+  background: rgba(16, 16, 26, 0.96);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 16px 20px;
+  max-width: 380px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: none;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+#detail-card.open { display: block; }
+#detail-card .dc-close {
+  position: absolute;
+  top: 8px; right: 12px;
+  background: none;
+  border: none;
+  color: #505060;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
+#detail-card .dc-close:hover { color: #909098; }
+#detail-card .dc-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #e8e8f0;
+  margin-bottom: 8px;
+  padding-right: 24px;
+  line-height: 1.4;
+}
+#detail-card .dc-meta {
+  font-size: 11px;
+  color: #808090;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+#detail-card .dc-ratings {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+#detail-card .dc-ratings .r-pill {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.04);
+  color: #a0a0b0;
+}
+#detail-card .dc-review {
+  font-size: 12px;
+  color: #909098;
+  line-height: 1.6;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  padding-top: 8px;
+}
+
+/* ── Key hint ───────────────────────────────────── */
+#keyhint {
+  position: fixed;
+  bottom: 14px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #404050;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+#keyhint kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid #303040;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 10px;
+  color: #505060;
+  margin: 0 2px;
+}
+
+/* ── Empty state ────────────────────────────────── */
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #404050;
+  font-size: 14px;
+  font-style: italic;
+  text-align: center;
+  padding: 48px;
+  line-height: 1.6;
+}
+
+/* ── Mobile ─────────────────────────────────────── */
+@media (max-width: 900px) {
+  #panel {
+    position: relative;
+    top: auto; right: auto; bottom: auto;
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    max-height: 50vh;
+    transform: none;
+  }
+  #panel.collapsed { transform: none; display: none; }
+  #main { overflow-y: auto; }
+  #river-wrap { min-height: 60vh; flex-shrink: 0; }
+}
+</style>
+</head>
+<body>
+
+<nav id="nav">
+  <h1>The Foundry <span class="accent">—</span> Evolution</h1>
+  <div class="nav-links">
+    <a href="/">Observatory</a>
+    <a href="/constellation.html">Constellation Map</a>
+    <a href="/evolution.html" class="active">Evolution</a>
+  </div>
+  <div class="stats" id="stats"></div>
+</nav>
+
+<div id="main">
+  <div id="river-wrap">
+    <canvas id="river-canvas"></canvas>
+  </div>
+  <div id="panel">
+    <h2>Phase Analysis</h2>
+    <div id="panel-content"></div>
+  </div>
+</div>
+
+<div id="tooltip">
+  <div class="tt-title" id="tt-title"></div>
+  <div class="tt-meta" id="tt-meta"></div>
+  <div class="tt-review" id="tt-review"></div>
+</div>
+
+<div id="detail-card">
+  <button type="button" class="dc-close" onclick="closeDetail()">&times;</button>
+  <div class="dc-title" id="dc-title"></div>
+  <div class="dc-meta" id="dc-meta"></div>
+  <div class="dc-ratings" id="dc-ratings"></div>
+  <div class="dc-review" id="dc-review"></div>
+</div>
+
+<div id="keyhint">
+  <kbd>P</kbd> Toggle panel &nbsp;&middot;&nbsp;
+  <kbd>Esc</kbd> Close &nbsp;&middot;&nbsp;
+  Shift+scroll horizontal &nbsp;&middot;&nbsp;
+  Pinch/scroll to zoom
+</div>
+
+<script>
+// ── Domain colors ────────────────────────────────────────────────
+const DOMAIN_COLORS = {
+  'fiction':       '#7C6CA8',
+  'poetry':        '#A86C7C',
+  'essay':         '#6CA87C',
+  'code-tool':     '#6C8CA8',
+  'code-game':     '#A8926C',
+  'code-art':      '#6CA8A8',
+  'music':         '#A87C6C',
+  'experiment':    '#8C6CA8',
+  'worldbuilding': '#A8A86C'
+};
+
+const DOMAIN_ORDER = Object.keys(DOMAIN_COLORS);
+
+// ── Data state ───────────────────────────────────────────────────
+let iterations = [];
+let decisions = [];
+let lineage = { nodes: [], edges: [], constellations: [], creative_dna: {} };
+
+// ── Fetch data ───────────────────────────────────────────────────
+async function fetchData() {
+  const [iterRes, decRes, linRes] = await Promise.all([
+    fetch('/api/iterations').then(r => r.json()).catch(() => []),
+    fetch('/api/decisions').then(r => r.json()).catch(() => []),
+    fetch('/api/lineage').then(r => r.json()).catch(() => ({})),
+  ]);
+  iterations = (iterRes || []).sort((a, b) => (a.iteration || 0) - (b.iteration || 0));
+  decisions = decRes || [];
+  lineage = linRes || {};
+}
+
+// ── Helpers ──────────────────────────────────────────────────────
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function rollingMean(arr, window) {
+  const out = [];
+  for (let i = 0; i < arr.length; i++) {
+    const start = Math.max(0, i - window + 1);
+    const slice = arr.slice(start, i + 1).filter(v => v != null);
+    out.push(slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : null);
+  }
+  return out;
+}
+
+// ── River renderer ───────────────────────────────────────────────
+class River {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.dpr = window.devicePixelRatio || 1;
+
+    // View state
+    this.offsetX = 0;
+    this.zoom = 1;
+    this.sliceWidth = 48;  // base px per iteration
+    this.hoveredSlice = null;
+    this.selectedSlice = null;
+    this.highlightDomain = null;
+
+    // Dragging
+    this.isDragging = false;
+    this.dragStartX = 0;
+    this.dragStartOffset = 0;
+
+    // Computed
+    this.slices = [];
+    this.domains = [];
+    this.domainLanes = {};
+    this.riverTop = 0;
+    this.riverBottom = 0;
+    this.annotations = [];
+    this.qualityZones = [];
+
+    this.resize();
+    this.bindEvents();
+  }
+
+  resize() {
+    const rect = this.canvas.parentElement.getBoundingClientRect();
+    this.width = rect.width;
+    this.height = rect.height;
+    this.canvas.width = this.width * this.dpr;
+    this.canvas.height = this.height * this.dpr;
+    this.canvas.style.width = this.width + 'px';
+    this.canvas.style.height = this.height + 'px';
+    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+  }
+
+  buildSlices() {
+    if (!iterations.length) { this.slices = []; return; }
+
+    // Gather all domains that appear
+    const domainSet = new Set();
+    iterations.forEach(it => { if (it.domain) domainSet.add(it.domain); });
+    this.domains = DOMAIN_ORDER.filter(d => domainSet.has(d));
+
+    // Assign lane indices
+    this.domainLanes = {};
+    this.domains.forEach((d, i) => { this.domainLanes[d] = i; });
+
+    const laneCount = this.domains.length || 1;
+    const panelWidth = window.innerWidth > 900 ? 320 : 0;
+    const usableHeight = this.height - 100; // top/bottom margin
+    this.riverTop = 60;
+    this.riverBottom = this.riverTop + usableHeight;
+    const laneHeight = usableHeight / laneCount;
+
+    // Build per-iteration slices
+    this.slices = iterations.map((it, idx) => {
+      const lane = this.domainLanes[it.domain];
+      const laneY = lane != null
+        ? this.riverTop + lane * laneHeight + laneHeight / 2
+        : this.riverTop + usableHeight / 2;
+
+      const rating = it.mean_rating || 0;
+      const isShipped = it.outcome === 'shipped';
+      const isKilled = it.outcome === 'killed';
+
+      // Dot radius: 3–12 based on rating
+      const radius = isShipped && rating
+        ? 3 + ((rating - 1) / 4) * 9
+        : 3;
+
+      return {
+        idx,
+        iteration: it.iteration,
+        x: idx, // world x in iteration units
+        y: laneY,
+        radius,
+        domain: it.domain,
+        color: DOMAIN_COLORS[it.domain] || '#555555',
+        rating,
+        isShipped,
+        isKilled,
+        isSkipped: !isShipped && !isKilled,
+        title: it.title || '',
+        review: it.review || '',
+        artifact_id: it.artifact_id || '',
+        ratings: it.ratings || {},
+        timestamp: it.timestamp,
+        duration_ms: it.duration_ms,
+        data: it
+      };
+    });
+
+    // Compute quality zones (where rolling mean < 3.0)
+    this.qualityZones = [];
+    const ratings = this.slices.map(s => s.isShipped && s.rating ? s.rating : null);
+    const rolling = rollingMean(ratings, 5);
+    let zoneStart = null;
+    for (let i = 0; i < rolling.length; i++) {
+      if (rolling[i] != null && rolling[i] < 3.0) {
+        if (zoneStart == null) zoneStart = i;
+      } else {
+        if (zoneStart != null) {
+          this.qualityZones.push({ start: zoneStart, end: i - 1 });
+          zoneStart = null;
+        }
+      }
+    }
+    if (zoneStart != null) this.qualityZones.push({ start: zoneStart, end: this.slices.length - 1 });
+
+    // Compute annotations from decisions
+    this.annotations = [];
+    const curatorDecisions = decisions.filter(d =>
+      d.gate === 'curator' || (d.decision && d.decision.toLowerCase().includes('curator'))
+    );
+    curatorDecisions.forEach(cd => {
+      const si = this.slices.findIndex(s => s.iteration === cd.iteration);
+      if (si >= 0) this.annotations.push({ type: 'curator', sliceIdx: si });
+    });
+  }
+
+  // ── Coordinate transforms ────────────────────────────────────
+  worldToScreenX(worldIdx) {
+    return (worldIdx * this.sliceWidth * this.zoom) + this.offsetX;
+  }
+
+  screenToWorldIdx(sx) {
+    return (sx - this.offsetX) / (this.sliceWidth * this.zoom);
+  }
+
+  findSliceAt(sx, sy) {
+    for (const s of this.slices) {
+      const wx = this.worldToScreenX(s.x);
+      const dx = sx - wx;
+      const dy = sy - s.y;
+      const hitRadius = Math.max(s.radius + 4, 8);
+      if (dx * dx + dy * dy < hitRadius * hitRadius) return s;
+    }
+    return null;
+  }
+
+  // ── Events ────────────────────────────────────────────────────
+  bindEvents() {
+    const wrap = this.canvas.parentElement;
+    const canvas = this.canvas;
+
+    canvas.addEventListener('mousedown', e => {
+      this.isDragging = true;
+      this.dragStartX = e.clientX;
+      this.dragStartOffset = this.offsetX;
+      wrap.classList.add('grabbing');
+    });
+
+    window.addEventListener('mousemove', e => {
+      if (this.isDragging) {
+        this.offsetX = this.dragStartOffset + (e.clientX - this.dragStartX);
+        this.draw();
+        return;
+      }
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const slice = this.findSliceAt(sx, sy);
+      this.hoveredSlice = slice;
+      canvas.style.cursor = slice ? 'pointer' : 'grab';
+      if (slice) {
+        this.showTooltip(slice, e.clientX, e.clientY);
+      } else {
+        this.hideTooltip();
+      }
+      this.draw();
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (this.isDragging) {
+        this.isDragging = false;
+        wrap.classList.remove('grabbing');
+      }
+    });
+
+    canvas.addEventListener('click', e => {
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const slice = this.findSliceAt(sx, sy);
+      if (slice) {
+        this.selectedSlice = slice;
+        this.showDetail(slice, e.clientX, e.clientY);
+      } else {
+        this.selectedSlice = null;
+        closeDetail();
+      }
+      this.draw();
+    });
+
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        // Horizontal scroll
+        this.offsetX -= (e.deltaX || e.deltaY);
+      } else {
+        // Zoom
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const worldBefore = this.screenToWorldIdx(mx);
+        const factor = e.deltaY > 0 ? 0.92 : 1.08;
+        this.zoom = clamp(this.zoom * factor, 0.15, 8);
+        // Keep mouse position stable
+        this.offsetX = mx - worldBefore * this.sliceWidth * this.zoom;
+      }
+      this.draw();
+    }, { passive: false });
+
+    // Touch support
+    let lastTouchDist = null;
+    canvas.addEventListener('touchstart', e => {
+      if (e.touches.length === 1) {
+        this.isDragging = true;
+        this.dragStartX = e.touches[0].clientX;
+        this.dragStartOffset = this.offsetX;
+      } else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        lastTouchDist = Math.sqrt(dx * dx + dy * dy);
+      }
+    }, { passive: true });
+
+    canvas.addEventListener('touchmove', e => {
+      e.preventDefault();
+      if (e.touches.length === 1 && this.isDragging) {
+        this.offsetX = this.dragStartOffset + (e.touches[0].clientX - this.dragStartX);
+        this.draw();
+      } else if (e.touches.length === 2 && lastTouchDist != null) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const factor = dist / lastTouchDist;
+        this.zoom = clamp(this.zoom * factor, 0.15, 8);
+        lastTouchDist = dist;
+        this.draw();
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', () => {
+      this.isDragging = false;
+      lastTouchDist = null;
+    });
+
+    window.addEventListener('resize', () => {
+      this.resize();
+      this.buildSlices();
+      this.draw();
+    });
+
+    window.addEventListener('keydown', e => {
+      if (e.key === 'p' || e.key === 'P') {
+        document.getElementById('panel').classList.toggle('collapsed');
+        setTimeout(() => { this.resize(); this.buildSlices(); this.draw(); }, 350);
+      }
+      if (e.key === 'Escape') {
+        this.selectedSlice = null;
+        this.highlightDomain = null;
+        closeDetail();
+        this.draw();
+        // Clear sparkline highlights
+        document.querySelectorAll('.sparkline-row.active').forEach(el => el.classList.remove('active'));
+      }
+    });
+  }
+
+  // ── Tooltip ──────────────────────────────────────────────────
+  showTooltip(slice, mx, my) {
+    const tooltip = document.getElementById('tooltip');
+    const titleEl = document.getElementById('tt-title');
+    const metaEl = document.getElementById('tt-meta');
+    const reviewEl = document.getElementById('tt-review');
+
+    titleEl.textContent = slice.title || `Iteration #${slice.iteration}`;
+
+    const domColor = slice.color;
+    let metaHtml = '';
+    if (slice.domain) {
+      metaHtml += `<span class="domain-badge" style="background:${domColor}22;color:${domColor}">${slice.domain}</span>`;
+    }
+    metaHtml += `<span>#${slice.iteration}</span>`;
+    if (slice.isShipped && slice.rating) {
+      metaHtml += `<span class="rating"><strong>${slice.rating.toFixed(1)}</strong>/5</span>`;
+    }
+    if (slice.isKilled) metaHtml += `<span style="color:#f87171">killed</span>`;
+    metaEl.innerHTML = metaHtml;
+
+    const reviewText = slice.review
+      ? (slice.review.length > 160 ? slice.review.slice(0, 160) + '...' : slice.review)
+      : '';
+    reviewEl.textContent = reviewText;
+    reviewEl.style.display = reviewText ? 'block' : 'none';
+
+    // Position
+    const pad = 16;
+    let left = mx + pad;
+    let top = my - 20;
+    if (left + 340 > window.innerWidth) left = mx - 340 - pad;
+    if (top + 120 > window.innerHeight) top = window.innerHeight - 130;
+    if (top < 60) top = 60;
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+    tooltip.classList.add('visible');
+  }
+
+  hideTooltip() {
+    document.getElementById('tooltip').classList.remove('visible');
+  }
+
+  // ── Detail card ─────────────────────────────────────────────
+  showDetail(slice, mx, my) {
+    const card = document.getElementById('detail-card');
+    document.getElementById('dc-title').textContent = slice.title || `Iteration #${slice.iteration}`;
+
+    const domColor = slice.color;
+    let metaHtml = '';
+    if (slice.domain) {
+      metaHtml += `<span class="domain-badge" style="background:${domColor}22;color:${domColor}">${slice.domain}</span>`;
+    }
+    metaHtml += `<span style="color:#808090;font-size:11px">#${slice.iteration}</span>`;
+    if (slice.isShipped) metaHtml += `<span style="color:#4ade80;font-size:11px">shipped</span>`;
+    if (slice.isKilled) metaHtml += `<span style="color:#f87171;font-size:11px">killed</span>`;
+    if (slice.timestamp) {
+      const d = new Date(slice.timestamp);
+      metaHtml += `<span style="color:#505060;font-size:11px">${d.toLocaleDateString()}</span>`;
+    }
+    if (slice.duration_ms) {
+      metaHtml += `<span style="color:#505060;font-size:11px">${(slice.duration_ms / 1000).toFixed(0)}s</span>`;
+    }
+    document.getElementById('dc-meta').innerHTML = metaHtml;
+
+    // Individual ratings
+    let ratingsHtml = '';
+    if (slice.ratings && typeof slice.ratings === 'object') {
+      for (const [key, val] of Object.entries(slice.ratings)) {
+        ratingsHtml += `<span class="r-pill">${key}: ${val}</span>`;
+      }
+    }
+    document.getElementById('dc-ratings').innerHTML = ratingsHtml;
+
+    document.getElementById('dc-review').textContent = slice.review || 'No review available.';
+
+    // Position near click
+    const pad = 20;
+    let left = mx + pad;
+    let top = my - 40;
+    if (left + 400 > window.innerWidth) left = mx - 400 - pad;
+    if (top + 200 > window.innerHeight) top = window.innerHeight - 220;
+    if (top < 60) top = 60;
+    card.style.left = left + 'px';
+    card.style.top = top + 'px';
+    card.classList.add('open');
+    this.hideTooltip();
+  }
+
+  // ── Drawing ─────────────────────────────────────────────────
+  draw() {
+    const ctx = this.ctx;
+    const W = this.width;
+    const H = this.height;
+
+    ctx.clearRect(0, 0, W, H);
+
+    if (!this.slices.length) {
+      ctx.fillStyle = '#404050';
+      ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('No iterations recorded yet', W / 2, H / 2);
+      ctx.fillText('The river will form as artifacts flow through the system', W / 2, H / 2 + 24);
+      return;
+    }
+
+    const sw = this.sliceWidth * this.zoom;
+
+    // ── Quality crisis zones ───────────────────────────────
+    for (const zone of this.qualityZones) {
+      const x1 = this.worldToScreenX(zone.start) - sw / 2;
+      const x2 = this.worldToScreenX(zone.end) + sw / 2;
+      if (x2 < 0 || x1 > W) continue;
+      ctx.fillStyle = 'rgba(248, 113, 113, 0.04)';
+      ctx.fillRect(x1, this.riverTop - 10, x2 - x1, this.riverBottom - this.riverTop + 20);
+      // Subtle top/bottom border
+      ctx.strokeStyle = 'rgba(248, 113, 113, 0.1)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x1, this.riverTop - 10); ctx.lineTo(x2, this.riverTop - 10);
+      ctx.moveTo(x1, this.riverBottom + 10); ctx.lineTo(x2, this.riverBottom + 10);
+      ctx.stroke();
+    }
+
+    // ── Domain river flow lines (stream-like) ─────────────
+    // Draw faint horizontal paths for each domain
+    if (this.domains.length > 1) {
+      const laneCount = this.domains.length;
+      const usableHeight = this.riverBottom - this.riverTop;
+      const laneHeight = usableHeight / laneCount;
+
+      for (let di = 0; di < this.domains.length; di++) {
+        const domain = this.domains[di];
+        const [r, g, b] = hexToRgb(DOMAIN_COLORS[domain] || '#555555');
+        const laneY = this.riverTop + di * laneHeight + laneHeight / 2;
+
+        // Compute domain "activity" per slice to modulate opacity
+        ctx.beginPath();
+        let started = false;
+        for (let i = 0; i < this.slices.length; i++) {
+          const sx = this.worldToScreenX(i);
+          if (sx < -sw || sx > W + sw) continue;
+          if (!started) { ctx.moveTo(sx, laneY); started = true; }
+          else ctx.lineTo(sx, laneY);
+        }
+        if (started) {
+          const alpha = this.highlightDomain
+            ? (this.highlightDomain === domain ? 0.12 : 0.02)
+            : 0.05;
+          ctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
+          ctx.lineWidth = laneHeight * 0.6;
+          ctx.stroke();
+        }
+      }
+    }
+
+    // ── Iteration axis ─────────────────────────────────────
+    ctx.textAlign = 'center';
+    ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif';
+    const labelEvery = Math.max(1, Math.floor(20 / (sw || 1)));
+    for (let i = 0; i < this.slices.length; i++) {
+      const sx = this.worldToScreenX(i);
+      if (sx < -20 || sx > W + 20) continue;
+
+      // Faint vertical line for every iteration
+      ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(sx, this.riverTop - 5);
+      ctx.lineTo(sx, this.riverBottom + 5);
+      ctx.stroke();
+
+      // Axis label
+      if (i % labelEvery === 0) {
+        ctx.fillStyle = '#303040';
+        ctx.fillText('#' + this.slices[i].iteration, sx, this.riverBottom + 22);
+      }
+    }
+
+    // ── Annotation markers ─────────────────────────────────
+    for (const ann of this.annotations) {
+      const sx = this.worldToScreenX(ann.sliceIdx);
+      if (sx < -20 || sx > W + 20) continue;
+      ctx.fillStyle = 'rgba(108, 168, 168, 0.5)';
+      ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('◆', sx, this.riverBottom + 36);
+    }
+
+    // ── Draw slices ────────────────────────────────────────
+    for (const s of this.slices) {
+      const sx = this.worldToScreenX(s.x);
+      if (sx < -20 || sx > W + 20) continue;
+
+      const isHovered = this.hoveredSlice === s;
+      const isSelected = this.selectedSlice === s;
+      const isDomainHighlighted = this.highlightDomain && s.domain === this.highlightDomain;
+      const isDimmed = this.highlightDomain && s.domain !== this.highlightDomain;
+
+      if (s.isSkipped) {
+        // Faint vertical tick
+        ctx.strokeStyle = isDimmed ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.04)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(sx, s.y - 6);
+        ctx.lineTo(sx, s.y + 6);
+        ctx.stroke();
+        continue;
+      }
+
+      if (s.isKilled) {
+        // Small x mark
+        const size = 4;
+        let alpha = isDimmed ? 0.08 : 0.3;
+        if (isHovered || isSelected) alpha = 0.7;
+        if (isDomainHighlighted) alpha = 0.5;
+        ctx.strokeStyle = `rgba(248, 113, 113, ${alpha})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(sx - size, s.y - size); ctx.lineTo(sx + size, s.y + size);
+        ctx.moveTo(sx + size, s.y - size); ctx.lineTo(sx - size, s.y + size);
+        ctx.stroke();
+        continue;
+      }
+
+      // Shipped artifact — colored dot
+      const [cr, cg, cb] = hexToRgb(s.color);
+      let nodeAlpha = isDimmed ? 0.1 : 0.7;
+      if (isDomainHighlighted) nodeAlpha = 1;
+      if (isHovered || isSelected) nodeAlpha = 1;
+
+      const radius = s.radius * (isHovered || isSelected ? 1.3 : 1);
+
+      // Glow
+      if (nodeAlpha > 0.3) {
+        const glowRadius = radius * 3;
+        const gradient = ctx.createRadialGradient(sx, s.y, radius * 0.5, sx, s.y, glowRadius);
+        gradient.addColorStop(0, `rgba(${cr},${cg},${cb},${nodeAlpha * 0.2})`);
+        gradient.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(sx, s.y, glowRadius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Core dot
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},${nodeAlpha})`;
+      ctx.beginPath();
+      ctx.arc(sx, s.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Bright center
+      if (nodeAlpha > 0.4) {
+        ctx.fillStyle = `rgba(255,255,255,${nodeAlpha * 0.3})`;
+        ctx.beginPath();
+        ctx.arc(sx, s.y, radius * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // ── Domain labels (right edge) ─────────────────────────
+    if (this.domains.length > 1) {
+      const laneCount = this.domains.length;
+      const usableHeight = this.riverBottom - this.riverTop;
+      const laneHeight = usableHeight / laneCount;
+      const panelOpen = !document.getElementById('panel').classList.contains('collapsed');
+      const labelX = panelOpen ? W - 330 : W - 12;
+
+      ctx.textAlign = 'right';
+      ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif';
+      for (let di = 0; di < this.domains.length; di++) {
+        const domain = this.domains[di];
+        const laneY = this.riverTop + di * laneHeight + laneHeight / 2;
+        const [r, g, b] = hexToRgb(DOMAIN_COLORS[domain] || '#555555');
+        const alpha = this.highlightDomain
+          ? (this.highlightDomain === domain ? 0.6 : 0.15)
+          : 0.3;
+        ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+        ctx.fillText(domain, labelX, laneY + 3);
+      }
+    }
+  }
+}
+
+// ── Close detail card ────────────────────────────────────────────
+function closeDetail() {
+  document.getElementById('detail-card').classList.remove('open');
+}
+
+// ── Phase analysis panel ─────────────────────────────────────────
+function buildPanel() {
+  if (!iterations.length) {
+    document.getElementById('panel-content').innerHTML =
+      '<p class="arc-text" style="color:#404050;font-style:italic">Awaiting first iteration...</p>';
+    return;
+  }
+
+  const shipped = iterations.filter(it => it.outcome === 'shipped');
+  const killed = iterations.filter(it => it.outcome === 'killed');
+  const ratings = shipped.map(it => it.mean_rating).filter(Boolean);
+
+  // ── Phase detection ───────────────────────────────────────
+  const recentWindow = Math.min(10, iterations.length);
+  const recent = iterations.slice(-recentWindow);
+  const recentDomains = new Set(recent.map(it => it.domain).filter(Boolean));
+  const recentShipped = recent.filter(it => it.outcome === 'shipped');
+  const recentRatings = recentShipped.map(it => it.mean_rating).filter(Boolean);
+  const recentMean = recentRatings.length
+    ? recentRatings.reduce((a, b) => a + b, 0) / recentRatings.length
+    : 0;
+  const recentKillRate = recent.filter(it => it.outcome === 'killed').length / recent.length;
+
+  let phase, phaseColor;
+  if (recentDomains.size >= 4) {
+    phase = 'Exploring'; phaseColor = '#8C6CA8';
+  } else if (recentKillRate > 0.5) {
+    phase = 'Stuck'; phaseColor = '#f87171';
+  } else if (recentDomains.size <= 2 && recentMean > 3.5) {
+    phase = 'Refining'; phaseColor = '#6CA87C';
+  } else if (recentDomains.size >= 3 && recentMean > 4.0) {
+    phase = 'Breaking Out'; phaseColor = '#6CA8A8';
+  } else {
+    phase = 'Drifting'; phaseColor = '#A8926C';
+  }
+
+  // ── Quality arc description ───────────────────────────────
+  let arc = '';
+  if (ratings.length < 3) {
+    arc = 'Too early to determine trajectory';
+  } else {
+    const firstThird = ratings.slice(0, Math.ceil(ratings.length / 3));
+    const lastThird = ratings.slice(-Math.ceil(ratings.length / 3));
+    const firstMean = firstThird.reduce((a, b) => a + b, 0) / firstThird.length;
+    const lastMean = lastThird.reduce((a, b) => a + b, 0) / lastThird.length;
+    const overallMean = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+    const delta = lastMean - firstMean;
+
+    if (Math.abs(delta) < 0.2) {
+      arc = `Plateaued at ${overallMean.toFixed(1)}`;
+    } else if (delta > 0.5) {
+      arc = `Rising steadily — now averaging ${lastMean.toFixed(1)}`;
+    } else if (delta > 0) {
+      arc = `Gradually improving — ${firstMean.toFixed(1)} → ${lastMean.toFixed(1)}`;
+    } else if (delta < -0.5) {
+      arc = `Declining — was ${firstMean.toFixed(1)}, now ${lastMean.toFixed(1)}`;
+    } else {
+      arc = `Slight dip — recovering around ${lastMean.toFixed(1)}`;
+    }
+  }
+
+  // ── Key moments ───────────────────────────────────────────
+  const moments = [];
+
+  // First artifact
+  if (shipped.length > 0) {
+    const first = shipped[0];
+    moments.push({
+      label: 'First artifact',
+      value: first.title || `Iteration #${first.iteration}`,
+      iter: first.iteration
+    });
+  }
+
+  // Highest rated
+  if (shipped.length > 0) {
+    const best = shipped.reduce((a, b) => (b.mean_rating || 0) > (a.mean_rating || 0) ? b : a);
+    moments.push({
+      label: 'Highest rated',
+      value: `${best.title || '—'} (${(best.mean_rating || 0).toFixed(1)})`,
+      iter: best.iteration
+    });
+  }
+
+  // First kill
+  if (killed.length > 0) {
+    const firstKill = killed[0];
+    moments.push({
+      label: 'First kill',
+      value: firstKill.title || `Iteration #${firstKill.iteration}`,
+      iter: firstKill.iteration
+    });
+  }
+
+  // Quality peak and trough
+  if (ratings.length >= 3) {
+    const rolling5 = rollingMean(ratings, 5);
+    const peak = Math.max(...rolling5.filter(v => v != null));
+    const trough = Math.min(...rolling5.filter(v => v != null));
+    moments.push({ label: 'Quality peak', value: peak.toFixed(2) + ' (rolling avg)', iter: null });
+    moments.push({ label: 'Quality trough', value: trough.toFixed(2) + ' (rolling avg)', iter: null });
+  }
+
+  // Longest domain streak
+  let longestStreak = { domain: null, length: 0, start: 0 };
+  let curStreak = { domain: null, length: 0, start: 0 };
+  shipped.forEach((it, i) => {
+    if (it.domain === curStreak.domain) {
+      curStreak.length++;
+    } else {
+      if (curStreak.length > longestStreak.length) longestStreak = { ...curStreak };
+      curStreak = { domain: it.domain, length: 1, start: it.iteration };
+    }
+  });
+  if (curStreak.length > longestStreak.length) longestStreak = { ...curStreak };
+  if (longestStreak.domain) {
+    moments.push({
+      label: 'Longest streak',
+      value: `${longestStreak.length}× ${longestStreak.domain}`,
+      iter: longestStreak.start
+    });
+  }
+
+  // Most diverse window
+  let maxDiversity = 0, diverseIter = null;
+  for (let i = 0; i < shipped.length - 4; i++) {
+    const window = shipped.slice(i, i + 5);
+    const domains = new Set(window.map(it => it.domain));
+    if (domains.size > maxDiversity) {
+      maxDiversity = domains.size;
+      diverseIter = window[0].iteration;
+    }
+  }
+  if (maxDiversity > 0) {
+    moments.push({
+      label: 'Most diverse window',
+      value: `${maxDiversity} domains in 5 artifacts`,
+      iter: diverseIter
+    });
+  }
+
+  // ── Domain sparklines data ────────────────────────────────
+  const domainActivity = {};
+  const iterNums = iterations.map(it => it.iteration);
+  const minIter = Math.min(...iterNums);
+  const maxIter = Math.max(...iterNums);
+  const allDomains = [...new Set(iterations.map(it => it.domain).filter(Boolean))];
+
+  allDomains.forEach(domain => {
+    const active = iterations.filter(it => it.domain === domain && it.outcome === 'shipped');
+    domainActivity[domain] = {
+      count: active.length,
+      iters: active.map(it => it.iteration)
+    };
+  });
+
+  // Sort domains by count descending
+  allDomains.sort((a, b) => (domainActivity[b]?.count || 0) - (domainActivity[a]?.count || 0));
+
+  // ── Build HTML ────────────────────────────────────────────
+  let html = '';
+
+  // Phase
+  html += '<h3>Current Phase</h3>';
+  html += `<span class="phase-badge" style="background:${phaseColor}22;color:${phaseColor}">${phase}</span>`;
+  html += `<p class="arc-text" style="margin-top:4px">${recentDomains.size} domain${recentDomains.size !== 1 ? 's' : ''} active in last ${recentWindow} iterations</p>`;
+
+  // Quality arc
+  html += '<h3>Quality Arc</h3>';
+  html += `<p class="arc-text">${arc}</p>`;
+  if (ratings.length > 0) {
+    const overall = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+    html += `<p class="arc-text" style="color:#505060">${shipped.length} shipped, ${killed.length} killed — overall mean ${overall.toFixed(2)}</p>`;
+  }
+
+  // Domain sparklines
+  html += '<h3>Domain Timeline</h3>';
+  allDomains.forEach(domain => {
+    const data = domainActivity[domain];
+    const color = DOMAIN_COLORS[domain] || '#555555';
+    html += `<div class="sparkline-row" data-domain="${domain}" onclick="toggleDomainHighlight(this, '${domain}')">`;
+    html += `<span class="sparkline-label" style="color:${color}">${domain}</span>`;
+    html += `<canvas class="sparkline-canvas" data-domain="${domain}" data-iters="${data.iters.join(',')}" data-min="${minIter}" data-max="${maxIter}" data-color="${color}"></canvas>`;
+    html += `<span class="sparkline-count">${data.count}</span>`;
+    html += '</div>';
+  });
+
+  // Key moments
+  html += '<h3>Key Moments</h3>';
+  moments.forEach(m => {
+    html += '<div class="moment-item">';
+    html += `<div class="moment-label">${m.label}</div>`;
+    html += `<div class="moment-value">${m.value}`;
+    if (m.iter != null) html += ` <span class="iter-ref">#${m.iter}</span>`;
+    html += '</div></div>';
+  });
+
+  document.getElementById('panel-content').innerHTML = html;
+
+  // Draw sparklines
+  requestAnimationFrame(drawSparklines);
+}
+
+function drawSparklines() {
+  document.querySelectorAll('.sparkline-canvas').forEach(canvas => {
+    const domain = canvas.dataset.domain;
+    const itersStr = canvas.dataset.iters;
+    const iters = itersStr ? itersStr.split(',').map(Number) : [];
+    const minIter = parseInt(canvas.dataset.min) || 0;
+    const maxIter = parseInt(canvas.dataset.max) || 1;
+    const color = canvas.dataset.color;
+
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const w = rect.width;
+    const h = rect.height;
+    const range = maxIter - minIter || 1;
+
+    // Background track
+    ctx.fillStyle = 'rgba(255,255,255,0.02)';
+    ctx.fillRect(0, h * 0.3, w, h * 0.4);
+
+    // Iteration ticks
+    const [r, g, b] = hexToRgb(color);
+    iters.forEach(it => {
+      const x = ((it - minIter) / range) * w;
+      ctx.fillStyle = `rgba(${r},${g},${b},0.6)`;
+      ctx.fillRect(x - 1, 2, 2, h - 4);
+    });
+  });
+}
+
+function toggleDomainHighlight(el, domain) {
+  const wasActive = el.classList.contains('active');
+  document.querySelectorAll('.sparkline-row.active').forEach(r => r.classList.remove('active'));
+
+  if (wasActive) {
+    river.highlightDomain = null;
+  } else {
+    el.classList.add('active');
+    river.highlightDomain = domain;
+  }
+  river.draw();
+}
+
+// ── Stats bar ────────────────────────────────────────────────────
+function updateStats() {
+  const shipped = iterations.filter(it => it.outcome === 'shipped').length;
+  const killed = iterations.filter(it => it.outcome === 'killed').length;
+  const domains = new Set(iterations.map(it => it.domain).filter(Boolean)).size;
+  document.getElementById('stats').innerHTML =
+    `<span>${iterations.length}</span> iterations &middot; `
+    + `<span>${shipped}</span> shipped &middot; `
+    + `<span>${killed}</span> killed &middot; `
+    + `<span>${domains}</span> domains`;
+}
+
+// ── Main ─────────────────────────────────────────────────────────
+let river;
+
+async function boot() {
+  await fetchData();
+
+  const canvas = document.getElementById('river-canvas');
+  river = new River(canvas);
+  river.buildSlices();
+
+  // Center the view
+  if (river.slices.length > 0) {
+    const totalWidth = river.slices.length * river.sliceWidth;
+    const panelWidth = window.innerWidth > 900 ? 320 : 0;
+    const viewWidth = window.innerWidth - panelWidth;
+    if (totalWidth < viewWidth) {
+      // Center the content
+      river.offsetX = (viewWidth - totalWidth) / 2;
+    } else {
+      // Start showing the latest iterations
+      river.offsetX = viewWidth - totalWidth - 40;
+    }
+  }
+
+  river.draw();
+  buildPanel();
+  updateStats();
+}
+boot();
+
+// Fade out keyhint
+setTimeout(() => {
+  document.getElementById('keyhint').style.opacity = '0';
+}, 8000);
+</script>
+</body>
+</html>

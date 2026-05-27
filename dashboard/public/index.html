@@ -4,1035 +4,653 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Foundry — Observatory</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 <style>
-:root {
-  --bg-page: #0a0a0f;
-  --bg-card: #12121a;
-  --bg-card-hover: #161622;
-  --border: #1a1a2e;
-  --text-primary: #e0e0e8;
-  --text-secondary: #8888a0;
-  --text-dim: #555570;
-  --accent-green: #4ade80;
-  --accent-red: #f87171;
-  --accent-gray: #6b7280;
-  --accent-blue: #60a5fa;
-  --domain-poetry: #a78bfa;
-  --domain-fiction: #34d399;
-  --domain-code-tool: #22d3ee;
-  --domain-code-game: #fb923c;
-  --domain-essay: #fbbf24;
-  --domain-music: #f472b6;
-  --domain-experiment: #ef4444;
-  --domain-worldbuilding: #2dd4bf;
-  --domain-code-art: #a3e635;
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0f;--bg-card:#111118;--bg-card-hover:#16161f;
+  --border:#1c1c2a;--text:#d0d0d8;--text-sec:#808090;--text-dim:#505060;
+  --green:#4ade80;--yellow:#fbbf24;--red:#f87171;--blue:#60a5fa;
 }
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh;font-weight:300}
+a{color:var(--text-sec);text-decoration:none}a:hover{color:var(--text)}
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+/* Header */
+.header{padding:1.5rem 2rem 1rem;display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:1rem}
+.header h1{font-size:1rem;font-weight:300;letter-spacing:0.18em;text-transform:uppercase;color:var(--text)}
+.header h1 .dim{color:var(--text-sec)}
+.header-meta{font-size:0.75rem;color:var(--text-dim);display:flex;gap:0.5rem;align-items:baseline}
+.header-meta span{font-variant-numeric:tabular-nums}
+nav{display:flex;gap:1.5rem;font-size:0.75rem;letter-spacing:0.08em;text-transform:uppercase}
+nav a.active{color:var(--text);border-bottom:1px solid var(--text-sec)}
 
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  background: var(--bg-page);
-  color: var(--text-primary);
-  line-height: 1.5;
-  min-height: 100vh;
-}
+/* Stats row */
+.stats{display:flex;gap:1rem;padding:0.5rem 2rem 1rem;flex-wrap:wrap}
+.stat{flex:1;min-width:140px;background:var(--bg-card);padding:1rem 1.25rem;border-radius:8px;transition:transform 0.2s,background 0.2s;cursor:default}
+.stat:hover{background:var(--bg-card-hover);transform:translateY(-1px)}
+.stat-label{font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-dim);margin-bottom:0.25rem}
+.stat-value{font-size:1.75rem;font-weight:200;font-variant-numeric:tabular-nums}
+.stat-sub{font-size:0.7rem;color:var(--text-sec);margin-top:0.15rem}
+.stat-sparkline{height:24px;margin-top:0.35rem}
 
-.header {
-  padding: 2rem 2rem 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
+/* Main grid */
+.main{display:grid;grid-template-columns:1fr 1fr;gap:1rem;padding:0 2rem 2rem}
+.panel{background:var(--bg-card);border-radius:8px;padding:1.25rem;min-height:0}
+.panel h2{font-size:0.7rem;font-weight:400;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-dim);margin-bottom:1rem}
+.panel canvas{width:100%;display:block}
 
-.header h1 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
+/* Timeline feed */
+.feed{max-height:600px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.feed::-webkit-scrollbar{width:5px}
+.feed::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.feed-item{padding:0.6rem 0;border-bottom:1px solid #151520;cursor:pointer;transition:background 0.15s}
+.feed-item:hover{background:rgba(255,255,255,0.015)}
+.feed-row{display:flex;align-items:baseline;gap:0.6rem;font-size:0.8rem}
+.feed-iter{color:var(--text-dim);font-variant-numeric:tabular-nums;min-width:2.5rem}
+.feed-icon{min-width:1rem;text-align:center}
+.feed-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.feed-domain{font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:3px;font-weight:500;white-space:nowrap}
+.feed-rating{font-variant-numeric:tabular-nums;min-width:2rem;text-align:right;color:var(--text-sec)}
+.feed-detail{display:none;padding:0.4rem 0 0.2rem 3.1rem;font-size:0.75rem;color:var(--text-sec);line-height:1.6}
+.feed-detail.open{display:block}
 
-.header h1 span {
-  color: var(--text-secondary);
-  font-weight: 400;
-}
+/* Footer */
+.footer{padding:1.5rem 2rem;display:flex;justify-content:space-between;align-items:baseline;font-size:0.7rem;color:var(--text-dim);flex-wrap:wrap;gap:0.5rem}
 
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
+/* Empty state */
+.empty{color:var(--text-dim);font-style:italic;font-size:0.8rem;text-align:center;padding:3rem 0}
 
-.auto-refresh-btn {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  padding: 0.35rem 0.75rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.75rem;
-  transition: all 0.2s;
-}
+/* Tooltip */
+.chart-tooltip{position:absolute;background:#1a1a24;color:var(--text);font-size:0.72rem;padding:0.4rem 0.6rem;border-radius:4px;pointer-events:none;opacity:0;transition:opacity 0.15s;white-space:nowrap;z-index:10}
 
-.auto-refresh-btn.active {
-  border-color: var(--accent-green);
-  color: var(--accent-green);
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  padding: 1rem 2rem 2rem;
-}
-
-.card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1.25rem;
-  min-height: 200px;
-}
-
-.card.full { grid-column: 1 / -1; }
-
-.card h2 {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 1rem;
-}
-
-.card .empty-state {
-  color: var(--text-dim);
-  font-style: italic;
-  font-size: 0.85rem;
-  text-align: center;
-  padding: 2rem 0;
-}
-
-/* Activity feed */
-.feed-list { list-style: none; max-height: 500px; overflow-y: auto; }
-
-.feed-item {
-  display: grid;
-  grid-template-columns: 3rem 5.5rem auto auto 3.5rem;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.feed-item:hover { background: rgba(255,255,255,0.02); }
-
-.feed-item .iter { color: var(--text-dim); font-variant-numeric: tabular-nums; }
-
-.feed-item .time { color: var(--text-dim); font-size: 0.75rem; }
-
-.feed-item .title-cell {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.feed-item .rating { text-align: right; font-variant-numeric: tabular-nums; }
-
-.badge {
-  display: inline-block;
-  padding: 0.1rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.badge.shipped { background: rgba(74,222,128,0.15); color: var(--accent-green); }
-.badge.killed { background: rgba(248,113,113,0.15); color: var(--accent-red); }
-.badge.skipped { background: rgba(107,114,128,0.15); color: var(--accent-gray); }
-
-.domain-tag {
-  display: inline-block;
-  padding: 0.1rem 0.45rem;
-  border-radius: 3px;
-  font-size: 0.65rem;
-  font-weight: 500;
-  margin-left: 0.5rem;
-}
-
-.feed-review {
-  display: none;
-  grid-column: 1 / -1;
-  padding: 0.75rem 1rem;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  border-bottom: 1px solid var(--border);
-  background: rgba(255,255,255,0.01);
-}
-
-.feed-review.open { display: block; }
-
-/* Agent table */
-.agent-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.8rem;
-}
-
-.agent-table th {
-  text-align: left;
-  color: var(--text-dim);
-  font-weight: 500;
-  padding: 0.4rem 0.5rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.agent-table td {
-  padding: 0.5rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.agent-table .metric {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-}
-
-.agent-table .trend {
-  font-size: 0.75rem;
-  color: var(--text-dim);
-}
-
-/* Project / manifesto sections */
-.project-list, .manifesto-timeline {
-  font-size: 0.82rem;
-}
-
-.project-item {
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.project-item .project-name {
-  font-weight: 600;
-}
-
-.project-item .project-meta {
-  color: var(--text-dim);
-  font-size: 0.75rem;
-  margin-top: 0.15rem;
-}
-
-.manifesto-entry {
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-
-.manifesto-entry .m-date {
-  color: var(--text-dim);
-  font-size: 0.72rem;
-}
-
-/* Chart containers */
-.chart-wrap {
-  position: relative;
-  width: 100%;
-  height: 280px;
-}
-
-.chart-wrap.tall { height: 350px; }
-
-.domain-viz {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-  height: 280px;
-}
-
-.domain-viz canvas { max-width: 100%; }
-
-/* Token sub-charts */
-.token-charts {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-
-.token-charts .chart-wrap { height: 220px; }
-
-/* Scrollbar styling */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
-
-@media (max-width: 900px) {
-  .grid { grid-template-columns: 1fr; }
-  .card.full { grid-column: 1; }
-  .header { padding: 1rem; }
-  .grid { padding: 0.5rem 1rem 1rem; }
-  .feed-item { grid-template-columns: 2.5rem 4.5rem auto auto 3rem; font-size: 0.75rem; }
-  .domain-viz { grid-template-columns: 1fr; height: auto; }
+/* Responsive */
+@media(max-width:768px){
+  .main{grid-template-columns:1fr}
+  .stats{flex-wrap:wrap}
+  .stat{min-width:calc(50% - 0.5rem)}
+  .header,.stats,.main,.footer{padding-left:1rem;padding-right:1rem}
 }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>The Foundry <span>— Observatory</span></h1>
-  <div class="header-right">
-    <span id="last-refresh"></span>
-    <button type="button" class="auto-refresh-btn" id="auto-refresh-btn" onclick="toggleAutoRefresh()">Auto-refresh: OFF</button>
+  <h1>The Foundry <span class="dim">— Observatory</span></h1>
+  <div class="header-meta">
+    <span id="h-iters"></span>
+    <span id="h-since"></span>
+  </div>
+  <nav>
+    <a href="/" class="active">Observatory</a>
+    <a href="/constellation.html">Constellation Map</a>
+    <a href="/evolution.html">Evolution</a>
+  </nav>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="stat-label">Total Iterations</div><div class="stat-value" id="s-total">—</div></div>
+  <div class="stat"><div class="stat-label">Shipped</div><div class="stat-value" id="s-shipped">—</div><div class="stat-sub" id="s-shipped-pct"></div></div>
+  <div class="stat"><div class="stat-label">Killed</div><div class="stat-value" id="s-killed">—</div><div class="stat-sub" id="s-killed-pct"></div></div>
+  <div class="stat"><div class="stat-label">Critic Rejection Rate</div><div class="stat-value" id="s-reject">—</div></div>
+  <div class="stat"><div class="stat-label">Mean Quality</div><div class="stat-value" id="s-quality">—</div><canvas class="stat-sparkline" id="s-sparkline"></canvas></div>
+</div>
+
+<div class="main">
+  <div class="panel" id="p-quality">
+    <h2>Quality Trend</h2>
+    <div style="position:relative"><canvas id="c-quality" height="260"></canvas><div class="chart-tooltip" id="tt-quality"></div></div>
+  </div>
+  <div class="panel" id="p-feed">
+    <h2>Recent Iterations</h2>
+    <div class="feed" id="feed"></div>
+  </div>
+  <div class="panel" id="p-domain">
+    <h2>Domain Distribution</h2>
+    <div style="position:relative"><canvas id="c-domain" height="280"></canvas><div class="chart-tooltip" id="tt-domain"></div></div>
+  </div>
+  <div class="panel" id="p-tokens">
+    <h2>Token Usage</h2>
+    <div style="position:relative"><canvas id="c-tokens" height="260"></canvas><div class="chart-tooltip" id="tt-tokens"></div></div>
   </div>
 </div>
 
-<div class="grid">
-  <!-- 1. Activity Feed -->
-  <div class="card full" id="card-feed">
-    <h2>Recent Activity</h2>
-    <ul class="feed-list" id="feed-list"></ul>
-  </div>
-
-  <!-- 2. Quality Trends -->
-  <div class="card" id="card-quality">
-    <h2>Quality Trends</h2>
-    <div class="chart-wrap"><canvas id="chart-quality"></canvas></div>
-  </div>
-
-  <!-- 3. Domain Distribution -->
-  <div class="card" id="card-domains">
-    <h2>Domain Distribution</h2>
-    <div class="domain-viz">
-      <canvas id="chart-domain-doughnut"></canvas>
-      <canvas id="chart-domain-bar"></canvas>
-    </div>
-  </div>
-
-  <!-- 4. Artifact Timeline -->
-  <div class="card full" id="card-timeline">
-    <h2>Artifact Timeline</h2>
-    <div class="chart-wrap tall"><canvas id="chart-timeline"></canvas></div>
-  </div>
-
-  <!-- 5. Token Economics -->
-  <div class="card" id="card-tokens">
-    <h2>Token Economics</h2>
-    <div class="token-charts">
-      <div class="chart-wrap"><canvas id="chart-token-cumulative"></canvas></div>
-      <div class="chart-wrap"><canvas id="chart-token-per-artifact"></canvas></div>
-    </div>
-  </div>
-
-  <!-- 6. Agent Performance -->
-  <div class="card" id="card-agents">
-    <h2>Agent Performance</h2>
-    <div id="agent-perf"></div>
-  </div>
-
-  <!-- 7. Project Tracker -->
-  <div class="card" id="card-projects">
-    <h2>Project Tracker</h2>
-    <div class="project-list" id="project-list"></div>
-  </div>
-
-  <!-- 8. Manifesto Changelog -->
-  <div class="card" id="card-manifesto">
-    <h2>Manifesto Changelog</h2>
-    <div class="manifesto-timeline" id="manifesto-timeline"></div>
-  </div>
+<div class="footer">
+  <span>The Foundry v1.0.0-rc.2</span>
+  <a href="/constellation.html">Constellation Map →</a>
+  <span id="f-tokens"></span>
 </div>
 
 <script>
-// ── Constants ────────────────────────────────────────────────────
-
-const DOMAIN_COLORS = {
-  'poetry': '#a78bfa',
-  'fiction': '#34d399',
-  'code-tool': '#22d3ee',
-  'code-game': '#fb923c',
-  'essay': '#fbbf24',
-  'music': '#f472b6',
-  'experiment': '#ef4444',
-  'worldbuilding': '#2dd4bf',
-  'code-art': '#a3e635',
+// ── Domain colors (jewel tones matching constellation map) ──────
+const DC = {
+  'fiction':'#7C6CA8','poetry':'#A86C7C','essay':'#6CA87C',
+  'code-tool':'#6C8CA8','code-game':'#A8926C','code-art':'#6CA8A8',
+  'music':'#A87C6C','experiment':'#8C6CA8','worldbuilding':'#A8A86C'
 };
+function domainColor(d) {
+  if (DC[d]) return DC[d];
+  let h = 0; for (let i = 0; i < d.length; i++) h = d.charCodeAt(i) + ((h << 5) - h);
+  return `hsl(${Math.abs(h) % 360},45%,55%)`;
+}
 
-const AGENT_COLORS = {
-  'ideator': '#a78bfa',
-  'creator': '#34d399',
-  'tester': '#fb923c',
-  'critic': '#f87171',
-  'curator': '#60a5fa',
-};
+// ── Formatting ──────────────────────────────────────────────────
+function fmt(n) {
+  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return n.toLocaleString();
+}
+function pct(n, d) { return d ? (n/d*100).toFixed(1) + '%' : '—'; }
+function fmtDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
 
-function domainColor(d) { return DOMAIN_COLORS[d] || '#6b7280'; }
-function agentColor(a) { return AGENT_COLORS[a] || '#6b7280'; }
-function baseAgent(a) { return a.replace(/-retry\d+$/, ''); }
+// ── State ───────────────────────────────────────────────────────
+let DATA = { iterations:[], tokenUsage:[], decisions:[], testReports:[] };
+let refreshTimer = null;
 
-// ── Chart.js defaults ────────────────────────────────────────────
-
-Chart.defaults.color = '#8888a0';
-Chart.defaults.borderColor = '#1a1a2e';
-Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
-Chart.defaults.font.size = 11;
-Chart.defaults.plugins.legend.labels.boxWidth = 12;
-Chart.defaults.plugins.legend.labels.padding = 12;
-
-// ── State ────────────────────────────────────────────────────────
-
-let autoRefreshInterval = null;
-let charts = {};
-
-// ── Data fetching ────────────────────────────────────────────────
-
+// ── Fetch ───────────────────────────────────────────────────────
 async function fetchAll() {
-  const [iterations, tokenUsage, decisions, testReports, portfolio, manifesto, journal] =
-    await Promise.all([
-      fetch('/api/iterations').then(r => r.json()).catch(() => []),
-      fetch('/api/token-usage').then(r => r.json()).catch(() => []),
-      fetch('/api/decisions').then(r => r.json()).catch(() => []),
-      fetch('/api/test-reports').then(r => r.json()).catch(() => []),
-      fetch('/api/portfolio').then(r => r.json()).catch(() => ({ content: '' })),
-      fetch('/api/manifesto').then(r => r.json()).catch(() => ({ content: '' })),
-      fetch('/api/journal').then(r => r.json()).catch(() => ({ content: '' })),
-    ]);
-  return { iterations, tokenUsage, decisions, testReports, portfolio, manifesto, journal };
+  const [iterations, tokenUsage, decisions, testReports] = await Promise.all([
+    fetch('/api/iterations').then(r=>r.json()).catch(()=>[]),
+    fetch('/api/token-usage').then(r=>r.json()).catch(()=>[]),
+    fetch('/api/decisions').then(r=>r.json()).catch(()=>[]),
+    fetch('/api/test-reports').then(r=>r.json()).catch(()=>[]),
+  ]);
+  DATA = { iterations, tokenUsage, decisions, testReports };
+  render();
 }
 
-// ── Helpers ──────────────────────────────────────────────────────
-
-function timeAgo(ts) {
-  const diff = Date.now() - new Date(ts).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return mins + 'm ago';
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return hrs + 'h ago';
-  const days = Math.floor(hrs / 24);
-  return days + 'd ago';
+// ── Canvas utilities ────────────────────────────────────────────
+function setupCanvas(canvas, w, h) {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return ctx;
 }
 
-function destroyChart(key) {
-  if (charts[key]) { charts[key].destroy(); charts[key] = null; }
+function getCanvasDims(canvas) {
+  return { w: canvas.clientWidth, h: canvas.clientHeight };
 }
 
-// ── 1. Activity Feed ─────────────────────────────────────────────
+// ── Render everything ───────────────────────────────────────────
+function render() {
+  const its = DATA.iterations;
+  const shipped = its.filter(i => i.outcome === 'shipped');
+  const killed = its.filter(i => i.outcome === 'killed');
+  const total = its.length;
 
-function renderActivityFeed(iterations) {
-  const el = document.getElementById('feed-list');
-  if (!iterations.length) {
-    el.innerHTML = '<li class="empty-state">No iterations recorded yet</li>';
+  // Header
+  document.getElementById('h-iters').textContent = total ? `Iteration ${Math.max(...its.map(i=>i.iteration))}` : '';
+  if (its.length) {
+    const first = its.reduce((a,b) => new Date(a.timestamp) < new Date(b.timestamp) ? a : b);
+    document.getElementById('h-since').textContent = 'running since ' + fmtDate(first.timestamp);
+  }
+
+  // Stats
+  document.getElementById('s-total').textContent = total || '—';
+  document.getElementById('s-shipped').textContent = shipped.length || '—';
+  document.getElementById('s-shipped-pct').textContent = total ? pct(shipped.length, total) : '';
+  document.getElementById('s-killed').textContent = killed.length || '—';
+  document.getElementById('s-killed-pct').textContent = total ? pct(killed.length, total) : '';
+
+  // Rejection rate from decisions
+  const rejections = DATA.decisions.filter(d => d.decision === 'reject' || d.decision === 'kill').length;
+  const totalDecisions = DATA.decisions.length;
+  const rejectRate = totalDecisions ? (rejections / totalDecisions * 100) : 0;
+  const rejectEl = document.getElementById('s-reject');
+  rejectEl.textContent = totalDecisions ? rejectRate.toFixed(1) + '%' : '—';
+  if (rejectRate > 60) rejectEl.style.color = 'var(--red)';
+  else if (rejectRate > 40) rejectEl.style.color = 'var(--yellow)';
+  else rejectEl.style.color = 'var(--green)';
+
+  // Mean quality
+  const shippedWithRating = shipped.filter(s => s.mean_rating != null);
+  const meanQ = shippedWithRating.length
+    ? shippedWithRating.reduce((a,s) => a + parseFloat(s.mean_rating), 0) / shippedWithRating.length
+    : 0;
+  document.getElementById('s-quality').textContent = meanQ ? meanQ.toFixed(2) : '—';
+
+  // Quality sparkline (last 20 shipped)
+  renderSparkline(shippedWithRating.slice(-20).map(s => parseFloat(s.mean_rating)));
+
+  // Charts
+  renderQualityTrend(shippedWithRating);
+  renderDomainDonut(shipped);
+  renderFeed(its);
+  renderTokens();
+
+  // Footer tokens
+  let totalTokens = 0;
+  DATA.tokenUsage.forEach(t => { totalTokens += (t.input_tokens||0) + (t.output_tokens||0); });
+  document.getElementById('f-tokens').textContent = 'Total tokens: ' + fmt(totalTokens);
+}
+
+// ── Sparkline ───────────────────────────────────────────────────
+function renderSparkline(values) {
+  const canvas = document.getElementById('s-sparkline');
+  if (!values.length) return;
+  const { w, h } = { w: canvas.clientWidth || 140, h: 24 };
+  const ctx = setupCanvas(canvas, w, h);
+  ctx.clearRect(0, 0, w, h);
+
+  const min = Math.min(...values) - 0.2;
+  const max = Math.max(...values) + 0.2;
+  const range = max - min || 1;
+  const step = values.length > 1 ? w / (values.length - 1) : w / 2;
+
+  ctx.beginPath();
+  ctx.strokeStyle = '#6CA8A8';
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  values.forEach((v, i) => {
+    const x = i * step;
+    const y = h - ((v - min) / range) * h;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Dot on last value
+  const lastX = (values.length - 1) * step;
+  const lastY = h - ((values[values.length - 1] - min) / range) * h;
+  ctx.beginPath();
+  ctx.arc(lastX, lastY, 2, 0, Math.PI * 2);
+  ctx.fillStyle = '#6CA8A8';
+  ctx.fill();
+}
+
+// ── Quality Trend Chart ─────────────────────────────────────────
+function renderQualityTrend(shipped) {
+  const canvas = document.getElementById('c-quality');
+  const tooltip = document.getElementById('tt-quality');
+  const { w } = getCanvasDims(canvas);
+  const h = 260;
+  const ctx = setupCanvas(canvas, w, h);
+  ctx.clearRect(0, 0, w, h);
+
+  if (!shipped.length) {
+    ctx.fillStyle = '#505060';
+    ctx.font = '13px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Awaiting first iteration...', w/2, h/2);
     return;
   }
+
+  const pad = { top: 20, right: 20, bottom: 35, left: 40 };
+  const cw = w - pad.left - pad.right;
+  const ch = h - pad.top - pad.bottom;
+  const iters = shipped.map(s => s.iteration);
+  const ratings = shipped.map(s => parseFloat(s.mean_rating));
+  const minI = Math.min(...iters);
+  const maxI = Math.max(...iters);
+  const rangeI = maxI - minI || 1;
+
+  function x(iter) { return pad.left + ((iter - minI) / rangeI) * cw; }
+  function y(rating) { return pad.top + (1 - (rating - 1) / 4) * ch; } // 1-5 scale
+
+  // Zone fills
+  // Red zone: 1-3
+  ctx.fillStyle = 'rgba(248,113,113,0.04)';
+  ctx.fillRect(pad.left, y(3), cw, y(1) - y(3));
+  // Yellow zone: 3-4
+  ctx.fillStyle = 'rgba(251,191,36,0.04)';
+  ctx.fillRect(pad.left, y(4), cw, y(3) - y(4));
+  // Green zone: 4-5
+  ctx.fillStyle = 'rgba(74,222,128,0.04)';
+  ctx.fillRect(pad.left, y(5), cw, y(4) - y(5));
+
+  // Grid lines
+  ctx.strokeStyle = '#1c1c2a';
+  ctx.lineWidth = 1;
+  for (let r = 1; r <= 5; r++) {
+    const yy = y(r);
+    ctx.beginPath(); ctx.moveTo(pad.left, yy); ctx.lineTo(w - pad.right, yy); ctx.stroke();
+    ctx.fillStyle = '#505060';
+    ctx.font = '10px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(r.toString(), pad.left - 8, yy + 3);
+  }
+
+  // X axis labels (sample a few)
+  ctx.fillStyle = '#505060';
+  ctx.textAlign = 'center';
+  ctx.font = '10px -apple-system, system-ui, sans-serif';
+  const labelCount = Math.min(iters.length, 8);
+  const labelStep = Math.max(1, Math.floor(iters.length / labelCount));
+  for (let i = 0; i < iters.length; i += labelStep) {
+    ctx.fillText('#' + iters[i], x(iters[i]), h - pad.bottom + 18);
+  }
+
+  // Trend line (linear regression)
+  if (shipped.length >= 2) {
+    const n = shipped.length;
+    let sx=0,sy=0,sxx=0,sxy=0;
+    for (let i=0;i<n;i++){sx+=iters[i];sy+=ratings[i];sxx+=iters[i]*iters[i];sxy+=iters[i]*ratings[i];}
+    const slope=(n*sxy-sx*sy)/(n*sxx-sx*sx);
+    const intercept=(sy-slope*sx)/n;
+    ctx.strokeStyle = 'rgba(108,168,168,0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x(minI), y(slope * minI + intercept));
+    ctx.lineTo(x(maxI), y(slope * maxI + intercept));
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Data line
+  ctx.strokeStyle = '#6CA8A8';
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  shipped.forEach((s, i) => {
+    const px = x(s.iteration), py = y(parseFloat(s.mean_rating));
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  });
+  ctx.stroke();
+
+  // Dots
+  shipped.forEach(s => {
+    const px = x(s.iteration), py = y(parseFloat(s.mean_rating));
+    const rating = parseFloat(s.mean_rating);
+    ctx.beginPath();
+    ctx.arc(px, py, 3, 0, Math.PI * 2);
+    ctx.fillStyle = rating >= 4 ? '#4ade80' : rating >= 3 ? '#fbbf24' : '#f87171';
+    ctx.fill();
+  });
+
+  // Hit-test data for tooltip
+  const hitData = shipped.map(s => ({
+    x: x(s.iteration), y: y(parseFloat(s.mean_rating)),
+    iter: s.iteration, rating: parseFloat(s.mean_rating), title: s.title
+  }));
+
+  canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    let closest = null, closestDist = Infinity;
+    for (const d of hitData) {
+      const dist = Math.hypot(d.x - mx, d.y - my);
+      if (dist < closestDist && dist < 30) { closest = d; closestDist = dist; }
+    }
+    if (closest) {
+      tooltip.style.opacity = '1';
+      tooltip.style.left = (closest.x + 10) + 'px';
+      tooltip.style.top = (closest.y - 30) + 'px';
+      tooltip.textContent = `#${closest.iter}: ${closest.rating.toFixed(2)} — ${closest.title || ''}`;
+    } else {
+      tooltip.style.opacity = '0';
+    }
+  };
+  canvas.onmouseleave = () => { tooltip.style.opacity = '0'; };
+}
+
+// ── Domain Donut ────────────────────────────────────────────────
+function renderDomainDonut(shipped) {
+  const canvas = document.getElementById('c-domain');
+  const tooltip = document.getElementById('tt-domain');
+  const { w } = getCanvasDims(canvas);
+  const h = 280;
+  const ctx = setupCanvas(canvas, w, h);
+  ctx.clearRect(0, 0, w, h);
+
+  if (!shipped.length) {
+    ctx.fillStyle = '#505060';
+    ctx.font = '13px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Awaiting first iteration...', w/2, h/2);
+    return;
+  }
+
+  // Count by domain
+  const counts = {};
+  shipped.forEach(s => { counts[s.domain] = (counts[s.domain]||0) + 1; });
+  const entries = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+  const total = shipped.length;
+
+  // Draw donut on left side, legend on right
+  const cx = Math.min(w * 0.3, 130);
+  const cy = h / 2;
+  const outerR = Math.min(cx - 15, cy - 20);
+  const innerR = outerR * 0.55;
+
+  // Arcs
+  let angle = -Math.PI / 2;
+  const slices = [];
+  entries.forEach(([domain, count]) => {
+    const sweep = (count / total) * Math.PI * 2;
+    const color = domainColor(domain);
+    ctx.beginPath();
+    ctx.moveTo(cx + innerR * Math.cos(angle), cy + innerR * Math.sin(angle));
+    ctx.arc(cx, cy, outerR, angle, angle + sweep);
+    ctx.arc(cx, cy, innerR, angle + sweep, angle, true);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.85;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    slices.push({ domain, count, startAngle: angle, endAngle: angle + sweep, color });
+    angle += sweep;
+  });
+
+  // Center text
+  ctx.fillStyle = var_text();
+  ctx.font = '600 22px -apple-system, system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(total.toString(), cx, cy + 2);
+  ctx.font = '10px -apple-system, system-ui, sans-serif';
+  ctx.fillStyle = '#808090';
+  ctx.fillText('shipped', cx, cy + 18);
+
+  // Legend
+  const legendX = Math.min(w * 0.55, cx * 2 + 30);
+  const legendY = 20;
+  const lineH = Math.min(24, (h - 40) / entries.length);
+  ctx.textAlign = 'left';
+  entries.forEach(([domain, count], i) => {
+    const yy = legendY + i * lineH + lineH / 2;
+    ctx.fillStyle = domainColor(domain);
+    ctx.beginPath();
+    ctx.arc(legendX, yy, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#c0c0c8';
+    ctx.font = '11px -apple-system, system-ui, sans-serif';
+    ctx.fillText(domain, legendX + 12, yy + 4);
+    ctx.fillStyle = '#808090';
+    ctx.font = '10px -apple-system, system-ui, sans-serif';
+    const countText = `${count} (${pct(count, total)})`;
+    ctx.fillText(countText, legendX + 12 + ctx.measureText(domain).width + 8, yy + 4);
+  });
+
+  // Tooltip hover
+  canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const dx = mx - cx, dy = my - cy;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist >= innerR && dist <= outerR) {
+      let a = Math.atan2(dy, dx);
+      if (a < -Math.PI/2) a += Math.PI * 2;
+      const hit = slices.find(s => a >= s.startAngle && a < s.endAngle);
+      if (hit) {
+        tooltip.style.opacity = '1';
+        tooltip.style.left = (mx + 12) + 'px';
+        tooltip.style.top = (my - 20) + 'px';
+        tooltip.textContent = `${hit.domain}: ${hit.count} (${pct(hit.count, total)})`;
+        return;
+      }
+    }
+    tooltip.style.opacity = '0';
+  };
+  canvas.onmouseleave = () => { tooltip.style.opacity = '0'; };
+}
+
+function var_text() { return '#d0d0d8'; }
+
+// ── Feed ────────────────────────────────────────────────────────
+function renderFeed(iterations) {
+  const el = document.getElementById('feed');
+  if (!iterations.length) {
+    el.innerHTML = '<div class="empty">Awaiting first iteration...</div>';
+    return;
+  }
+
   const recent = iterations.slice(-20).reverse();
   el.innerHTML = recent.map((it, i) => {
-    const rating = it.outcome === 'shipped' && it.mean_rating ? it.mean_rating : '';
-    const domColor = domainColor(it.domain);
-    return `
-      <li class="feed-item" onclick="toggleReview(${i})">
-        <span class="iter">#${it.iteration}</span>
-        <span class="time">${timeAgo(it.timestamp)}</span>
-        <span class="title-cell">
-          <span class="badge ${it.outcome}">${it.outcome}</span>
-          ${it.title || '—'}
-          <span class="domain-tag" style="background:${domColor}22;color:${domColor}">${it.domain || '?'}</span>
-        </span>
-        <span></span>
-        <span class="rating">${rating}</span>
-      </li>
-      <div class="feed-review" id="review-${i}">${it.review || it.reason || 'No review available.'}</div>
-    `;
+    const icon = it.outcome === 'shipped' ? '✓' : it.outcome === 'killed' ? '✗' : '—';
+    const iconColor = it.outcome === 'shipped' ? 'var(--green)' : it.outcome === 'killed' ? 'var(--red)' : 'var(--text-dim)';
+    const dc = domainColor(it.domain || 'unknown');
+    const rating = (it.outcome === 'shipped' && it.mean_rating != null) ? parseFloat(it.mean_rating).toFixed(2) : '';
+    const review = it.review || '';
+    return `<div class="feed-item" onclick="toggleFeedDetail(this)">
+      <div class="feed-row">
+        <span class="feed-iter">#${it.iteration}</span>
+        <span class="feed-icon" style="color:${iconColor}">${icon}</span>
+        <span class="feed-title">${it.title || '—'}</span>
+        <span class="feed-domain" style="background:${dc}18;color:${dc}">${it.domain || '?'}</span>
+        <span class="feed-rating">${rating}</span>
+      </div>
+      ${review ? `<div class="feed-detail" data-full="${escAttr(review)}" data-short="${escAttr(review.slice(0,150))}">${escHtml(review.slice(0,150))}${review.length > 150 ? '...' : ''}</div>` : ''}
+    </div>`;
   }).join('');
 }
 
-function toggleReview(i) {
-  const el = document.getElementById('review-' + i);
-  if (el) el.classList.toggle('open');
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
-
-// ── 2. Quality Trends ────────────────────────────────────────────
-
-function renderQualityTrends(iterations) {
-  destroyChart('quality');
-  const shipped = iterations.filter(it => it.outcome === 'shipped' && it.mean_rating);
-  if (!shipped.length) {
-    document.getElementById('chart-quality').parentElement.innerHTML = '<div class="empty-state">No shipped artifacts yet</div>';
-    return;
-  }
-
-  const labels = shipped.map(it => '#' + it.iteration);
-  const scores = shipped.map(it => parseFloat(it.mean_rating));
-
-  // Rolling 5-iteration average
-  const rolling = scores.map((_, i) => {
-    const window = scores.slice(Math.max(0, i - 4), i + 1);
-    return window.reduce((a, b) => a + b, 0) / window.length;
-  });
-
-  // Rejection rate per iteration (from all iterations, not just shipped)
-  const iterNums = [...new Set(iterations.map(it => it.iteration))].sort((a, b) => a - b);
-  const rejectionLabels = iterNums.map(n => '#' + n);
-  const rejectionRates = [];
-  let totalKilled = 0;
-  let totalIter = 0;
-  for (const num of iterNums) {
-    totalIter++;
-    const entry = iterations.find(it => it.iteration === num);
-    if (entry && entry.outcome === 'killed') totalKilled++;
-    rejectionRates.push((totalKilled / totalIter) * 100);
-  }
-
-  charts.quality = new Chart(document.getElementById('chart-quality'), {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: 'Mean Rating',
-          data: scores,
-          borderColor: '#a78bfa',
-          backgroundColor: '#a78bfa44',
-          pointBackgroundColor: '#a78bfa',
-          pointRadius: 4,
-          tension: 0.2,
-          yAxisID: 'y',
-        },
-        {
-          label: 'Rolling Avg (5)',
-          data: rolling,
-          borderColor: '#60a5fa',
-          borderDash: [5, 3],
-          pointRadius: 0,
-          tension: 0.3,
-          yAxisID: 'y',
-        },
-        {
-          label: 'Kill Rate %',
-          data: rejectionRates.slice(0, shipped.length),
-          borderColor: '#f8717144',
-          backgroundColor: '#f8717118',
-          fill: true,
-          pointRadius: 0,
-          tension: 0.3,
-          yAxisID: 'y1',
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { intersect: false, mode: 'index' },
-      scales: {
-        y: {
-          min: 1, max: 5,
-          title: { display: true, text: 'Score' },
-          grid: { color: '#1a1a2e' },
-        },
-        y1: {
-          position: 'right',
-          min: 0, max: 100,
-          title: { display: true, text: 'Kill Rate %' },
-          grid: { drawOnChartArea: false },
-        },
-      },
-      plugins: { legend: { position: 'bottom' } },
-    },
-  });
+function escAttr(s) {
+  return escHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
-
-// ── 3. Domain Distribution ───────────────────────────────────────
-
-function renderDomainDistribution(iterations) {
-  destroyChart('domainDoughnut');
-  destroyChart('domainBar');
-
-  const shipped = iterations.filter(it => it.outcome === 'shipped');
-  if (!shipped.length) {
-    document.getElementById('chart-domain-doughnut').parentElement.innerHTML = '<div class="empty-state">No data yet</div>';
-    return;
-  }
-
-  // All-time counts
-  const allCounts = {};
-  shipped.forEach(it => { allCounts[it.domain] = (allCounts[it.domain] || 0) + 1; });
-  const domains = Object.keys(allCounts).sort();
-
-  charts.domainDoughnut = new Chart(document.getElementById('chart-domain-doughnut'), {
-    type: 'doughnut',
-    data: {
-      labels: domains,
-      datasets: [{
-        data: domains.map(d => allCounts[d]),
-        backgroundColor: domains.map(d => domainColor(d)),
-        borderWidth: 0,
-      }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      cutout: '55%',
-      plugins: {
-        legend: { position: 'bottom', labels: { padding: 8, font: { size: 10 } } },
-        title: { display: true, text: 'All Time', color: '#8888a0', font: { size: 11, weight: 'normal' } },
-      },
-    },
-  });
-
-  // Recent (last 50)
-  const recent = shipped.slice(-50);
-  const recentCounts = {};
-  recent.forEach(it => { recentCounts[it.domain] = (recentCounts[it.domain] || 0) + 1; });
-  const recentDomains = Object.keys(recentCounts).sort((a, b) => recentCounts[b] - recentCounts[a]);
-
-  charts.domainBar = new Chart(document.getElementById('chart-domain-bar'), {
-    type: 'bar',
-    data: {
-      labels: recentDomains,
-      datasets: [{
-        data: recentDomains.map(d => recentCounts[d]),
-        backgroundColor: recentDomains.map(d => domainColor(d) + '99'),
-        borderRadius: 4,
-      }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      indexAxis: 'y',
-      plugins: {
-        legend: { display: false },
-        title: { display: true, text: 'Last 50 Iterations', color: '#8888a0', font: { size: 11, weight: 'normal' } },
-      },
-      scales: {
-        x: { grid: { color: '#1a1a2e' }, ticks: { stepSize: 1 } },
-        y: { grid: { display: false } },
-      },
-    },
-  });
-}
-
-// ── 4. Artifact Timeline ─────────────────────────────────────────
-
-function renderArtifactTimeline(iterations) {
-  destroyChart('timeline');
-  if (!iterations.length) {
-    document.getElementById('chart-timeline').parentElement.innerHTML = '<div class="empty-state">No artifacts yet</div>';
-    return;
-  }
-
-  const shipped = iterations.filter(it => it.outcome === 'shipped');
-  const killed = iterations.filter(it => it.outcome === 'killed');
-
-  // Group shipped by domain for separate datasets
-  const domainGroups = {};
-  shipped.forEach(it => {
-    const d = it.domain || 'unknown';
-    if (!domainGroups[d]) domainGroups[d] = [];
-    const tokens = it.token_usage ? (it.token_usage.input + it.token_usage.output) : 1000;
-    domainGroups[d].push({
-      x: new Date(it.timestamp),
-      y: parseFloat(it.mean_rating) || 0,
-      r: Math.max(4, Math.min(18, Math.sqrt(tokens / 500))),
-      title: it.title,
-      domain: d,
-      rating: it.mean_rating,
-      id: it.artifact_id,
-    });
-  });
-
-  const datasets = Object.entries(domainGroups).map(([domain, points]) => ({
-    label: domain,
-    data: points,
-    backgroundColor: domainColor(domain) + '99',
-    borderColor: domainColor(domain),
-    borderWidth: 1,
-  }));
-
-  // Killed artifacts
-  if (killed.length) {
-    datasets.push({
-      label: 'killed',
-      data: killed.map(it => ({
-        x: new Date(it.timestamp),
-        y: 0.3,
-        r: 5,
-        title: it.title,
-        domain: it.domain,
-        rating: 'killed',
-        id: it.artifact_id,
-      })),
-      backgroundColor: '#f8717155',
-      borderColor: '#f87171',
-      borderWidth: 2,
-      pointStyle: 'crossRot',
-    });
-  }
-
-  charts.timeline = new Chart(document.getElementById('chart-timeline'), {
-    type: 'bubble',
-    data: { datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          type: 'time',
-          time: { unit: 'hour', displayFormats: { hour: 'MMM d HH:mm' } },
-          grid: { color: '#1a1a2e' },
-          title: { display: true, text: 'Time' },
-        },
-        y: {
-          min: 0, max: 5.5,
-          title: { display: true, text: 'Rating' },
-          grid: { color: '#1a1a2e' },
-        },
-      },
-      plugins: {
-        legend: { position: 'bottom' },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => {
-              const p = ctx.raw;
-              return `${p.title} [${p.domain}] — ${p.rating}`;
-            },
-          },
-        },
-      },
-    },
-  });
-}
-
-// ── 5. Token Economics ───────────────────────────────────────────
-
-function renderTokenEconomics(tokenUsage, iterations) {
-  destroyChart('tokenCumulative');
-  destroyChart('tokenPerArtifact');
-
-  if (!tokenUsage.length) {
-    document.getElementById('chart-token-cumulative').parentElement.parentElement.innerHTML = '<div class="empty-state">No token data yet</div>';
-    return;
-  }
-
-  // Cumulative by agent over iterations
-  const agents = ['ideator', 'creator', 'tester', 'critic', 'curator'];
-  const iterNums = [...new Set(tokenUsage.map(t => t.iteration))].sort((a, b) => a - b);
-
-  const cumulative = {};
-  agents.forEach(a => { cumulative[a] = []; });
-
-  const running = {};
-  agents.forEach(a => { running[a] = 0; });
-
-  for (const iterNum of iterNums) {
-    const entries = tokenUsage.filter(t => t.iteration === iterNum);
-    entries.forEach(e => {
-      const base = baseAgent(e.agent);
-      if (running[base] !== undefined) {
-        running[base] += (e.input_tokens || 0) + (e.output_tokens || 0);
-      }
-    });
-    agents.forEach(a => { cumulative[a].push(running[a]); });
-  }
-
-  const cumulativeLabels = iterNums.map(n => '#' + n);
-
-  charts.tokenCumulative = new Chart(document.getElementById('chart-token-cumulative'), {
-    type: 'line',
-    data: {
-      labels: cumulativeLabels,
-      datasets: agents.map(a => ({
-        label: a,
-        data: cumulative[a],
-        borderColor: agentColor(a),
-        backgroundColor: agentColor(a) + '22',
-        fill: true,
-        tension: 0.2,
-        pointRadius: 0,
-      })),
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { intersect: false, mode: 'index' },
-      scales: {
-        x: { grid: { color: '#1a1a2e' } },
-        y: {
-          stacked: true,
-          grid: { color: '#1a1a2e' },
-          title: { display: true, text: 'Cumulative Tokens' },
-          ticks: {
-            callback: (v) => v >= 1000000 ? (v / 1000000).toFixed(1) + 'M' : v >= 1000 ? (v / 1000).toFixed(0) + 'K' : v,
-          },
-        },
-      },
-      plugins: {
-        legend: { position: 'bottom' },
-        title: { display: true, text: 'Cumulative Token Spend by Agent', color: '#8888a0', font: { size: 11, weight: 'normal' } },
-      },
-    },
-  });
-
-  // Cost per artifact (tokens per shipped iteration)
-  const shippedIters = iterations.filter(it => it.outcome === 'shipped');
-  if (shippedIters.length) {
-    const perArtifact = shippedIters.map(it => ({
-      label: '#' + it.iteration,
-      tokens: it.token_usage ? (it.token_usage.input + it.token_usage.output) : 0,
-      domain: it.domain,
-    }));
-
-    charts.tokenPerArtifact = new Chart(document.getElementById('chart-token-per-artifact'), {
-      type: 'bar',
-      data: {
-        labels: perArtifact.map(p => p.label),
-        datasets: [{
-          label: 'Tokens per artifact',
-          data: perArtifact.map(p => p.tokens),
-          backgroundColor: perArtifact.map(p => domainColor(p.domain) + '88'),
-          borderRadius: 4,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          title: { display: true, text: 'Tokens per Shipped Artifact', color: '#8888a0', font: { size: 11, weight: 'normal' } },
-        },
-        scales: {
-          x: { grid: { color: '#1a1a2e' } },
-          y: {
-            grid: { color: '#1a1a2e' },
-            ticks: {
-              callback: (v) => v >= 1000 ? (v / 1000).toFixed(0) + 'K' : v,
-            },
-          },
-        },
-      },
-    });
-  }
-}
-
-// ── 6. Agent Performance ─────────────────────────────────────────
-
-function renderAgentPerformance(decisions, testReports, iterations) {
-  const el = document.getElementById('agent-perf');
-  if (!decisions.length && !testReports.length) {
-    el.innerHTML = '<div class="empty-state">No decision data yet</div>';
-    return;
-  }
-
-  const gate1 = decisions.filter(d => d.gate === 'gate1');
-  const gate2 = decisions.filter(d => d.gate === 'gate2');
-
-  // Ideator: approval rate
-  const g1Total = gate1.length;
-  const g1Approved = gate1.filter(d => d.decision === 'approve').length;
-  const approvalRate = g1Total ? ((g1Approved / g1Total) * 100).toFixed(0) : '—';
-  const g1Recent = gate1.slice(-30);
-  const approvalRecent = g1Recent.length ? ((g1Recent.filter(d => d.decision === 'approve').length / g1Recent.length) * 100).toFixed(0) : '—';
-
-  // Creator: first-pass ship rate (shipped on first try, i.e. no revisions for that iteration)
-  const g2Ships = gate2.filter(d => d.decision === 'ship');
-  const g2Total = gate2.length;
-  // Approximate first-pass: group by iteration, check if first gate2 for that iteration was 'ship'
-  const iterG2 = {};
-  gate2.forEach(d => {
-    if (!iterG2[d.iteration]) iterG2[d.iteration] = d.decision;
-  });
-  const firstPassShips = Object.values(iterG2).filter(d => d === 'ship').length;
-  const firstPassTotal = Object.keys(iterG2).length;
-  const firstPassRate = firstPassTotal ? ((firstPassShips / firstPassTotal) * 100).toFixed(0) : '—';
-
-  // Tester: pass rate
-  const testTotal = testReports.length;
-  const testPassed = testReports.filter(t => t.outcome === 'pass').length;
-  const passRate = testTotal ? ((testPassed / testTotal) * 100).toFixed(0) : '—';
-  const testRecent = testReports.slice(-10);
-  const passRateRecent = testRecent.length ? ((testRecent.filter(t => t.outcome === 'pass').length / testRecent.length) * 100).toFixed(0) : '—';
-
-  // Critic: kill rate
-  const killCount = gate2.filter(d => d.decision === 'kill').length;
-  const killRate = g2Total ? ((killCount / g2Total) * 100).toFixed(0) : '—';
-  const g2Recent = gate2.slice(-10);
-  const killRecent = g2Recent.length ? ((g2Recent.filter(d => d.decision === 'kill').length / g2Recent.length) * 100).toFixed(0) : '—';
-
-  el.innerHTML = `
-    <table class="agent-table">
-      <thead><tr><th>Agent</th><th>Metric</th><th>All-time</th><th>Recent</th></tr></thead>
-      <tbody>
-        <tr>
-          <td style="color:${agentColor('ideator')}">Ideator</td>
-          <td>Approval rate</td>
-          <td class="metric">${approvalRate}%</td>
-          <td class="trend">${approvalRecent}% (last 30)</td>
-        </tr>
-        <tr>
-          <td style="color:${agentColor('creator')}">Creator</td>
-          <td>First-pass ship rate</td>
-          <td class="metric">${firstPassRate}%</td>
-          <td class="trend">${firstPassTotal} iterations</td>
-        </tr>
-        <tr>
-          <td style="color:${agentColor('tester')}">Tester</td>
-          <td>Pass rate</td>
-          <td class="metric">${passRate}%</td>
-          <td class="trend">${passRateRecent}% (last 10)</td>
-        </tr>
-        <tr>
-          <td style="color:${agentColor('critic')}">Critic</td>
-          <td>Kill rate</td>
-          <td class="metric">${killRate}%</td>
-          <td class="trend">${killRecent}% (last 10)</td>
-        </tr>
-      </tbody>
-    </table>
-  `;
-}
-
-// ── 7. Project Tracker ───────────────────────────────────────────
-
-function renderProjectTracker(portfolio) {
-  const el = document.getElementById('project-list');
-  const content = portfolio.content || '';
-  if (!content.trim()) {
-    el.innerHTML = '<div class="empty-state">No portfolio data</div>';
-    return;
-  }
-
-  // Parse the portfolio index markdown table
-  const lines = content.split('\n').filter(l => l.startsWith('|') && !l.startsWith('| ID') && !l.startsWith('|---'));
-  if (!lines.length) {
-    el.innerHTML = '<div class="empty-state">No artifacts in portfolio</div>';
-    return;
-  }
-
-  const artifacts = lines.map(line => {
-    const cols = line.split('|').map(c => c.trim()).filter(Boolean);
-    return { id: cols[0], title: cols[1], domain: cols[2], rating: cols[3], date: cols[4], project: cols[5] };
-  }).filter(a => a.id && a.id !== 'ID');
-
-  // Group by project if any
-  const withProject = artifacts.filter(a => a.project && a.project !== '—' && a.project !== '');
-  const standalone = artifacts.filter(a => !a.project || a.project === '—' || a.project === '');
-
-  let html = '';
-
-  if (withProject.length) {
-    const byProject = {};
-    withProject.forEach(a => {
-      if (!byProject[a.project]) byProject[a.project] = [];
-      byProject[a.project].push(a);
-    });
-    Object.entries(byProject).forEach(([proj, arts]) => {
-      html += `<div class="project-item"><span class="project-name">${proj}</span>`;
-      html += `<div class="project-meta">${arts.length} artifact(s)</div></div>`;
-    });
-  }
-
-  html += `<div class="project-item"><span class="project-name">Standalone Artifacts</span>`;
-  html += `<div class="project-meta">${standalone.length} shipped across ${[...new Set(standalone.map(a => a.domain))].length} domains</div></div>`;
-
-  // Domain breakdown
-  const domainSummary = {};
-  artifacts.forEach(a => { domainSummary[a.domain] = (domainSummary[a.domain] || 0) + 1; });
-  html += '<div style="margin-top:0.75rem; font-size:0.75rem; color:var(--text-dim)">';
-  Object.entries(domainSummary).sort((a, b) => b[1] - a[1]).forEach(([d, c]) => {
-    html += `<span class="domain-tag" style="background:${domainColor(d)}22;color:${domainColor(d)};margin:0.15rem 0.2rem">${d}: ${c}</span>`;
-  });
-  html += '</div>';
-
-  el.innerHTML = html;
-}
-
-// ── 8. Manifesto Changelog ───────────────────────────────────────
-
-function renderManifestoChangelog(journal) {
-  const el = document.getElementById('manifesto-timeline');
-  const content = journal.content || '';
-  if (!content.trim()) {
-    el.innerHTML = '<div class="empty-state">No journal data</div>';
-    return;
-  }
-
-  // Find lines mentioning manifesto
-  const lines = content.split('\n');
-  const manifestoEntries = [];
-  let currentDate = '';
-
-  for (const line of lines) {
-    const dateMatch = line.match(/^###\s+(\S+)/);
-    if (dateMatch) currentDate = dateMatch[1];
-
-    if (/manifesto/i.test(line) && !line.startsWith('#')) {
-      manifestoEntries.push({
-        date: currentDate,
-        text: line.replace(/^[*_-]+\s*/, '').trim(),
-      });
-    }
-  }
-
-  if (!manifestoEntries.length) {
-    el.innerHTML = '<div class="empty-state">No manifesto changes recorded yet</div>';
-    return;
-  }
-
-  el.innerHTML = manifestoEntries.map(e => `
-    <div class="manifesto-entry">
-      <div class="m-date">${e.date}</div>
-      <div>${e.text}</div>
-    </div>
-  `).join('');
-}
-
-// ── Auto-refresh ─────────────────────────────────────────────────
-
-function toggleAutoRefresh() {
-  const btn = document.getElementById('auto-refresh-btn');
-  if (autoRefreshInterval) {
-    clearInterval(autoRefreshInterval);
-    autoRefreshInterval = null;
-    btn.textContent = 'Auto-refresh: OFF';
-    btn.classList.remove('active');
+function toggleFeedDetail(el) {
+  const detail = el.querySelector('.feed-detail');
+  if (!detail) return;
+  const isOpen = detail.classList.toggle('open');
+  if (isOpen) {
+    detail.innerHTML = escHtml(detail.dataset.full);
   } else {
-    autoRefreshInterval = setInterval(refreshAll, 30000);
-    btn.textContent = 'Auto-refresh: ON';
-    btn.classList.add('active');
+    const short = detail.dataset.short;
+    detail.innerHTML = escHtml(short) + (detail.dataset.full.length > 150 ? '...' : '');
   }
 }
 
-// ── Main render ──────────────────────────────────────────────────
+// ── Token Usage Chart ───────────────────────────────────────────
+function renderTokens() {
+  const canvas = document.getElementById('c-tokens');
+  const tooltip = document.getElementById('tt-tokens');
+  const { w } = getCanvasDims(canvas);
+  const h = 260;
+  const ctx = setupCanvas(canvas, w, h);
+  ctx.clearRect(0, 0, w, h);
 
-async function refreshAll() {
-  try {
-    const data = await fetchAll();
-    renderActivityFeed(data.iterations);
-    renderQualityTrends(data.iterations);
-    renderDomainDistribution(data.iterations);
-    renderArtifactTimeline(data.iterations);
-    renderTokenEconomics(data.tokenUsage, data.iterations);
-    renderAgentPerformance(data.decisions, data.testReports, data.iterations);
-    renderProjectTracker(data.portfolio);
-    renderManifestoChangelog(data.journal);
-    document.getElementById('last-refresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
-  } catch (err) {
-    console.error('Refresh failed:', err);
+  // Aggregate by iteration
+  const byIter = {};
+  DATA.tokenUsage.forEach(t => {
+    const iter = t.iteration;
+    if (!byIter[iter]) byIter[iter] = 0;
+    byIter[iter] += (t.input_tokens || 0) + (t.output_tokens || 0);
+  });
+
+  // Also try iterations data for token_usage
+  DATA.iterations.forEach(it => {
+    if (it.token_usage) {
+      const iter = it.iteration;
+      if (!byIter[iter]) byIter[iter] = 0;
+      byIter[iter] += (it.token_usage.input || 0) + (it.token_usage.output || 0);
+    }
+  });
+
+  const iterNums = Object.keys(byIter).map(Number).sort((a,b) => a - b).slice(-50);
+  if (!iterNums.length) {
+    ctx.fillStyle = '#505060';
+    ctx.font = '13px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Awaiting token data...', w/2, h/2);
+    return;
   }
+
+  const values = iterNums.map(n => byIter[n]);
+  const maxVal = Math.max(...values) || 1;
+
+  const pad = { top: 15, right: 15, bottom: 35, left: 50 };
+  const cw = w - pad.left - pad.right;
+  const ch = h - pad.top - pad.bottom;
+  const barW = Math.max(2, Math.min(12, (cw / iterNums.length) * 0.7));
+  const gap = cw / iterNums.length;
+
+  // Y grid
+  ctx.strokeStyle = '#1c1c2a';
+  ctx.lineWidth = 1;
+  ctx.fillStyle = '#505060';
+  ctx.font = '10px -apple-system, system-ui, sans-serif';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const yy = pad.top + (ch * i / 4);
+    const val = maxVal * (1 - i / 4);
+    ctx.beginPath(); ctx.moveTo(pad.left, yy); ctx.lineTo(w - pad.right, yy); ctx.stroke();
+    ctx.fillText(fmt(Math.round(val)), pad.left - 8, yy + 3);
+  }
+
+  // Bars
+  const hitBars = [];
+  iterNums.forEach((iter, i) => {
+    const bx = pad.left + i * gap + (gap - barW) / 2;
+    const bh = (values[i] / maxVal) * ch;
+    const by = pad.top + ch - bh;
+    ctx.fillStyle = 'rgba(108,140,168,0.6)';
+    ctx.fillRect(bx, by, barW, bh);
+    hitBars.push({ x: bx, y: by, w: barW, h: bh, iter, tokens: values[i] });
+  });
+
+  // X labels
+  ctx.fillStyle = '#505060';
+  ctx.textAlign = 'center';
+  ctx.font = '10px -apple-system, system-ui, sans-serif';
+  const xlabelStep = Math.max(1, Math.floor(iterNums.length / 8));
+  for (let i = 0; i < iterNums.length; i += xlabelStep) {
+    const bx = pad.left + i * gap + gap / 2;
+    ctx.fillText('#' + iterNums[i], bx, h - pad.bottom + 18);
+  }
+
+  // Tooltip
+  canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const hit = hitBars.find(b => mx >= b.x && mx <= b.x + b.w + 4 && my >= b.y && my <= b.y + b.h);
+    if (hit) {
+      tooltip.style.opacity = '1';
+      tooltip.style.left = (mx + 12) + 'px';
+      tooltip.style.top = (my - 20) + 'px';
+      tooltip.textContent = `#${hit.iter}: ${fmt(hit.tokens)} tokens`;
+    } else {
+      tooltip.style.opacity = '0';
+    }
+  };
+  canvas.onmouseleave = () => { tooltip.style.opacity = '0'; };
 }
 
-// ── Boot ─────────────────────────────────────────────────────────
+// ── Auto-refresh ────────────────────────────────────────────────
+function startAutoRefresh() {
+  if (refreshTimer) return;
+  refreshTimer = setInterval(fetchAll, 30000);
+}
+startAutoRefresh();
 
-refreshAll();
+// ── Handle resize ───────────────────────────────────────────────
+let resizeTimeout;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(render, 150);
+});
+
+// ── Init ────────────────────────────────────────────────────────
+fetchAll();
 </script>
 </body>
 </html>

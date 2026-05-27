@@ -3,31 +3,31 @@ agents:
     model: "glm-5.1"
     provider: "zai"
     temperature: 0.9
-    max_tokens: 4096
+    max_tokens: 180000
 
   creator:
     model: "glm-5.1"
     provider: "zai"
     temperature: 0.7
-    max_tokens: 16384
+    max_tokens: 180000
 
   tester:
     model: "glm-5.1"
     provider: "zai"
     temperature: 0.2
-    max_tokens: 8192
+    max_tokens: 180000
 
   critic:
     model: "glm-5.1"
     provider: "zai"
     temperature: 0.3
-    max_tokens: 4096
+    max_tokens: 180000
 
   curator:
     model: "glm-5.1"
     provider: "zai"
     temperature: 0.5
-    max_tokens: 8192
+    max_tokens: 180000
 
 # A/B test: uncomment to run ideator on glm-4.5 for iterations 51-70
 # Compare idea quality and Critic approval rates against baseline.

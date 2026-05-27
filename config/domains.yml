@@ -1,36 +1,120 @@
 domains:
   - name: fiction
-    description: "Short stories, flash fiction, novel chapters, vignettes"
+    description: "Short stories, flash fiction, novel chapters, vignettes, microfiction, serialized narratives"
     weight: 1.0
 
   - name: poetry
-    description: "Poems, spoken word, experimental verse"
+    description: "Poems, spoken word, experimental verse, haiku, sonnets, free verse, concrete poetry, blackout poetry"
     weight: 0.8
 
   - name: essay
-    description: "Opinion pieces, analysis, personal essays, criticism"
+    description: "Opinion pieces, analysis, personal essays, criticism, memoir, reflections, cultural commentary"
     weight: 0.8
 
   - name: code-tool
-    description: "CLI tools, utilities, scripts that solve a real problem"
+    description: "CLI tools, utilities, scripts that solve a real problem, productivity enhancers, automation tools"
     weight: 1.0
 
   - name: code-game
-    description: "Games — text adventures, puzzles, arcade, simulations"
+    description: "Games — text adventures, puzzles, arcade, simulations, interactive fiction, roguelikes, narrative games"
     weight: 0.8
 
   - name: code-art
-    description: "Generative art, visualizations, creative coding"
+    description: "Generative art, visualizations, creative coding, algorithmic art, data art, ASCII art, shader art"
     weight: 0.7
 
   - name: music
-    description: "Compositions, sound design (Strudel.js, Tone.js, etc.)"
+    description: "Compositions, sound design (Strudel.js, Tone.js, etc.), algorithmic music, ambient soundscapes, chiptunes"
     weight: 0.5
 
   - name: experiment
-    description: "Anything that doesn't fit. Weird formats, hybrid media, provocations."
+    description: "Anything that doesn't fit. Weird formats, hybrid media, provocations, glitch art, conceptual pieces, remixes."
     weight: 0.6
 
   - name: worldbuilding
-    description: "Lore, maps, cultures, histories, fictional reference material"
+    description: "Lore, maps, cultures, histories, fictional reference material, bestiaries, timelines, languages, mythologies"
+    weight: 0.5
+
+  - name: visual-art
+    description: "SVG art, ASCII/ANSI art, pixel art, diagram poetry, data visualizations as art, pattern design"
+    weight: 0.7
+
+  - name: screenplay
+    description: "Scripts for film, theater, radio plays, podcast narratives, stage directions, dialogue-driven pieces"
+    weight: 0.6
+
+  - name: interactive
+    description: "Choose-your-own-adventure, branching narratives, Twine stories, conversational experiences, interactive poetry"
+    weight: 0.7
+
+  - name: comics
+    description: "Comic scripts, panel descriptions, webcomic formats, graphic novel excerpts, visual storytelling frameworks"
+    weight: 0.6
+
+  - name: journalism
+    description: "Investigative pieces, interviews, reportage, profiles, feature articles, documentary narratives"
+    weight: 0.5
+
+  - name: performance
+    description: "Performance art scripts, scores for live coding, instructions for happenings, ritual documentation, time-based art"
+    weight: 0.4
+
+  - name: data-narrative
+    description: "Data-driven stories, statistical poetry, infographic narratives, quantified self explorations, dataset as medium"
+    weight: 0.6
+
+  - name: translation
+    description: "Translations of existing works, transcreations, multilingual poetry, conlangs, linguistic experiments"
+    weight: 0.5
+
+  - name: design
+    description: "UI/UX concepts, typographic experiments, color studies, layout systems, design manifestos, pattern libraries"
+    weight: 0.6
+
+  - name: documentation
+    description: "Creative documentation, artist statements, process journals, research logs, annotated bibliographies, meta-commentary"
+    weight: 0.5
+
+  - name: correspondence
+    description: "Epistolary fiction, letter projects, email art, postcard series, chat logs as literature, found correspondence"
+    weight: 0.5
+
+  - name: instruction
+    description: "Instruction-based art, procedural pieces, recipes as poetry, algorithmic compositions, constraint-based works, scores"
+    weight: 0.6
+
+  - name: archive
+    description: "Fictional archives, collections, taxonomies, catalogs, indices, databases as narrative, archival poetry"
+    weight: 0.5
+
+  - name: remix
+    description: "Remixes, mashups, collage works, cut-ups, found text transformations, appropriation art, sampling-based pieces"
+    weight: 0.6
+
+  - name: annotation
+    description: "Marginalia, commentary layers, hypertext annotations, glossed texts, scholarly playfulness, footnote fiction"
+    weight: 0.5
+
+  - name: manifesto
+    description: "Artistic manifestos, movement declarations, aesthetic statements, provocations, calls to action, vision documents"
+    weight: 0.5
+
+  - name: game-design
+    description: "Game design documents, mechanics as poetry, rulebooks, card game systems, tabletop RPG content, ludic narratives"
+    weight: 0.6
+
+  - name: speculative
+    description: "Speculative design, design fiction, future artifacts, alternate histories, critical fabulation, what-if scenarios"
+    weight: 0.6
+
+  - name: erasure
+    description: "Erasure poetry, redacted texts, censored documents, negative space narratives, subtraction as composition"
+    weight: 0.5
+
+  - name: bot
+    description: "Twitter bots, chatbots, automated poets, generative social media, bot personalities, conversational agents"
+    weight: 0.6
+
+  - name: hypertext
+    description: "Non-linear narratives, hyperlink poetry, web-native literature, nodal storytelling, networked texts"
     weight: 0.5

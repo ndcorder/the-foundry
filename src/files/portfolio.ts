@@ -15,6 +15,7 @@ function domainDir(domain: string): string {
 }
 
 export function slugify(title: string): string {
+  if (!title) throw new Error("slugify: title is empty or undefined");
   return title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")

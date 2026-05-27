@@ -3,29 +3,29 @@ foundry:
   version: "1.0.0-rc.2"
 
 iteration:
-  max_idea_retries: 3
-  max_revision_rounds: 2
-  max_test_fix_cycles: 2
+  max_idea_retries: 6
+  max_revision_rounds: 12
+  max_test_fix_cycles: 25
   curator_interval: 15
   domain_cooldown: 10
   novelty_window: 20
   complexity_profiles:
     S:
-      max_tokens_per_phase: 16384
+      max_tokens_per_phase: 32768
       budget_warning_threshold: 25000
     M:
-      max_tokens_per_phase: 32768
+      max_tokens_per_phase: 65536
       budget_warning_threshold: 120000
     L:
-      max_tokens_per_phase: 65536
+      max_tokens_per_phase: 90000
       budget_warning_threshold: 400000
     XL:
-      max_tokens_per_phase: 100000
+      max_tokens_per_phase: 180000
       budget_warning_threshold: 800000
 
 projects:
-  max_active: 2
-  max_iterations_per_project: 12
+  max_active: 4
+  max_iterations_per_project: 30
   allow_standalone_interrupts: true
   kickstart_after: 15
 
@@ -36,7 +36,7 @@ stimuli:
   mcp_timeout_seconds: 30
 
 context:
-  journal_compressed_max_tokens: 4000
+  journal_compressed_max_tokens: 8000
   portfolio_index_max_entries: 30
   critic_review_history: 8
   critic_gate1_history: 5
@@ -58,7 +58,7 @@ recovery:
 loop:
   cooldown_seconds: 2
   disk_space_min_gb: 1
-  concurrency: 3
+  concurrency: 1
 
 git:
   auto_commit: true

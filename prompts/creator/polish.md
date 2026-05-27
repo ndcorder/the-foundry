@@ -14,6 +14,8 @@ For code: naming consistency, edge cases, error messages, clean formatting, idio
 For prose: rhythm, word choice, opening hooks, closing resonance, sensory details.
 For both: the small details that separate good from great.
 
+Furnace mode guidance: use this pass for meaningful refinement across every file, not a token-sparing skim.
+
 Do NOT change the structure or key decisions. Polish, don't redesign.
 
 Output the COMPLETE polished files.

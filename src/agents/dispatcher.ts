@@ -178,6 +178,7 @@ export async function dispatchCriticGate1(
       proposal_title: ev.title,
       sharpening_notes: ev.sharpening_notes || undefined,
       reasons: ev.reasons || undefined,
+      recommended_complexity: ev.recommended_complexity || undefined,
     });
   }
 

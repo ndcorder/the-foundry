@@ -21,6 +21,8 @@ Multiple build calls produced these files independently. Your job:
 3. Ensure the pieces form a coherent whole
 4. Add any missing files (READMEs, configs, entry points)
 
+Furnace mode guidance: this is the integration pass for a large artifact. Spend the budget to make the whole thing cohesive, complete, and easy to inspect. Do not collapse the work into a summary.
+
 Output ALL files — the complete assembled artifact.
 
 ## Output Format

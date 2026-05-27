@@ -28,6 +28,7 @@ export interface CriticGate1Evaluation {
   decision: "approve" | "reject" | "revise";
   sharpening_notes: string;
   reasons: string;
+  recommended_complexity?: "S" | "M" | "L" | "XL" | null;
 }
 
 export interface CriticGate1Response {

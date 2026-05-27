@@ -245,6 +245,12 @@ describe('normalizeCriticGate1', () => {
     expect((data as any).evaluations[0].reasons).toBe('bad');
   });
 
+  it('preserves recommended complexity upgrades', () => {
+    const data = { evaluations: [{ title: 'A', decision: 'approve', recommended_complexity: 'XL' }] };
+    normalizeCriticGate1(data);
+    expect((data as any).evaluations[0].recommended_complexity).toBe('XL');
+  });
+
   it('returns non-object input unchanged', () => {
     expect(normalizeCriticGate1(42)).toBe(42);
     expect(normalizeCriticGate1('str')).toBe('str');

@@ -37,16 +37,18 @@ describe("creator/profiles", () => {
     expect(p.maxTokensPerPhase).toBe(32768);
   });
 
-  it("returns 5 phases for L", () => {
+  it("returns 7 phases for L", () => {
     const p = getComplexityProfile("L", makeConfig());
-    expect(p.phases).toHaveLength(5);
+    expect(p.phases).toHaveLength(7);
     expect(p.phases[0]).toBe("plan");
-    expect(p.phases[4]).toBe("polish");
+    expect(p.phases.filter((phase) => phase === "build")).toHaveLength(4);
+    expect(p.phases[6]).toBe("polish");
   });
 
-  it("returns 7 phases for XL with assemble", () => {
+  it("returns 12 phases for XL with assemble", () => {
     const p = getComplexityProfile("XL", makeConfig());
-    expect(p.phases).toHaveLength(7);
+    expect(p.phases).toHaveLength(12);
+    expect(p.phases.filter((phase) => phase === "build")).toHaveLength(8);
     expect(p.phases).toContain("assemble");
     expect(p.maxTokensPerPhase).toBe(100000);
   });

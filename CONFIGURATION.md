@@ -19,12 +19,21 @@ Controls the per-iteration behavior. These are the most impactful tuning knobs.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `max_idea_retries` | number | `3` | How many Ideator→Critic rounds before declaring a deadlock. Higher = more chances to find a good idea, but burns tokens on bad cycles. |
-| `max_revision_rounds` | number | `2` | How many Creator→Critic Gate 2 revision loops. Higher = more polish, but diminishing returns past 2. |
-| `max_test_fix_cycles` | number | `2` | How many Tester→Creator fix loops for code artifacts. 2 catches most fixable bugs without spiraling. |
-| `curator_interval` | number | `15` | Iterations between full Curator cycles. Lower = more self-reflection and tighter identity maintenance. Higher = faster throughput but risk of drift. 10–20 is the sweet spot. |
+| `max_idea_retries` | number | `10` | How many Ideator→Critic rounds before declaring a deadlock. Higher = more chances to find a good idea and more useful token burn on bad cycles. |
+| `max_revision_rounds` | number | `20` | How many Creator→Critic Gate 2 revision loops. Furnace defaults favor repeated refinement over token conservation. |
+| `max_test_fix_cycles` | number | `25` | How many Tester→Creator fix loops for code artifacts. High values let complex artifacts keep burning tokens until they are actually fixed. |
+| `curator_interval` | number | `8` | Iterations between full Curator cycles. Lower = more reflection, bigger contexts, and more token burn; raise if Curator drains slow parallel runs too often. |
 | `domain_cooldown` | number | `10` | The Ideator must propose at least one idea in a domain not used in the last N iterations. Prevents domain collapse. |
 | `novelty_window` | number | `20` | The Ideator cannot propose ideas structurally identical to portfolio entries within this window. Larger = stricter novelty enforcement. |
+
+`complexity_profiles` controls Creator phase output ceilings and soft warning thresholds:
+
+| Tier | Default `max_tokens_per_phase` | Default `budget_warning_threshold` | Use |
+|---|---:|---:|---|
+| `S` | `32768` | `25000` | Small forms where brevity is the point. |
+| `M` | `65536` | `120000` | Multi-file or substantial single-file artifacts. |
+| `L` | `90000` | `400000` | Ambitious artifacts with several build batches. |
+| `XL` | `180000` | `800000` | Massive standalone artifacts or project starters. |
 
 ### `projects`
 
@@ -32,9 +41,10 @@ Multi-iteration project settings.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `max_active` | number | `2` | Maximum concurrent active projects. Projects are the exception; standalone iterations are the default. |
-| `max_iterations_per_project` | number | `12` | Hard cap on iterations per project. The Curator must extend with justification or close. |
+| `max_active` | number | `4` | Maximum concurrent active projects. Higher values let the Ideator keep several large threads alive. |
+| `max_iterations_per_project` | number | `30` | Hard cap on iterations per project. The Curator must extend with justification or close. |
 | `allow_standalone_interrupts` | boolean | `true` | Whether standalone ideas can interrupt project work. Should stay true — variety matters. |
+| `kickstart_after` | number | `15` | How many iterations without active projects before the Curator explicitly recommends starting one. |
 
 ### `stimuli`
 
@@ -44,7 +54,7 @@ External input pipeline settings.
 |---|---|---|---|
 | `enabled` | boolean | `true` | Master switch for the stimuli system. Disable if running offline or without MCP access. |
 | `stimuli_ttl` | number | `30` | Max iterations before force-rotating live stimuli. Prevents stale external context. |
-| `skills_per_context` | number | `2` | How many random skill files to include in each Ideator call. More = broader reference but larger context. |
+| `skills_per_context` | number | `8` | How many random skill files to include in each Ideator call. More = broader reference and a larger prompt. |
 | `mcp_timeout_seconds` | number | `30` | Timeout for MCP/CLI calls during stimuli refresh. |
 
 ### `context`
@@ -53,10 +63,10 @@ Context window management. These control how much history each agent sees.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `journal_compressed_max_tokens` | number | `4000` | Token budget for the compressed journal in shared context. ~4000 tokens ≈ 16KB. Increase if agents seem to lack historical awareness. |
-| `portfolio_index_max_entries` | number | `30` | Max portfolio entries included in shared context (selected by recency + rating + project relevance). Increase for larger portfolios. |
-| `critic_review_history` | number | `8` | How many Critic Gate 2 reviews the Creator sees. This is how the Creator learns quality standards — higher values mean more institutional learning. |
-| `critic_gate1_history` | number | `5` | How many Gate 1 decisions the Ideator and Critic see. Helps the Ideator learn what gets approved. |
+| `journal_compressed_max_tokens` | number | `24000` | Token budget for the compressed journal in shared context. Furnace mode keeps much more history in every call. |
+| `portfolio_index_max_entries` | number | `120` | Max portfolio entries included in shared context (selected by recency + rating + project relevance). Increase for larger portfolios. |
+| `critic_review_history` | number | `20` | How many Critic Gate 2 reviews the Creator sees. This is how the Creator learns quality standards — higher values mean more institutional learning and larger prompts. |
+| `critic_gate1_history` | number | `12` | How many Gate 1 decisions the Ideator and Critic see. Helps the Ideator learn what gets approved. |
 
 ### `intervention`
 
@@ -85,7 +95,8 @@ Context window management. These control how much history each agent sees.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `cooldown_seconds` | number | `2` | Pause between iterations. Prevents API hammering. Increase if you're hitting rate limits. |
+| `cooldown_seconds` | number | `0` | Pause between iterations in sequential mode. Furnace mode defaults to no pause; increase if you're hitting rate limits. |
+| `concurrency` | number | `8` | Number of parallel iterations in pool mode. This is the main token-throughput lever. |
 | `disk_space_min_gb` | number | `1` | Minimum free disk space (GB) before halting. Safety net against filling the disk with artifacts. |
 
 ## models.yml
@@ -97,34 +108,34 @@ agents:
   ideator:
     model: "glm-5.1"
     temperature: 0.9
-    max_tokens: 4096
+    max_tokens: 180000
   creator:
     model: "glm-5.1"
     temperature: 0.7
-    max_tokens: 16384
+    max_tokens: 180000
   tester:
     model: "glm-5.1"
     temperature: 0.2
-    max_tokens: 8192
+    max_tokens: 180000
   critic:
     model: "glm-5.1"
     temperature: 0.3
-    max_tokens: 4096
+    max_tokens: 180000
   curator:
     model: "glm-5.1"
     temperature: 0.5
-    max_tokens: 8192
+    max_tokens: 180000
 ```
 
 ### Agent-specific guidance
 
 | Agent | Temperature | Max Tokens | Rationale |
 |---|---|---|---|
-| Ideator | 0.9 (high) | 4096 | High creativity for divergent thinking. Only outputs short proposals — doesn't need many tokens. Works fine on cheaper/smaller models since proposals are brief. |
-| Creator | 0.7 (moderate) | 16384 | Balanced creativity with coherence. Needs the most tokens for long-form artifact creation. Use the strongest available model here — artifact quality is the system's output. |
-| Tester | 0.2 (low) | 8192 | Deterministic verification. Needs enough tokens for test code + reports. A weaker model works if it can write valid test code. |
-| Critic | 0.3 (low) | 4096 | Consistent, principled evaluation. Short structured output. Quality of judgment matters more than creativity. |
-| Curator | 0.5 (moderate) | 8192 | Reflective analysis needs some creativity but also coherence. Moderate token budget for retrospectives + journal compression. |
+| Ideator | 0.9 (high) | 180000 | High creativity for divergent thinking. Furnace mode asks for richer proposal sets and leaves room for large YAML retries. |
+| Creator | 0.7 (moderate) | 180000 | Balanced creativity with coherence. Needs the most tokens for long-form artifact creation. Use the strongest available model here — artifact quality is the system's output. |
+| Tester | 0.2 (low) | 180000 | Deterministic verification. Large budgets let it write substantial plans, tests, and reports for large code artifacts. |
+| Critic | 0.3 (low) | 180000 | Consistent, principled evaluation with room for large artifacts and full context. |
+| Curator | 0.5 (moderate) | 180000 | Reflective analysis needs room for retrospectives, journal compression, project management, and stimuli work. |
 
 ### A/B Testing Overrides
 
@@ -217,7 +228,7 @@ mcp:
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `stimuli_ttl` | number | `30` | Max iterations before force-rotating live stimuli, even if the source's own interval hasn't elapsed. |
-| `skills_per_context` | number | `2` | How many random skill files from `stimuli/skills/` to include in each Ideator call. |
+| `skills_per_context` | number | `8` | How many random skill files from `stimuli/skills/` to include in each Ideator call. |
 
 ### Current sources
 

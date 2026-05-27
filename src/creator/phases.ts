@@ -157,7 +157,7 @@ export async function dispatchBuild(
     approved_proposal_brief: `**${proposal.title}** [${proposal.domain}]: ${proposal.pitch}`,
     critic_sharpening_notes_brief: criticNotes ? criticNotes.slice(0, 500) : "",
     prior_files: serializeFiles(priorFiles),
-    build_batch: batchFiles.join(", ") || "all remaining files",
+    build_batch: batchFiles.join(", ") || "additional supporting files, examples, tests, docs, or sections that make the artifact more complete",
   });
 
   const result = await callPhase<CreatorBuildResponse>(

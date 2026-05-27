@@ -99,6 +99,8 @@ beforeEach(() => {
   tempDir = mkdtempSync(path.join(tmpdir(), 'foundry-iter-'));
   setRootDir(tempDir);
   vi.clearAllMocks();
+  mockGetNextArtifactId.mockReset();
+  mockGetNextArtifactId.mockResolvedValue('0001');
   mkdirSync(path.join(tempDir, 'logs'), { recursive: true });
 });
 afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
@@ -183,6 +185,63 @@ describe('iteration/runner', () => {
       expect(mockWriteArtifact).toHaveBeenCalledOnce();
       expect(mockUpdatePortfolioIndex).toHaveBeenCalledOnce();
       expect(mockLogIteration).toHaveBeenCalledOnce();
+    });
+
+    it('serializes portfolio bookkeeping for concurrent shipped iterations', async () => {
+      const proposal = { title: 'Concurrent Artifact', domain: 'prose', pitch: 'A test', complexity: 'S' as const, why: 'Because', project_id: null, stimulus_ref: null };
+
+      mockDispatchIdeator.mockResolvedValue({
+        data: { ideas: [proposal] },
+        usage,
+        rawText: '',
+      });
+      mockDispatchCriticGate1.mockResolvedValue({
+        data: { evaluations: [{ title: 'Concurrent Artifact', decision: 'approve', sharpening_notes: 'Good', reasons: '' }] },
+        usage,
+        rawText: '',
+      });
+      mockIsCodeDomain.mockReturnValue(false);
+      mockRunCreatorPipeline.mockResolvedValue({
+        artifact: { title: 'Concurrent Artifact', files: [{ path: 'piece.md', content: '# Piece' }], notes: '' },
+        usage,
+        phasesRun: ['build'],
+        phaseTokens: { build: 50 },
+      });
+      mockDispatchTesterLightweight.mockResolvedValue({
+        data: { verdict: 'pass', summary: 'Looks good', tests_run: [], issues: [] },
+        usage,
+        rawText: '',
+      });
+      mockDispatchCriticGate2.mockResolvedValue({
+        data: {
+          decision: 'ship',
+          ratings: { originality: 4, specificity: 3.5, craft: 4, surprise: 3, coherence: 4, portfolio_fit: 3.5 },
+          review: 'Well crafted piece',
+        },
+        usage,
+        rawText: '',
+      });
+
+      let activeBookkeeping = 0;
+      let maxActiveBookkeeping = 0;
+      let nextId = 1;
+      mockGetNextArtifactId.mockImplementation(async () => {
+        activeBookkeeping++;
+        maxActiveBookkeeping = Math.max(maxActiveBookkeeping, activeBookkeeping);
+        await new Promise((r) => setTimeout(r, 25));
+        activeBookkeeping--;
+        return String(nextId++).padStart(4, '0');
+      });
+
+      const { runIteration } = await import('../src/iteration/runner.js');
+      const [first, second] = await Promise.all([
+        runIteration(makeConfig(), makeModels(), 1, 1),
+        runIteration(makeConfig(), makeModels(), 2, 2),
+      ]);
+
+      expect(first.outcome).toBe('shipped');
+      expect(second.outcome).toBe('shipped');
+      expect(maxActiveBookkeeping).toBe(1);
     });
   });
 
@@ -270,6 +329,7 @@ describe('iteration/runner', () => {
 
       expect(result.outcome).toBe('skipped');
       expect(result.reason).toContain('deadlock');
+      expect(mockDispatchIdeator.mock.calls[1][3]).toContain('Propose 5 NEW ideas');
     });
   });
 
@@ -728,6 +788,44 @@ describe('iteration/runner', () => {
         complexity: 'M',
         phases_run: ['plan', 'build-1', 'revise'],
       }));
+    });
+
+    it('uses Critic recommended complexity upgrades for creation', async () => {
+      const proposal = { title: 'Too Small', domain: 'code-tool', pitch: 'A cautious tool idea', complexity: 'M', why: 'Why', project_id: null, stimulus_ref: null };
+
+      mockDispatchIdeator.mockResolvedValueOnce({ data: { ideas: [proposal] }, usage, rawText: '' });
+      mockDispatchCriticGate1.mockResolvedValueOnce({
+        data: { evaluations: [{ title: 'Too Small', decision: 'approve', sharpening_notes: 'Make it substantial', reasons: '', recommended_complexity: 'XL' }] },
+        usage, rawText: '',
+      });
+
+      mockIsCodeDomain.mockReturnValue(false);
+
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Too Small', files: [{ path: 'main.ts', content: 'export {}' }] },
+        usage,
+        phasesRun: ['plan', 'build-1'],
+        phaseTokens: { plan: 50, 'build-1': 50 },
+      });
+
+      mockDispatchTesterLightweight.mockResolvedValueOnce({
+        data: { verdict: 'pass', summary: 'OK', tests_run: [], issues: [] },
+        usage, rawText: '',
+      });
+
+      mockDispatchCriticGate2.mockResolvedValueOnce({
+        data: {
+          decision: 'ship',
+          ratings: { originality: 4, specificity: 4, craft: 4, surprise: 3, coherence: 4, portfolio_fit: 4 },
+          review: 'Good',
+        },
+        usage, rawText: '',
+      });
+
+      const { runIteration } = await import('../src/iteration/runner.js');
+      await runIteration(makeConfig(), makeModels(), 1);
+
+      expect(mockRunCreatorPipeline.mock.calls[0][1].complexity).toBe('XL');
     });
   });
 

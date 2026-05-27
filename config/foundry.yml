@@ -3,10 +3,10 @@ foundry:
   version: "1.1.0"
 
 iteration:
-  max_idea_retries: 6
-  max_revision_rounds: 12
+  max_idea_retries: 10
+  max_revision_rounds: 20
   max_test_fix_cycles: 25
-  curator_interval: 15
+  curator_interval: 8
   domain_cooldown: 10
   novelty_window: 20
   complexity_profiles:
@@ -32,14 +32,14 @@ projects:
 stimuli:
   enabled: true
   stimuli_ttl: 30
-  skills_per_context: 2
+  skills_per_context: 8
   mcp_timeout_seconds: 30
 
 context:
-  journal_compressed_max_tokens: 8000
-  portfolio_index_max_entries: 30
-  critic_review_history: 8
-  critic_gate1_history: 5
+  journal_compressed_max_tokens: 24000
+  portfolio_index_max_entries: 120
+  critic_review_history: 20
+  critic_gate1_history: 12
 
 intervention:
   requests_file: "requests.md"
@@ -56,10 +56,10 @@ recovery:
   resume_on_crash: true
 
 loop:
-  cooldown_seconds: 2
+  cooldown_seconds: 0
   disk_space_min_gb: 1
-  concurrency: 1
+  concurrency: 8
 
 git:
   auto_commit: true
-  auto_push: true
+  auto_push: false

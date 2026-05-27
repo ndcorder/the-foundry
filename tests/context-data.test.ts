@@ -215,6 +215,20 @@ describe('formatDecisions', () => {
     expect(result).toContain('Needs focus');
   });
 
+  it('includes recommended complexity upgrades in decision history', () => {
+    const entries: DecisionLogEntry[] = [{
+      timestamp: '2026-01-01T00:00:00Z',
+      iteration: 1,
+      gate: 'gate1',
+      agent: 'critic',
+      decision: 'approve',
+      proposal_title: 'Small Code Sketch',
+      recommended_complexity: 'XL',
+    }];
+    const result = formatDecisions(entries);
+    expect(result).toContain('recommended complexity: XL');
+  });
+
   it('handles missing label gracefully', () => {
     const entries: DecisionLogEntry[] = [{
       timestamp: '2026-01-01T00:00:00Z',

@@ -14,6 +14,7 @@ export class IterationPool {
   private readonly concurrency: number;
   private readonly gitMutex = new Mutex();
   private readonly artifactMutex = new Mutex();
+  private readonly availableSlots: number[] = [];
   private inFlight = new Map<number, Promise<{ result: IterationResult; slot: number }>>();
   private nextIteration: number;
   private shuttingDown = false;
@@ -28,6 +29,7 @@ export class IterationPool {
     this.concurrency = Math.max(1, concurrency);
     this.nextIteration = startIteration;
     this.bus = bus;
+    this.resetAvailableSlots();
   }
 
   get gitLock(): Mutex {
@@ -44,6 +46,23 @@ export class IterationPool {
 
   reserveIteration(): number {
     return this.nextIteration++;
+  }
+
+  private takeSlot(): number | undefined {
+    return this.availableSlots.shift();
+  }
+
+  private releaseSlot(slot: number): void {
+    if (this.availableSlots.includes(slot)) return;
+    this.availableSlots.push(slot);
+    this.availableSlots.sort((a, b) => a - b);
+  }
+
+  private resetAvailableSlots(): void {
+    this.availableSlots.length = 0;
+    for (let slot = 1; slot <= this.concurrency; slot++) {
+      this.availableSlots.push(slot);
+    }
   }
 
   async run(
@@ -63,7 +82,8 @@ export class IterationPool {
       while (this.inFlight.size < this.concurrency && !this.shuttingDown) {
         if (await callbacks.shouldStop()) break;
         const iter = this.reserveIteration();
-        const slot = this.inFlight.size + 1;
+        const slot = this.takeSlot();
+        if (slot === undefined) break;
 
         const promise = callbacks.runIteration(config, models, iter, slot)
           .then((result) => ({ result, slot }));
@@ -79,6 +99,7 @@ export class IterationPool {
       const completed = await Promise.race(results);
 
       this.inFlight.delete(completed.iter);
+      this.releaseSlot(completed.slot);
       lastCompletedIteration = Math.max(lastCompletedIteration, completed.iter);
 
       await callbacks.onIterationComplete(completed.result, completed.slot);
@@ -99,5 +120,6 @@ export class IterationPool {
     if (this.inFlight.size === 0) return;
     await Promise.allSettled([...this.inFlight.values()]);
     this.inFlight.clear();
+    this.resetAvailableSlots();
   }
 }

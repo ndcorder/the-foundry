@@ -53,6 +53,7 @@ const SCHEMAS: Record<string, Record<string, unknown>> = {
             decision: { type: "string" },
             sharpening_notes: { type: "string" },
             reasons: { type: "string" },
+            recommended_complexity: { type: "string", enum: ["S", "M", "L", "XL"] },
           },
         },
       },
@@ -241,6 +242,7 @@ export function normalizeCriticGate1(data: unknown): unknown {
     decision: e.decision ?? e.verdict ?? "reject",
     sharpening_notes: e.sharpening_notes ?? e.notes ?? e.sharpening ?? "",
     reasons: e.reasons ?? e.reason ?? "",
+    recommended_complexity: e.recommended_complexity ?? null,
   }));
   delete d.decisions;
   return data;

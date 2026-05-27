@@ -139,8 +139,10 @@ describe("upgradeProject", () => {
     expect(foundryConfig.iteration.max_idea_retries).toBe(11);
     expect(foundryConfig.iteration.max_revision_rounds).toBe(7);
     expect(foundryConfig.iteration.max_test_fix_cycles).toBe(25);
-    expect(foundryConfig.loop.cooldown_seconds).toBe(2);
+    expect(foundryConfig.loop.cooldown_seconds).toBe(0);
+    expect(foundryConfig.loop.concurrency).toBe(8);
     expect(foundryConfig.git.auto_commit).toBe(true);
+    expect(foundryConfig.git.auto_push).toBe(false);
     expect(foundryConfig.stimuli.enabled).toBe(false);
     expect(foundryConfig.intervention.requests_file).toBe("human-requests.md");
     expect(foundryConfig.foundry.version).not.toBe("0.0.1");

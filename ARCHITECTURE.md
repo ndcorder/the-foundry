@@ -63,20 +63,20 @@ The iteration runner lives in `src/iteration/runner.ts`. The main loop in `src/i
 
 ### Deadlock Recovery
 
-If the Ideator and Critic can't agree after `max_idea_retries` (default: 3), the Curator intervenes as a deadlock breaker — it picks the best rejected idea, sharpens it, and forces it through with a `[FORCED]` tag. If even that fails, the iteration is skipped.
+If the Ideator and Critic can't agree after `max_idea_retries` (default: 10), the Curator intervenes as a deadlock breaker — it picks the best rejected idea, sharpens it, and forces it through with a `[FORCED]` tag. If even that fails, the iteration is skipped.
 
 ### Revision Loops
 
-- **Test fix cycles:** When the Tester finds fixable bugs, the Creator gets a bug report and produces a fix. Max `max_test_fix_cycles` (default: 2) before escalation.
-- **Revision rounds:** When the Critic sends an artifact back at Gate 2, the Creator revises with the Critic's notes. Max `max_revision_rounds` (default: 2) before final ship/kill decision.
+- **Test fix cycles:** When the Tester finds fixable bugs, the Creator gets a bug report and produces a fix. Max `max_test_fix_cycles` (default: 25) before escalation.
+- **Revision rounds:** When the Critic sends an artifact back at Gate 2, the Creator revises with the Critic's notes. Max `max_revision_rounds` (default: 20) before final ship/kill decision.
 
 ## Agent Roles in Detail
 
 ### Ideator (`prompts/ideator.md`)
 
-**Input context:** Shared context (manifesto, compressed journal, portfolio index, domain stats) + Critic's last 5 Gate 1 decisions + Curator's domain recommendations + active project statuses + external stimuli (live + random skill files).
+**Input context:** Shared context (manifesto, compressed journal, portfolio index, domain stats) + Critic's last 12 Gate 1 decisions + Curator's domain recommendations + active project statuses + external stimuli (live + random skill files).
 
-**Output:** 3 ranked proposals as YAML — each with title, domain, pitch, complexity (S/M/L), why-it-matters, and optional project_id/stimulus_ref.
+**Output:** 5 ranked proposals as YAML — each with title, domain, pitch, complexity (S/M/L/XL), why-it-matters, and optional project_id/stimulus_ref.
 
 **Anti-slop rules baked into the prompt:**
 - Must reference at least one specific detail or constraint
@@ -116,7 +116,7 @@ Operates at two gates with separate prompt sections:
 
 **Input context:** Everything — full journal, all recent decisions, all test reports, stimuli state, project statuses, human requests.
 
-**Runs periodically** (every `curator_interval` iterations, default: 15) and performs:
+**Runs periodically** (every `curator_interval` iterations, default: 8) and performs:
 1. **Retrospective** — what was built, quality trends, emerging patterns
 2. **Journal compression** — summarizes older entries to fit context windows
 3. **Manifesto review** — proposes identity evolution with diffs and evidence

@@ -35,6 +35,7 @@ import { appendJournal } from "../files/journal.js";
 import { checkStopFile, readRequests, clearRequests } from "../files/intervention.js";
 import { logIteration, logTestReport } from "../logging/index.js";
 import { createSandbox, type SandboxSession } from "../sandbox/index.js";
+import { Mutex } from "../pool/mutex.js";
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 import { updateProjectStatus, linkArtifactToProject, getActiveProjects, createProject } from "../files/projects.js";
@@ -45,6 +46,7 @@ import { readJsonlEntries } from "../context/data.js";
 import { resolve } from "../root.js";
 
 const execFile = promisify(execFileCb);
+const portfolioBookkeepingMutex = new Mutex();
 
 interface IterationContext {
   config: FoundryConfig;
@@ -332,7 +334,7 @@ export async function runIteration(
       console.log(`\n▶ Phase 1: Ideation${ideaAttempt > 0 ? ` (retry ${ideaAttempt})` : ""}`);
 
       const rejectionContext = ideaAttempt > 0
-        ? `All previous proposals were rejected. The Critic said: "${approvedNotes}". Propose 3 NEW ideas that address these concerns.`
+        ? `All previous proposals were rejected. The Critic said: "${approvedNotes}". Propose 5 NEW ideas that address these concerns.`
         : undefined;
 
       const ideatorResult = await dispatchIdeator(config, models, iteration, rejectionContext);
@@ -585,128 +587,135 @@ export async function runIteration(
   // ── Phase 6: Bookkeeping ─────────────────────────────────────
   console.log("\n▶ Phase 6: Bookkeeping");
 
-  artifactId = await getNextArtifactId();
   const durationMs = Date.now() - startMs;
+  let shippedMean = "N/A";
+  const releasePortfolioBookkeeping = await portfolioBookkeepingMutex.acquire();
 
-  if (gate2!.decision === "kill") {
-    await writeKilledArtifact(
-      artifactId,
-      proposal.title,
-      proposal.domain,
-      gate2!.kill_reason || gate2!.review,
-      proposalToYaml(proposal),
-    );
+  try {
+    artifactId = await getNextArtifactId();
+
+    if (gate2!.decision === "kill") {
+      await writeKilledArtifact(
+        artifactId,
+        proposal.title,
+        proposal.domain,
+        gate2!.kill_reason || gate2!.review,
+        proposalToYaml(proposal),
+      );
+
+      await appendJournal(
+        `**Iteration ${iteration} — KILLED:** "${proposal.title}" [${proposal.domain}]. ` +
+        `Reason: ${gate2!.kill_reason || "quality below threshold"}. ` +
+        `Token usage: ${totalUsage.input}in/${totalUsage.output}out.`,
+      );
+
+      await logIteration({
+        timestamp: new Date().toISOString(),
+        iteration,
+        outcome: "killed",
+        artifact_id: artifactId,
+        title: proposal.title,
+        domain: proposal.domain,
+        reason: gate2!.kill_reason || gate2!.review,
+        complexity: proposal.complexity,
+        phases_run: iterationPhaseData?.phasesRun,
+        phase_tokens: iterationPhaseData?.phaseTokens,
+        token_usage: totalUsage,
+        duration_ms: durationMs,
+      });
+
+      try {
+        const dream = extractDreamFromKill(
+          artifactId, proposal.title, proposal.domain,
+          proposal.pitch, gate2!.kill_reason || gate2!.review, gate2!.review, iteration,
+        );
+        await addDream(dream);
+        console.log(`  ☆ Dream recorded: "${proposal.title}" — ${dream.resurrection_hint.slice(0, 60)}`);
+      } catch (err) {
+        console.warn("  ⚠ Dream journal write failed:", err instanceof Error ? err.message : String(err));
+      }
+
+      console.log(`  Killed artifact ${artifactId} written to portfolio/killed/`);
+
+      return {
+        iteration,
+        outcome: "killed",
+        artifact_id: artifactId,
+        title: proposal.title,
+        domain: proposal.domain,
+        reason: gate2!.kill_reason || gate2!.review,
+        token_usage: totalUsage,
+        duration_ms: durationMs,
+      };
+    }
+
+    // Ship it!
+    const testerReportForReadme = testerReport
+      ? [
+          `**Verdict:** ${testerReport.verdict}`,
+          `**Summary:** ${testerReport.summary}`,
+          testerReport.tests_run?.length
+            ? `**Tests:** ${testerReport.tests_run.filter((t) => t.result === "pass").length}/${testerReport.tests_run.length} passed`
+            : "",
+        ].filter(Boolean).join("\n")
+      : "";
+
+    await writeArtifact({
+      id: artifactId,
+      title: artifact!.title || proposal.title,
+      domain: proposal.domain,
+      files: artifact!.files,
+      review: gate2!.review,
+      ratings: gate2!.ratings,
+      testerReport: testerReportForReadme,
+      proposal: proposalToYaml(proposal),
+    });
+
+    shippedMean = computeMeanRating(gate2!.ratings);
+    await updatePortfolioIndex(artifactId, proposal.title, proposal.domain, shippedMean, proposal.project_id ?? undefined);
+
+    // Project bookkeeping
+    if (proposal.project_id) {
+      try {
+        await linkArtifactToProject(proposal.project_id, artifactId, proposal.title);
+        const activeProjects = await getActiveProjects();
+        const projectStatus = activeProjects.find((p) => p.project_id === proposal.project_id);
+        const completedIterations = (projectStatus?.completed_iterations ?? 0) + 1;
+        await updateProjectStatus(proposal.project_id, {
+          completed_iterations: completedIterations,
+          last_iteration: iteration,
+        });
+        await appendJournal(`**Iteration ${iteration}:** Project ${proposal.project_id}: iteration ${iteration} completed.`);
+      } catch (err) {
+        console.warn(`  ⚠ Project bookkeeping failed for ${proposal.project_id}:`, err instanceof Error ? err.message : String(err));
+      }
+    }
 
     await appendJournal(
-      `**Iteration ${iteration} — KILLED:** "${proposal.title}" [${proposal.domain}]. ` +
-      `Reason: ${gate2!.kill_reason || "quality below threshold"}. ` +
+      `**Iteration ${iteration} — SHIPPED:** "${proposal.title}" [${proposal.domain}] as ${artifactId}. ` +
+      `Rating: ${shippedMean}. Review: ${gate2!.review.slice(0, 200)}. ` +
       `Token usage: ${totalUsage.input}in/${totalUsage.output}out.`,
     );
 
     await logIteration({
       timestamp: new Date().toISOString(),
       iteration,
-      outcome: "killed",
+      outcome: "shipped",
       artifact_id: artifactId,
       title: proposal.title,
       domain: proposal.domain,
-      reason: gate2!.kill_reason || gate2!.review,
+      ratings: gate2!.ratings,
+      mean_rating: shippedMean,
+      review: gate2!.review,
       complexity: proposal.complexity,
       phases_run: iterationPhaseData?.phasesRun,
       phase_tokens: iterationPhaseData?.phaseTokens,
       token_usage: totalUsage,
       duration_ms: durationMs,
     });
-
-    try {
-      const dream = extractDreamFromKill(
-        artifactId, proposal.title, proposal.domain,
-        proposal.pitch, gate2!.kill_reason || gate2!.review, gate2!.review, iteration,
-      );
-      await addDream(dream);
-      console.log(`  ☆ Dream recorded: "${proposal.title}" — ${dream.resurrection_hint.slice(0, 60)}`);
-    } catch (err) {
-      console.warn("  ⚠ Dream journal write failed:", err instanceof Error ? err.message : String(err));
-    }
-
-    console.log(`  Killed artifact ${artifactId} written to portfolio/killed/`);
-
-    return {
-      iteration,
-      outcome: "killed",
-      artifact_id: artifactId,
-      title: proposal.title,
-      domain: proposal.domain,
-      reason: gate2!.kill_reason || gate2!.review,
-      token_usage: totalUsage,
-      duration_ms: durationMs,
-    };
+  } finally {
+    releasePortfolioBookkeeping();
   }
-
-  // Ship it!
-  const testerReportForReadme = testerReport
-    ? [
-        `**Verdict:** ${testerReport.verdict}`,
-        `**Summary:** ${testerReport.summary}`,
-        testerReport.tests_run?.length
-          ? `**Tests:** ${testerReport.tests_run.filter((t) => t.result === "pass").length}/${testerReport.tests_run.length} passed`
-          : "",
-      ].filter(Boolean).join("\n")
-    : "";
-
-  await writeArtifact({
-    id: artifactId,
-    title: artifact!.title || proposal.title,
-    domain: proposal.domain,
-    files: artifact!.files,
-    review: gate2!.review,
-    ratings: gate2!.ratings,
-    testerReport: testerReportForReadme,
-    proposal: proposalToYaml(proposal),
-  });
-
-  const mean = computeMeanRating(gate2!.ratings);
-  await updatePortfolioIndex(artifactId, proposal.title, proposal.domain, mean, proposal.project_id ?? undefined);
-
-  // Project bookkeeping
-  if (proposal.project_id) {
-    try {
-      await linkArtifactToProject(proposal.project_id, artifactId, proposal.title);
-      const activeProjects = await getActiveProjects();
-      const projectStatus = activeProjects.find((p) => p.project_id === proposal.project_id);
-      const completedIterations = (projectStatus?.completed_iterations ?? 0) + 1;
-      await updateProjectStatus(proposal.project_id, {
-        completed_iterations: completedIterations,
-        last_iteration: iteration,
-      });
-      await appendJournal(`**Iteration ${iteration}:** Project ${proposal.project_id}: iteration ${iteration} completed.`);
-    } catch (err) {
-      console.warn(`  ⚠ Project bookkeeping failed for ${proposal.project_id}:`, err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  await appendJournal(
-    `**Iteration ${iteration} — SHIPPED:** "${proposal.title}" [${proposal.domain}] as ${artifactId}. ` +
-    `Rating: ${mean}. Review: ${gate2!.review.slice(0, 200)}. ` +
-    `Token usage: ${totalUsage.input}in/${totalUsage.output}out.`,
-  );
-
-  await logIteration({
-    timestamp: new Date().toISOString(),
-    iteration,
-    outcome: "shipped",
-    artifact_id: artifactId,
-    title: proposal.title,
-    domain: proposal.domain,
-    ratings: gate2!.ratings,
-    mean_rating: mean,
-    review: gate2!.review,
-    complexity: proposal.complexity,
-    phases_run: iterationPhaseData?.phasesRun,
-    phase_tokens: iterationPhaseData?.phaseTokens,
-    token_usage: totalUsage,
-    duration_ms: durationMs,
-  });
 
   await clearWorkspace(slot);
 
@@ -719,7 +728,7 @@ export async function runIteration(
     console.warn("  ⚠ Lineage rebuild failed:", err instanceof Error ? err.message : String(err));
   }
 
-  console.log(`\n  ✓ Shipped artifact ${artifactId}: "${proposal.title}" [${proposal.domain}] — rating ${mean}`);
+  console.log(`\n  ✓ Shipped artifact ${artifactId}: "${proposal.title}" [${proposal.domain}] — rating ${shippedMean}`);
   console.log(`  Duration: ${(durationMs / 1000).toFixed(1)}s | Tokens: ${totalUsage.input}in/${totalUsage.output}out`);
 
   return {

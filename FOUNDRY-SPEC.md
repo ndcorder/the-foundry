@@ -217,7 +217,7 @@ mcp:
     refresh_interval: 20
 
 stimuli_ttl: 30                # max iterations before force-rotation
-skills_per_context: 2          # how many skill files to include per Ideator call
+skills_per_context: 8          # how many skill files to include per Ideator call
 ```
 
 ---
@@ -422,7 +422,7 @@ foundry/
 │  │ IDEATOR  │───▶│  CRITIC  │───▶│ CREATOR  │                   │
 │  │          │    │ (Gate 1) │    │          │                   │
 │  │ Propose  │    │ Approve/ │    │ Plan,    │                   │
-│  │ 2-3 ideas│    │ Reject/  │    │ Build,   │                   │
+│  │ 5 ideas  │    │ Reject/  │    │ Build,   │                   │
 │  └──────────┘    │ Revise   │    │ Polish   │                   │
 │                  └──────────┘    └────┬─────┘                   │
 │                                      │                           │
@@ -472,28 +472,28 @@ foundry/
 - Token budget: 0 (file checks) or ~3K input/1K output (if translating a redirect)
 
 **Phase 1 — Ideation** (~1 call, Ideator)
-- Input: manifesto, compressed journal, recent portfolio index, domain balance stats, external stimuli, active project statuses, Critic's last 5 Gate 1 decisions
-- Output: 2–3 proposals as structured YAML (may include project continuations)
-- Token budget: ~6K input, ~2K output
+- Input: manifesto, compressed journal, recent portfolio index, domain balance stats, external stimuli, active project statuses, Critic's last 12 Gate 1 decisions
+- Output: 5 proposals as structured YAML (may include project continuations)
+- Token budget: furnace-sized; the model ceiling is 180K output tokens
 
 **Phase 2 — Idea Gate** (~1 call, Critic)
 - Input: proposals + same context as Ideator + last 5 Critic reviews
 - Output: approval/rejection/revision for each proposal, sharpening notes for winner
 - Token budget: ~8K input, ~1K output
-- If all rejected: loop back to Phase 1 with rejection reasons (max 3 retries before Curator override)
+- If all rejected: loop back to Phase 1 with rejection reasons (max 10 retries before Curator override)
 
-**Phase 3 — Creation** (~3–10 calls, Creator, varies by complexity)
+**Phase 3 — Creation** (~3–20+ calls, Creator, varies by complexity and revision depth)
 - Input: approved proposal + Critic notes + manifesto + relevant portfolio examples + Critic's last N reviews of other artifacts + project context if applicable
 - Sub-loop: plan → draft → revise → polish
 - Output: completed artifact in workspace/current/
-- Token budget: S ~20K, M ~60K, L ~150K+
+- Token budget: S ~20K, M ~60K, L/XL can use hundreds of thousands of tokens across phases
 
 **Phase 4 — Testing** (~1–4 calls, Tester, code artifacts only)
 - Input: completed artifact + original proposal + Critic sharpening notes
 - Process: analyze → write tests → execute in sandbox → report
 - Output: structured test report (pass/fail/fixable/catastrophic)
 - Token budget: ~15K input, ~5K output
-- If fixable failures: bug report to Creator, max 2 fix cycles, then re-test
+- If fixable failures: bug report to Creator, max 25 fix cycles, then re-test
 - If catastrophic: forward to Critic with kill recommendation + post-mortem
 - For non-code artifacts: lightweight verification pass (~3K input, ~1K output)
 
@@ -598,18 +598,21 @@ Not every iteration needs to advance a project — variety matters.
 
 ## Rules
 
-- Propose exactly 3 ideas, ranked by your excitement
+- Propose exactly 5 ideas, ranked by your excitement
 - Each idea must include:
   - title: a specific, evocative name
   - domain: one of {domain_list}
-  - pitch: 2-3 sentences — what is it and why is it interesting?
-  - complexity: S / M / L
+  - pitch: 3-5 sentences — what is it, how should it unfold, and why is it interesting?
+  - complexity: S / M / L / XL
   - why: one sentence on what this adds to the portfolio
   - project_id: (optional) if continuing an active project
   - stimulus_ref: (optional) what external input inspired this, if any
 - At least one idea must be in a domain we haven't touched in the
   last {domain_cooldown} iterations
-- At least one idea must be something you're not sure we can pull off
+- At least four ideas must be complexity M or higher
+- At least three ideas must be complexity L or XL
+- S is reserved for forms where brevity is the point
+- At least two ideas must be something you're not sure we can pull off
 - No idea may be structurally identical to a portfolio entry from the
   last {novelty_window} iterations
 - If referencing a stimulus, you must TRANSFORM it — not just summarize
@@ -621,7 +624,7 @@ ideas:
   - title: "..."
     domain: "..."
     pitch: "..."
-    complexity: "S|M|L"
+    complexity: "S|M|L|XL"
     why: "..."
     project_id: null | "existing-project-id"
     stimulus_ref: null | "brief description of what inspired this"
@@ -883,29 +886,43 @@ foundry:
   version: "0.2.0"
 
 iteration:
-  max_idea_retries: 3
-  max_revision_rounds: 2
-  max_test_fix_cycles: 2         # Creator fix attempts before Tester gives up
-  curator_interval: 15
+  max_idea_retries: 10
+  max_revision_rounds: 20
+  max_test_fix_cycles: 25        # Creator fix attempts before Tester gives up
+  curator_interval: 8
   domain_cooldown: 10
   novelty_window: 20
+  complexity_profiles:
+    S:
+      max_tokens_per_phase: 32768
+      budget_warning_threshold: 25000
+    M:
+      max_tokens_per_phase: 65536
+      budget_warning_threshold: 120000
+    L:
+      max_tokens_per_phase: 90000
+      budget_warning_threshold: 400000
+    XL:
+      max_tokens_per_phase: 180000
+      budget_warning_threshold: 800000
 
 projects:
-  max_active: 2                  # concurrent active projects
-  max_iterations_per_project: 12 # hard cap before Curator must decide
+  max_active: 4                  # concurrent active projects
+  max_iterations_per_project: 30 # hard cap before Curator must decide
   allow_standalone_interrupts: true
+  kickstart_after: 15
 
 stimuli:
   enabled: true
   stimuli_ttl: 30                # iterations before force-rotation
-  skills_per_context: 2
+  skills_per_context: 8
   mcp_timeout_seconds: 30
 
 context:
-  journal_compressed_max_tokens: 4000
-  portfolio_index_max_entries: 30
-  critic_review_history: 8       # last N reviews shared with Creator
-  critic_gate1_history: 5        # last N Gate 1 decisions shared with Ideator
+  journal_compressed_max_tokens: 24000
+  portfolio_index_max_entries: 120
+  critic_review_history: 20      # last N reviews shared with Creator
+  critic_gate1_history: 12       # last N Gate 1 decisions shared with Ideator
 
 intervention:
   requests_file: "requests.md"
@@ -918,8 +935,17 @@ logging:
   log_test_reports: true
 
 recovery:
-  checkpoint_every: 5
+  checkpoint_every: 1
   resume_on_crash: true
+
+loop:
+  cooldown_seconds: 0
+  disk_space_min_gb: 1
+  concurrency: 8
+
+git:
+  auto_commit: true
+  auto_push: false
 ```
 
 ### 10.2 models.yml
@@ -928,28 +954,33 @@ recovery:
 agents:
   ideator:
     model: "glm-5.1"
+    provider: "zai"
     temperature: 0.9
-    max_tokens: 4096
+    max_tokens: 180000
 
   creator:
     model: "glm-5.1"
+    provider: "zai"
     temperature: 0.7
-    max_tokens: 16384
+    max_tokens: 180000
 
   tester:
     model: "glm-5.1"
+    provider: "zai"
     temperature: 0.2            # very low — deterministic test writing
-    max_tokens: 8192
+    max_tokens: 180000
 
   critic:
     model: "glm-5.1"
+    provider: "zai"
     temperature: 0.3
-    max_tokens: 4096
+    max_tokens: 180000
 
   curator:
     model: "glm-5.1"
+    provider: "zai"
     temperature: 0.5
-    max_tokens: 8192
+    max_tokens: 180000
 ```
 
 ### 10.3 domains.yml

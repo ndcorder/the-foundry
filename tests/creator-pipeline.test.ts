@@ -137,22 +137,36 @@ describe("creator/pipeline", () => {
         file_manifest: [
           { path: "a.py", purpose: "A" },
           { path: "b.py", purpose: "B" },
+          { path: "c.py", purpose: "C" },
+          { path: "d.py", purpose: "D" },
         ],
         key_decisions: [],
         challenges: [],
-        build_order: [["a.py"], ["b.py"]],
+        build_order: [["a.py"], ["b.py"], ["c.py"], ["d.py"]],
       },
       usage,
     });
     mockDispatchBuild
       .mockResolvedValueOnce({ files: [{ path: "a.py", content: "a" }], usage })
-      .mockResolvedValueOnce({ files: [{ path: "b.py", content: "b" }], usage });
+      .mockResolvedValueOnce({ files: [{ path: "b.py", content: "b" }], usage })
+      .mockResolvedValueOnce({ files: [{ path: "c.py", content: "c" }], usage })
+      .mockResolvedValueOnce({ files: [{ path: "d.py", content: "d" }], usage });
     mockDispatchRevise.mockResolvedValue({
-      files: [{ path: "a.py", content: "a-rev" }, { path: "b.py", content: "b-rev" }],
+      files: [
+        { path: "a.py", content: "a-rev" },
+        { path: "b.py", content: "b-rev" },
+        { path: "c.py", content: "c-rev" },
+        { path: "d.py", content: "d-rev" },
+      ],
       usage,
     });
     mockDispatchPolish.mockResolvedValue({
-      files: [{ path: "a.py", content: "a-pol" }, { path: "b.py", content: "b-pol" }],
+      files: [
+        { path: "a.py", content: "a-pol" },
+        { path: "b.py", content: "b-pol" },
+        { path: "c.py", content: "c-pol" },
+        { path: "d.py", content: "d-pol" },
+      ],
       usage,
     });
 
@@ -161,8 +175,52 @@ describe("creator/pipeline", () => {
       makeProposal("L"), "notes",
     );
 
-    expect(result.phasesRun).toEqual(["plan", "build-1", "build-2", "revise", "polish"]);
-    expect(result.artifact.files).toHaveLength(2);
+    expect(result.phasesRun).toEqual(["plan", "build-1", "build-2", "build-3", "build-4", "revise", "polish"]);
+    expect(result.artifact.files).toHaveLength(4);
+  });
+
+  it("keeps scheduled L build passes even when the initial manifest is complete", async () => {
+    mockDispatchPlan.mockResolvedValue({
+      plan: {
+        approach: "Build and expand",
+        file_manifest: [{ path: "core.py", purpose: "Core" }],
+        key_decisions: [],
+        challenges: [],
+        build_order: [["core.py"]],
+      },
+      usage,
+    });
+    mockDispatchBuild
+      .mockResolvedValueOnce({ files: [{ path: "core.py", content: "core" }], usage })
+      .mockResolvedValueOnce({ files: [{ path: "examples.py", content: "examples" }], usage })
+      .mockResolvedValueOnce({ files: [{ path: "tests.py", content: "tests" }], usage })
+      .mockResolvedValueOnce({ files: [{ path: "README.md", content: "docs" }], usage });
+    mockDispatchRevise.mockResolvedValue({
+      files: [
+        { path: "core.py", content: "core-rev" },
+        { path: "examples.py", content: "examples-rev" },
+        { path: "tests.py", content: "tests-rev" },
+        { path: "README.md", content: "docs-rev" },
+      ],
+      usage,
+    });
+    mockDispatchPolish.mockResolvedValue({
+      files: [
+        { path: "core.py", content: "core-pol" },
+        { path: "examples.py", content: "examples-pol" },
+        { path: "tests.py", content: "tests-pol" },
+        { path: "README.md", content: "docs-pol" },
+      ],
+      usage,
+    });
+
+    const result = await runCreatorPipeline(
+      { config: makeConfig(), models: makeModels(), iteration: 1 },
+      makeProposal("L"), "notes",
+    );
+
+    expect(mockDispatchBuild).toHaveBeenCalledTimes(4);
+    expect(result.phasesRun).toEqual(["plan", "build-1", "build-2", "build-3", "build-4", "revise", "polish"]);
   });
 
   it("accumulates usage across phases", async () => {

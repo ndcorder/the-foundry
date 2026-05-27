@@ -12,15 +12,28 @@ export interface ComplexityProfile {
 const PHASE_SEQUENCES: Record<string, PhaseKind[]> = {
   S: ["build"],
   M: ["plan", "build", "revise"],
-  L: ["plan", "build", "build", "revise", "polish"],
-  XL: ["plan", "build", "build", "build", "assemble", "revise", "polish"],
+  L: ["plan", "build", "build", "build", "build", "revise", "polish"],
+  XL: [
+    "plan",
+    "build",
+    "build",
+    "build",
+    "build",
+    "build",
+    "build",
+    "build",
+    "build",
+    "assemble",
+    "revise",
+    "polish",
+  ],
 };
 
 const EXPECTED_FILES: Record<string, [number, number]> = {
   S: [1, 2],
   M: [1, 4],
-  L: [2, 8],
-  XL: [4, 15],
+  L: [6, 12],
+  XL: [12, 24],
 };
 
 const DEFAULTS: Record<string, { maxTokens: number; warning: number }> = {

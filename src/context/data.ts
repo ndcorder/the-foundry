@@ -74,7 +74,11 @@ export function formatDecisions(entries: DecisionLogEntry[]): string {
   return entries
     .map((d) => {
       const label = d.proposal_title || d.artifact_id || "unknown";
-      const detail = d.review || d.reasons || d.sharpening_notes || "";
+      const detailParts = [
+        d.review || d.reasons || d.sharpening_notes || "",
+        d.recommended_complexity ? `recommended complexity: ${d.recommended_complexity}` : "",
+      ].filter(Boolean);
+      const detail = detailParts.join("; ");
       return `- **${d.gate} / ${d.decision}** — ${label}${detail ? ": " + detail : ""}`;
     })
     .join("\n");

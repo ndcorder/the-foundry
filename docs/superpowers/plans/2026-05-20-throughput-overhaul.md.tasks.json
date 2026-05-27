@@ -4,51 +4,51 @@
     {
       "id": 7,
       "subject": "Task 1: Types & Config — Expand Complexity to Include XL",
-      "status": "pending",
+      "status": "completed",
       "description": "Types, config, parser updates for XL complexity tier. See plan Task 1."
     },
     {
       "id": 8,
       "subject": "Task 2: Creator Phase Pipeline — Profiles & Orchestrator",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [7],
       "description": "src/creator/ module with profiles.ts, pipeline.ts, index.ts. See plan Task 2."
     },
     {
       "id": 9,
       "subject": "Task 3: Creator Phase Dispatch Functions & Prompt Templates",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8],
       "description": "phases.ts dispatch functions + 5 prompt templates. See plan Task 3."
     },
     {
       "id": 10,
       "subject": "Task 4: Iteration Runner Integration & XL Project Logic",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8, 9],
       "description": "Wire pipeline into runner.ts, XL→project creation. See plan Task 4."
     },
     {
       "id": 11,
       "subject": "Task 5: Complexity Distribution Tracking & Shared Context",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [7],
       "description": "getComplexityDistribution + shared context injection. See plan Task 5."
     },
     {
       "id": 12,
       "subject": "Task 6: Prompt Updates — Critic Ambition, Ideator Nudge, Curator Kickstart",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [11],
       "description": "Update ideator/critic/curator prompts for ambition + projects. See plan Task 6."
     },
     {
       "id": 13,
       "subject": "Task 7: Parser Re-exports & Full Integration Test",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [10, 12],
       "description": "Final re-exports, integration test, full suite pass. See plan Task 7."
     }
   ],
-  "lastUpdated": "2026-05-20T03:58:00.000Z"
+  "lastUpdated": "2026-05-27T00:40:00.000Z"
 }

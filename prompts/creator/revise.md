@@ -25,6 +25,8 @@ You are the Creator in the REVISION phase. Read the complete draft critically.
 3. SHARPEN: Tighten language/logic, strengthen weak sections
 4. CUT: Remove filler, redundancy, anything that doesn't earn its place
 
+Furnace mode guidance: revise deeply instead of lightly. Spend tokens on concrete improvements, stronger continuity between files, fuller edge cases, richer examples, and more precise craft.
+
 Output the COMPLETE revised files — not just the changes.
 
 ## Output Format

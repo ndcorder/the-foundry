@@ -1,14 +1,14 @@
 # Throughput Overhaul: Complexity-Scaled Creator Pipeline
 
 **Date:** 2026-05-20
-**Status:** Draft
-**Goal:** 10-20x increase in token throughput per iteration for M/L/XL work
+**Status:** Implemented, then raised for furnace mode
+**Goal:** 10-20x+ increase in token throughput per wall-clock hour for M/L/XL work
 
 ---
 
 ## Problem Statement
 
-After 75 iterations over ~2 days, The Foundry uses ~19M tokens/week — roughly 2% of a typical plan allocation. Three root causes:
+After early endurance runs, The Foundry used only a small fraction of the available token budget. Three root causes:
 
 1. **Complexity is decorative.** The Ideator labels ideas S/M/L but it changes nothing mechanically. The Creator always gets one call with `max_tokens: 16384`.
 2. **Creator is single-shot.** The prompt says "Plan → Build → Revise → Polish" but the harness fires one call and expects all four steps in a single response.
@@ -45,10 +45,10 @@ type PhaseKind = "plan" | "build" | "revise" | "polish" | "assemble";
 
 | Tier | Phases | max_tokens/call | Expected files | Warning threshold |
 |---|---|---|---|---|
-| S | `[build]` | 16,384 | 1-2 | 25K |
-| M | `[plan, build, revise]` | 32,768 | 1-4 | 120K |
-| L | `[plan, build, build, revise, polish]` | 65,536 | 2-8 | 400K |
-| XL | `[plan, build, build, build, assemble, revise, polish]` | 100,000 | 4-15 | 800K |
+| S | `[build]` | 32,768 | 1-2 | 25K |
+| M | `[plan, build, revise]` | 65,536 | 1-4 | 120K |
+| L | `[plan, build, build, build, build, revise, polish]` | 90,000 | 6-12 | 400K |
+| XL | `[plan, build, build, build, build, build, build, build, build, assemble, revise, polish]` | 180,000 | 12-24 | 800K |
 
 Phase sequences are hardcoded in the pipeline module (structural, not tunable). Token budgets per phase are configurable via `foundry.yml`.
 
@@ -146,7 +146,7 @@ If a phase produces invalid YAML after retries (existing `MAX_YAML_RETRIES = 2`)
 
 XL proposals include a new field `xl_mode`:
 
-- **`xl_mode: "single"`** — A massive single-iteration artifact. Runs the full XL phase pipeline (7 phases, 100K max_tokens/call).
+- **`xl_mode: "single"`** — A massive single-iteration artifact. Runs the full XL phase pipeline (12 phases, 180K max_tokens/call).
 - **`xl_mode: "project"`** — Starts a multi-iteration project. The first iteration creates the project and produces the first deliverable at L complexity.
 
 ### 3.2 Ideator Output for XL Projects
@@ -218,7 +218,7 @@ New rule added to the Critic Gate 1 prompt:
 
 New rule added to the Ideator prompt:
 
-> If no multi-iteration projects are currently active (check the shared context), at least one of your 3 proposals should be a project starter (complexity L or XL with `xl_mode: "project"`). Multi-iteration projects produce richer, more cohesive work.
+> If no multi-iteration projects are currently active (check the shared context), at least one of your 5 proposals should be a project starter (complexity L or XL with `xl_mode: "project"`). Multi-iteration projects produce richer, more cohesive work.
 
 ### 4.4 Curator Project Kickstart
 
@@ -312,16 +312,16 @@ iteration:
   # ... existing fields ...
   complexity_profiles:
     S:
-      max_tokens_per_phase: 16384
+      max_tokens_per_phase: 32768
       budget_warning_threshold: 25000
     M:
-      max_tokens_per_phase: 32768
+      max_tokens_per_phase: 65536
       budget_warning_threshold: 120000
     L:
-      max_tokens_per_phase: 65536
+      max_tokens_per_phase: 90000
       budget_warning_threshold: 400000
     XL:
-      max_tokens_per_phase: 100000
+      max_tokens_per_phase: 180000
       budget_warning_threshold: 800000
 
 projects:
@@ -383,4 +383,4 @@ projects:
 | XL (single) | N/A | ~1M+ total | ~13x |
 | XL (project) | N/A | ~500K/iter × 6-12 iters | ~40-80x cumulative |
 
-With Critic-driven ambition scaling pushing toward M/L/XL, the average iteration should shift from ~75K to ~200-300K tokens, with periodic L/XL spikes. Weekly throughput should increase from ~19M to ~100-200M tokens.
+With Critic-driven ambition scaling, larger contexts, and an 8-worker pool pushing toward M/L/XL, average per-hour throughput should rise sharply, with periodic L/XL spikes and multiple artifacts burning tokens at once.

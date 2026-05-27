@@ -132,4 +132,30 @@ describe("IterationPool", () => {
     expect(curatorRan).toBe(true);
     expect(inFlightWhenCuratorRan).toBe(0);
   });
+
+  it("does not reuse an occupied workspace slot when refilling the pool", async () => {
+    const bus = makeBus();
+    const pool = new IterationPool(2, 1, bus);
+    const activeSlots = new Set<number>();
+    const duplicateSlots: number[] = [];
+    let completed = 0;
+
+    const callbacks = {
+      runIteration: async (_c: any, _m: any, iter: number, slot: number) => {
+        if (activeSlots.has(slot)) duplicateSlots.push(slot);
+        activeSlots.add(slot);
+        await new Promise((r) => setTimeout(r, iter === 1 ? 10 : 60));
+        activeSlots.delete(slot);
+        return makeResult(iter);
+      },
+      onIterationComplete: async () => { completed++; },
+      shouldStop: () => completed >= 3,
+      shouldRunCurator: () => false,
+      runCurator: async () => {},
+    };
+
+    await pool.run({} as any, {} as any, callbacks);
+
+    expect(duplicateSlots).toEqual([]);
+  });
 });

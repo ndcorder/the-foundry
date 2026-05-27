@@ -31,6 +31,7 @@ export interface DecisionLogEntry {
   review?: string;
   sharpening_notes?: string;
   reasons?: string;
+  recommended_complexity?: "S" | "M" | "L" | "XL" | null;
 }
 
 export interface TestReportEntry {

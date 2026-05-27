@@ -15,6 +15,8 @@ import {
 } from "./data.js";
 import { getActiveProjects } from "../files/projects.js";
 import { loadLineageGraph } from "../lineage/index.js";
+import { getDreamsForIdeator } from "../dreams/index.js";
+import { loadMood } from "../mood/index.js";
 import { resolve } from "../root.js";
 
 function assembleBlock(shared: string, agentSpecific: string): ContextBlock {
@@ -80,9 +82,34 @@ export async function buildIdeatorContext(
     }
   } catch { /* lineage not available yet */ }
 
+  let dreamsContext = "*No fallen artifacts yet.*";
+  try {
+    dreamsContext = await getDreamsForIdeator(3);
+  } catch { /* dreams not available */ }
+
+  let moodContext = "*Mood not yet computed.*";
+  try {
+    const mood = await loadMood();
+    if (mood) {
+      const axesSummary = Object.entries(mood.axes)
+        .filter(([, v]) => Math.abs(v as number) > 0.2)
+        .map(([k, v]) => `${k}: ${(v as number) > 0 ? "+" : ""}${(v as number).toFixed(1)}`)
+        .join(", ");
+      moodContext = [
+        `**Current mood:** ${mood.dominant_mood}`,
+        `**Creative nudge:** ${mood.creative_nudge}`,
+        axesSummary ? `**Axes:** ${axesSummary}` : "",
+      ].filter(Boolean).join("\n");
+    }
+  } catch { /* mood not available */ }
+
   sections.push(
     "\n## Creative Lineage\n",
     constellationContext,
+    "\n## Creative Mood\n",
+    moodContext,
+    "\n## The Dream Journal (Fallen Artifacts Worth Revisiting)\n",
+    dreamsContext,
     "\n## Active Projects\n",
     projectSummary,
     "\n## External Stimuli\n",

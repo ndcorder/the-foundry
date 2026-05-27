@@ -39,6 +39,10 @@ import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 import { updateProjectStatus, linkArtifactToProject, getActiveProjects, createProject } from "../files/projects.js";
 import { buildLineageGraph, saveLineageGraph } from "../lineage/index.js";
+import { extractDreamFromKill, addDream } from "../dreams/index.js";
+import { computeMood, saveMood } from "../mood/index.js";
+import { readJsonlEntries } from "../context/data.js";
+import { resolve } from "../root.js";
 
 const execFile = promisify(execFileCb);
 
@@ -270,6 +274,20 @@ export async function runIteration(
       token_usage: totalUsage,
       duration_ms: Date.now() - startMs,
     };
+  }
+
+  // Compute mood from recent iteration history
+  try {
+    const iterLog = await readJsonlEntries<{
+      iteration: number; outcome: "shipped" | "killed" | "skipped" | "halted";
+      domain?: string; mean_rating?: string; title?: string;
+      token_usage: { input: number; output: number }; duration_ms: number;
+    }>(resolve("logs", "iterations.jsonl"));
+    const mood = await computeMood(iterLog, iteration);
+    await saveMood(mood);
+    console.log(`  Mood: ${mood.dominant_mood} — ${mood.creative_nudge.slice(0, 60)}`);
+  } catch (err) {
+    console.warn("  ⚠ Mood computation failed:", err instanceof Error ? err.message : String(err));
   }
 
   if (config.loop?.disk_space_min_gb) {
@@ -599,6 +617,17 @@ export async function runIteration(
       token_usage: totalUsage,
       duration_ms: durationMs,
     });
+
+    try {
+      const dream = extractDreamFromKill(
+        artifactId, proposal.title, proposal.domain,
+        proposal.pitch, gate2!.kill_reason || gate2!.review, gate2!.review, iteration,
+      );
+      await addDream(dream);
+      console.log(`  ☆ Dream recorded: "${proposal.title}" — ${dream.resurrection_hint.slice(0, 60)}`);
+    } catch (err) {
+      console.warn("  ⚠ Dream journal write failed:", err instanceof Error ? err.message : String(err));
+    }
 
     console.log(`  Killed artifact ${artifactId} written to portfolio/killed/`);
 

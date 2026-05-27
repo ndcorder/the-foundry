@@ -128,6 +128,22 @@ const server = http.createServer((req, res) => {
       return sendJson(res, { nodes: [], edges: [], constellations: [], creative_dna: { top_motifs: [], technique_signatures: [], domain_affinities: [], unexplored_territory: [] }, updated_at: null });
     }
   }
+  if (pathname === "/api/mood") {
+    try {
+      const raw = fs.readFileSync(resolve("identity", "mood.yml"), "utf-8");
+      return sendJson(res, yaml.parse(raw));
+    } catch {
+      return sendJson(res, { axes: {}, dominant_mood: "not yet computed", creative_nudge: "", influences: [], iteration: 0 });
+    }
+  }
+  if (pathname === "/api/dreams") {
+    try {
+      const raw = fs.readFileSync(resolve("identity", "dreams.yml"), "utf-8");
+      return sendJson(res, yaml.parse(raw));
+    } catch {
+      return sendJson(res, { dreams: [], updated_at: null });
+    }
+  }
 
   // Static files
   if (pathname === "/" || pathname === "/index.html") {

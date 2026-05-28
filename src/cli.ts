@@ -198,6 +198,34 @@ export async function initFoundry(name: string): Promise<void> {
         "gh", ["api", `repos/${ghUser}/${name}/pages`, "-X", "POST", "-f", "build_type=workflow"],
         { cwd: dest, stdio: "pipe" },
       );
+      let deployBranch = "";
+      try {
+        deployBranch = execFileSync("git", ["branch", "--show-current"], { cwd: dest, stdio: "pipe" })
+          .toString()
+          .trim();
+      } catch {
+        // If git cannot report a branch, Pages is still enabled; the workflow can be dispatched manually.
+      }
+      if (deployBranch && deployBranch !== "main") {
+        try {
+          execFileSync(
+            "gh",
+            [
+              "api",
+              `repos/${ghUser}/${name}/environments/github-pages/deployment-branch-policies`,
+              "-X",
+              "POST",
+              "-f",
+              `name=${deployBranch}`,
+              "-f",
+              "type=branch",
+            ],
+            { cwd: dest, stdio: "pipe" },
+          );
+        } catch {
+          console.warn(`  GitHub Pages branch policy ✗ (allow ${deployBranch} manually if deployments are blocked)`);
+        }
+      }
       console.log("  GitHub Pages      ✓");
     } catch {
       console.warn("  GitHub Pages      ✗ (enable manually in repo Settings > Pages)");

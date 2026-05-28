@@ -361,6 +361,46 @@ describe('initFoundry — branch coverage', () => {
     warnSpy.mockRestore();
   });
 
+  it('allows the current git branch to deploy GitHub Pages', async () => {
+    const { execFileSync } = await import('node:child_process');
+    const mockExecFile = vi.mocked(execFileSync) as unknown as ReturnType<typeof vi.fn>;
+    const name = path.join(tempDir, 'pages-branch-foundry');
+
+    mockExecFile.mockImplementation((cmd: string, args?: readonly string[]) => {
+      if (cmd === 'gh' && args?.[0] === 'api' && args?.[1] === 'user') {
+        return Buffer.from('testuser\n');
+      }
+      if (cmd === 'git' && args?.[0] === 'branch' && args?.[1] === '--show-current') {
+        return Buffer.from('master\n');
+      }
+      return Buffer.from('');
+    });
+
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await initFoundry(name);
+
+    expect(mockExecFile).toHaveBeenCalledWith(
+      'gh',
+      [
+        'api',
+        `repos/testuser/${name}/environments/github-pages/deployment-branch-policies`,
+        '-X',
+        'POST',
+        '-f',
+        'name=master',
+        '-f',
+        'type=branch',
+      ],
+      expect.objectContaining({ cwd: path.resolve(name), stdio: 'pipe' }),
+    );
+
+    mockExecFile.mockReset();
+    mockExecFile.mockReturnValue(Buffer.from(''));
+    consoleSpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
   it('handles gh repo create failure with ghUser set', async () => {
     const { execFileSync } = await import('node:child_process');
     const mockExecFile = vi.mocked(execFileSync) as unknown as ReturnType<typeof vi.fn>;

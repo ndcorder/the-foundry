@@ -337,10 +337,38 @@ export async function runIteration(
         ? `All previous proposals were rejected. The Critic said: "${approvedNotes}". Propose 5 NEW ideas that address these concerns.`
         : undefined;
 
-      const ideatorResult = await dispatchIdeator(config, models, iteration, rejectionContext);
-      addUsage(ideatorResult.usage);
+      const burstCount = Math.max(1, config.iteration.ideation_burst_count ?? 1);
+      const settledIdeatorResults = await Promise.allSettled(
+        Array.from({ length: burstCount }, (_, burstIndex) => {
+          const burstDirection = burstCount > 1
+            ? `Furnace ideation burst ${burstIndex + 1}/${burstCount}: generate a distinct full slate. Avoid duplicating obvious themes, domains, structures, or titles that sibling bursts are likely to produce. Bias toward L/XL work that can justify long planning, multiple build phases, testing, and review.`
+            : undefined;
+          return dispatchIdeator(config, models, iteration, rejectionContext, burstDirection);
+        }),
+      );
+      const ideatorResults = [];
+      const burstFailures: string[] = [];
+      for (const [burstIndex, result] of settledIdeatorResults.entries()) {
+        if (result.status === "fulfilled") {
+          ideatorResults.push(result.value);
+        } else {
+          const msg = result.reason instanceof Error ? result.reason.message : String(result.reason);
+          burstFailures.push(`burst ${burstIndex + 1}/${burstCount}: ${msg}`);
+          console.warn(`  [ideator] ${burstFailures[burstFailures.length - 1]}`);
+        }
+      }
+      for (const ideatorResult of ideatorResults) {
+        addUsage(ideatorResult.usage);
+      }
 
-      const ideas = ideatorResult.data.ideas;
+      const ideas = ideatorResults.flatMap((result) => result.data.ideas);
+      if (ideas.length === 0) {
+        approvedNotes = burstFailures.length > 0
+          ? `All ideation bursts failed. ${burstFailures.join("; ")}`
+          : "Ideator produced no proposals.";
+        console.log(`  ${approvedNotes}${ideaAttempt < config.iteration.max_idea_retries - 1 ? " Retrying..." : " Deadlock."}`);
+        continue;
+      }
       console.log(`  Ideator proposed: ${ideas.map((i) => `"${i.title}" [${i.domain}, ${i.complexity}]`).join(", ")}`);
 
       console.log("\n▶ Phase 2: Idea Gate (Critic)");
@@ -355,7 +383,13 @@ export async function runIteration(
         console.log(`  ${icon} "${ev.title}": ${ev.decision}${ev.reasons ? " — " + ev.reasons.slice(0, 80) : ""}`);
       }
 
-      const approved = gate1.evaluations.find((e) => e.decision === "approve");
+      const approvedEvaluations = gate1.evaluations.filter((e) => e.decision === "approve");
+      const selectedTitle = typeof gate1.selected === "string" && gate1.selected.trim().length > 0
+        ? gate1.selected.trim()
+        : "";
+      const approved = selectedTitle
+        ? approvedEvaluations.find((e) => e.title === selectedTitle) ?? approvedEvaluations[0]
+        : approvedEvaluations[0];
       if (approved) {
         approvedProposal = ideas.find((i) => i.title === approved.title) ?? ideas[0];
         approvedNotes = approved.sharpening_notes || "";
@@ -713,20 +747,19 @@ export async function runIteration(
       token_usage: totalUsage,
       duration_ms: durationMs,
     });
+
+    try {
+      const lineageGraph = await buildLineageGraph();
+      await saveLineageGraph(lineageGraph);
+      console.log(`  ★ Lineage: ${lineageGraph.edges.length} connections, ${lineageGraph.constellations.length} constellations`);
+    } catch (err) {
+      console.warn("  ⚠ Lineage rebuild failed:", err instanceof Error ? err.message : String(err));
+    }
   } finally {
     releasePortfolioBookkeeping();
   }
 
   await clearWorkspace(slot);
-
-  // Rebuild lineage graph after shipping
-  try {
-    const lineageGraph = await buildLineageGraph();
-    await saveLineageGraph(lineageGraph);
-    console.log(`  ★ Lineage: ${lineageGraph.edges.length} connections, ${lineageGraph.constellations.length} constellations`);
-  } catch (err) {
-    console.warn("  ⚠ Lineage rebuild failed:", err instanceof Error ? err.message : String(err));
-  }
 
   console.log(`\n  ✓ Shipped artifact ${artifactId}: "${proposal.title}" [${proposal.domain}] — rating ${shippedMean}`);
   console.log(`  Duration: ${(durationMs / 1000).toFixed(1)}s | Tokens: ${totalUsage.input}in/${totalUsage.output}out`);

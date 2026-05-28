@@ -33,7 +33,7 @@ export interface CriticGate1Evaluation {
 
 export interface CriticGate1Response {
   evaluations: CriticGate1Evaluation[];
-  selected: string;
+  selected?: string | null;
 }
 
 // ── Creator ──────────────────────────────────────────────────────

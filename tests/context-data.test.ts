@@ -13,6 +13,9 @@ import {
   formatTestReports,
   readLiveStimuli,
   pickRandomSkills,
+  readLineageContext,
+  readMoodContext,
+  readDreamsContext,
   selectDiverseReviews,
 } from '../src/context/data.js';
 import type { DecisionLogEntry, TestReportEntry } from '../src/types/index.js';
@@ -340,6 +343,85 @@ describe('pickRandomSkills', () => {
     const dir = path.join(tempDir, 'stimuli', 'skills');
     writeFileSync(path.join(dir, 'readme.txt'), 'not a skill');
     expect(await pickRandomSkills(3)).toBe('*No skill files available.*');
+  });
+});
+
+// --- readLineageContext / readMoodContext / readDreamsContext ---
+
+describe('expanded ideator context readers', () => {
+  it('formats lineage context from identity/lineage.yml', async () => {
+    writeFileSync(path.join(tempDir, 'identity', 'lineage.yml'), [
+      'nodes: []',
+      'edges: []',
+      'constellations:',
+      '  - id: constellation-1',
+      '    name: Recursive Tools',
+      '    description: Tools that inspect their own process',
+      '    artifact_ids: [0001, 0002]',
+      '    motifs: []',
+      '    first_seen: 1',
+      '    last_active: 2',
+      'creative_dna:',
+      '  top_motifs: []',
+      '  technique_signatures:',
+      '    - constraint-first interfaces',
+      '  domain_affinities: []',
+      '  unexplored_territory:',
+      '    - physical computing',
+      'updated_at: "2026-01-01T00:00:00Z"',
+    ].join('\n'));
+
+    const result = await readLineageContext();
+
+    expect(result).toContain('Recursive Tools');
+    expect(result).toContain('constraint-first interfaces');
+    expect(result).toContain('physical computing');
+  });
+
+  it('formats current mood context from identity/mood.yml', async () => {
+    writeFileSync(path.join(tempDir, 'identity', 'mood.yml'), [
+      'axes:',
+      '  exploratory: 0.7',
+      '  playful: 0.1',
+      '  restless: -0.4',
+      '  bold: 0',
+      '  collaborative: 0',
+      'dominant_mood: restless curiosity',
+      'creative_nudge: Build something stranger than the last run.',
+      'influences: []',
+      'iteration: 12',
+      'updated_at: "2026-01-01T00:00:00Z"',
+    ].join('\n'));
+
+    const result = await readMoodContext();
+
+    expect(result).toContain('restless curiosity');
+    expect(result).toContain('Build something stranger');
+    expect(result).toContain('exploratory: +0.7');
+    expect(result).toContain('restless: -0.4');
+    expect(result).not.toContain('playful: +0.1');
+  });
+
+  it('formats dream context from identity/dreams.yml', async () => {
+    writeFileSync(path.join(tempDir, 'identity', 'dreams.yml'), [
+      'dreams:',
+      '  - artifact_id: "0042"',
+      '    title: Fallen Clock',
+      '    domain: code-art',
+      '    original_pitch: A clock that forgets time',
+      '    kill_reason: The implementation was too thin',
+      '    what_was_good: The metaphor had force',
+      '    resurrection_hint: Rebuild it as an interactive installation',
+      '    iteration: 42',
+      '    created_at: "2026-01-01T00:00:00Z"',
+      'updated_at: "2026-01-01T00:00:00Z"',
+    ].join('\n'));
+
+    const result = await readDreamsContext();
+
+    expect(result).toContain('Fallen Clock');
+    expect(result).toContain('The metaphor had force');
+    expect(result).toContain('interactive installation');
   });
 });
 

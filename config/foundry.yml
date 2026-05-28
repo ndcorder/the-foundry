@@ -1,11 +1,12 @@
 foundry:
   name: "The Foundry"
-  version: "1.1.0"
+  version: "1.1.2"
 
 iteration:
   max_idea_retries: 10
   max_revision_rounds: 20
   max_test_fix_cycles: 25
+  ideation_burst_count: 3
   curator_interval: 8
   domain_cooldown: 10
   novelty_window: 20

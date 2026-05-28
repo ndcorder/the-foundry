@@ -251,6 +251,15 @@ describe('normalizeCriticGate1', () => {
     expect((data as any).evaluations[0].recommended_complexity).toBe('XL');
   });
 
+  it('normalizes selected aliases', () => {
+    const data = {
+      selected_title: 'A',
+      evaluations: [{ title: 'A', decision: 'approve' }],
+    };
+    normalizeCriticGate1(data);
+    expect((data as any).selected).toBe('A');
+  });
+
   it('returns non-object input unchanged', () => {
     expect(normalizeCriticGate1(42)).toBe(42);
     expect(normalizeCriticGate1('str')).toBe('str');
@@ -303,6 +312,15 @@ describe('validateCriticGate1', () => {
     expect(validateCriticGate1({
       evaluations: [{ title: 'Idea', verdict: 'approve' }],
     })).toBe(true);
+  });
+
+  it('accepts selected idea metadata', () => {
+    const data = {
+      selected: 'Idea',
+      evaluations: [{ title: 'Idea', decision: 'approve' }],
+    };
+    expect(validateCriticGate1(data)).toBe(true);
+    expect((data as any).selected).toBe('Idea');
   });
 
   it('rejects non-object', () => {

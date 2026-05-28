@@ -889,6 +889,7 @@ iteration:
   max_idea_retries: 10
   max_revision_rounds: 20
   max_test_fix_cycles: 25        # Creator fix attempts before Tester gives up
+  ideation_burst_count: 3        # parallel Ideator calls per Gate 1 attempt
   curator_interval: 8
   domain_cooldown: 10
   novelty_window: 20

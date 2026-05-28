@@ -1,6 +1,6 @@
 {
   "name": "the-foundry",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "An autonomous multi-agent creative system that builds, writes, composes, and creates indefinitely.",
   "author": "Nicolas Corder",
   "license": "MIT",
@@ -33,6 +33,7 @@
     "dist/",
     "prompts/",
     "config/",
+    "dashboard/",
     "identity/manifesto.md",
     "stimuli/skills/",
     "stimuli/stimuli.yml",

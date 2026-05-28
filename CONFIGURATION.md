@@ -11,7 +11,7 @@ The main configuration file. Organized into sections:
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `name` | string | `"The Foundry"` | System name. Used in logs and journal headers. |
-| `version` | string | `"0.3.0"` | System version. Informational only. |
+| `version` | string | `"1.1.2"` | System version. Informational only. |
 
 ### `iteration`
 
@@ -22,6 +22,7 @@ Controls the per-iteration behavior. These are the most impactful tuning knobs.
 | `max_idea_retries` | number | `10` | How many Ideator→Critic rounds before declaring a deadlock. Higher = more chances to find a good idea and more useful token burn on bad cycles. |
 | `max_revision_rounds` | number | `20` | How many Creator→Critic Gate 2 revision loops. Furnace defaults favor repeated refinement over token conservation. |
 | `max_test_fix_cycles` | number | `25` | How many Tester→Creator fix loops for code artifacts. High values let complex artifacts keep burning tokens until they are actually fixed. |
+| `ideation_burst_count` | number | `3` | How many full-context Ideator calls to run in parallel per ideation attempt. Higher = more prompt fan-out, a larger Critic slate, and faster token throughput before creation starts. |
 | `curator_interval` | number | `8` | Iterations between full Curator cycles. Lower = more reflection, bigger contexts, and more token burn; raise if Curator drains slow parallel runs too often. |
 | `domain_cooldown` | number | `10` | The Ideator must propose at least one idea in a domain not used in the last N iterations. Prevents domain collapse. |
 | `novelty_window` | number | `20` | The Ideator cannot propose ideas structurally identical to portfolio entries within this window. Larger = stricter novelty enforcement. |

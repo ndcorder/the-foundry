@@ -2,6 +2,12 @@ import type { FoundryConfig, ModelsConfig, IterationResult } from "../types/inde
 import type { FoundryEventBus } from "./events.js";
 import { Mutex } from "./mutex.js";
 
+interface CompletedIteration {
+  iter: number;
+  result: IterationResult;
+  slot: number;
+}
+
 export interface PoolCallbacks {
   runIteration: (config: FoundryConfig, models: ModelsConfig, iteration: number, slot: number) => Promise<IterationResult>;
   onIterationComplete: (result: IterationResult, slot: number) => Promise<void>;
@@ -65,6 +71,64 @@ export class IterationPool {
     }
   }
 
+  private runSafely(
+    callbacks: PoolCallbacks,
+    config: FoundryConfig,
+    models: ModelsConfig,
+    iter: number,
+    slot: number,
+  ): Promise<{ result: IterationResult; slot: number }> {
+    const startMs = Date.now();
+    return Promise.resolve()
+      .then(() => callbacks.runIteration(config, models, iter, slot))
+      .then((result) => ({ result, slot }))
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          slot,
+          result: {
+            iteration: iter,
+            outcome: "skipped",
+            reason: `Iteration failed in worker pool: ${message}`,
+            token_usage: { input: 0, output: 0 },
+            duration_ms: Date.now() - startMs,
+          },
+        };
+      });
+  }
+
+  private async handleCompletion(
+    completed: CompletedIteration,
+    callbacks: Pick<PoolCallbacks, "onIterationComplete">,
+  ): Promise<void> {
+    this.inFlight.delete(completed.iter);
+    this.releaseSlot(completed.slot);
+    await callbacks.onIterationComplete(completed.result, completed.slot);
+  }
+
+  private async drainInFlight(callbacks?: Pick<PoolCallbacks, "onIterationComplete">): Promise<number> {
+    if (this.inFlight.size === 0) return 0;
+
+    const entries = [...this.inFlight.entries()];
+    const completions = await Promise.all(entries.map(([iter, promise]) => (
+      promise.then((result) => ({ iter, ...result }))
+    )));
+
+    let lastCompletedIteration = 0;
+    for (const completed of completions.sort((a, b) => a.iter - b.iter)) {
+      if (!this.inFlight.has(completed.iter)) continue;
+      lastCompletedIteration = Math.max(lastCompletedIteration, completed.iter);
+      if (callbacks) {
+        await this.handleCompletion(completed, callbacks);
+      } else {
+        this.inFlight.delete(completed.iter);
+        this.releaseSlot(completed.slot);
+      }
+    }
+
+    return lastCompletedIteration;
+  }
+
   async run(
     config: FoundryConfig,
     models: ModelsConfig,
@@ -85,8 +149,7 @@ export class IterationPool {
         const slot = this.takeSlot();
         if (slot === undefined) break;
 
-        const promise = callbacks.runIteration(config, models, iter, slot)
-          .then((result) => ({ result, slot }));
+        const promise = this.runSafely(callbacks, config, models, iter, slot);
 
         this.inFlight.set(iter, promise);
       }
@@ -98,28 +161,28 @@ export class IterationPool {
       const results = entries.map(([iter, p]) => p.then((r) => ({ iter, ...r })));
       const completed = await Promise.race(results);
 
-      this.inFlight.delete(completed.iter);
-      this.releaseSlot(completed.slot);
       lastCompletedIteration = Math.max(lastCompletedIteration, completed.iter);
-
-      await callbacks.onIterationComplete(completed.result, completed.slot);
+      await this.handleCompletion(completed, callbacks);
 
       // Curator check (drains pool first)
       if (callbacks.shouldRunCurator(completed.iter)) {
-        await this.drain();
+        lastCompletedIteration = Math.max(
+          lastCompletedIteration,
+          await this.drainInFlight(callbacks),
+        );
         await callbacks.runCurator(completed.iter);
       }
     }
 
     // Drain remaining
-    await this.drain();
+    lastCompletedIteration = Math.max(
+      lastCompletedIteration,
+      await this.drainInFlight(callbacks),
+    );
     return lastCompletedIteration;
   }
 
   async drain(): Promise<void> {
-    if (this.inFlight.size === 0) return;
-    await Promise.allSettled([...this.inFlight.values()]);
-    this.inFlight.clear();
-    this.resetAvailableSlots();
+    await this.drainInFlight();
   }
 }

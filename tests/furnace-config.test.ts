@@ -10,10 +10,21 @@ describe("furnace defaults", () => {
   const models = yaml.parse(
     readFileSync(new URL("../config/models.yml", import.meta.url), "utf-8"),
   ) as ModelsConfig;
+  const pkg = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf-8"),
+  ) as { version: string; files: string[] };
+
+  it("keeps the default config version aligned with the package", () => {
+    expect(foundry.foundry.version).toBe(pkg.version);
+  });
 
   it("runs many iterations in parallel without a cooldown", () => {
     expect(foundry.loop.concurrency ?? 1).toBeGreaterThanOrEqual(6);
     expect(foundry.loop.cooldown_seconds).toBe(0);
+  });
+
+  it("runs multiple ideation bursts per attempt", () => {
+    expect(foundry.iteration.ideation_burst_count ?? 1).toBeGreaterThanOrEqual(3);
   });
 
   it("feeds large contexts to every ideation and review call", () => {
@@ -28,5 +39,9 @@ describe("furnace defaults", () => {
     for (const agent of Object.values(models.agents)) {
       expect(agent.max_tokens).toBeGreaterThanOrEqual(180_000);
     }
+  });
+
+  it("ships dashboard sources in the npm package", () => {
+    expect(pkg.files).toContain("dashboard/");
   });
 });

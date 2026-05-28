@@ -36,6 +36,9 @@ import {
   safeRead,
   getComplexityDistribution,
   formatComplexityDistribution,
+  readLineageContext,
+  readMoodContext,
+  readDreamsContext,
 } from "../context/index.js";
 import { loadPrompt, loadCriticGate1Prompt, loadCriticGate2Prompt, injectVars } from "./prompt.js";
 import { resolve } from "../root.js";
@@ -105,6 +108,7 @@ export async function dispatchIdeator(
   models: ModelsConfig,
   iteration: number,
   rejectionContext?: string,
+  additionalDirection?: string,
 ): Promise<DispatchResult<IdeatorResponse>> {
   const shared = await buildSharedContext(config);
   const domains = await loadDomainsConfig();
@@ -112,9 +116,12 @@ export async function dispatchIdeator(
   const gate1 = decisions
     .filter((d) => d.gate === "gate1")
     .slice(-config.context.critic_gate1_history);
-  const [liveStimuli, skills] = await Promise.all([
+  const [liveStimuli, skills, lineageContext, moodContext, dreamsContext] = await Promise.all([
     readLiveStimuli(),
     pickRandomSkills(config.stimuli.skills_per_context),
+    readLineageContext(),
+    readMoodContext(),
+    readDreamsContext(3),
   ]);
 
   const template = await loadPrompt("ideator");
@@ -122,15 +129,22 @@ export async function dispatchIdeator(
     shared_context: shared,
     stimuli_live: liveStimuli,
     stimuli_skills: skills,
+    lineage_context: lineageContext,
+    mood_context: moodContext,
+    dreams_context: dreamsContext,
     critic_gate1_history: formatDecisions(gate1),
     domain_list: domains.domains.map((d) => d.name).join(", "),
     domain_cooldown: String(config.iteration.domain_cooldown),
     novelty_window: String(config.iteration.novelty_window),
   });
 
-  const systemPrompt = rejectionContext
-    ? prompt + "\n\n## Previous Rejection\n\n" + rejectionContext
-    : prompt;
+  let systemPrompt = prompt;
+  if (rejectionContext) {
+    systemPrompt += "\n\n## Previous Rejection\n\n" + rejectionContext;
+  }
+  if (additionalDirection) {
+    systemPrompt += "\n\n## Additional Direction\n\n" + additionalDirection;
+  }
 
   return dispatchWithRetry<IdeatorResponse>(
     config, models, "ideator", systemPrompt, iteration, validateIdeator,

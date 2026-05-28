@@ -29,6 +29,9 @@ const mockSelectDiverseReviews = vi.fn().mockReturnValue([]);
 const mockSafeRead = vi.fn().mockResolvedValue('')
 const mockGetComplexityDistribution = vi.fn().mockResolvedValue({ S: 5, M: 3, L: 1, XL: 0 })
 const mockFormatComplexityDistribution = vi.fn().mockReturnValue("S: 5 (56%)  M: 3 (33%)  L: 1 (11%)  XL: 0 (0%)");
+const mockReadLineageContext = vi.fn().mockResolvedValue('lineage content');
+const mockReadMoodContext = vi.fn().mockResolvedValue('mood content');
+const mockReadDreamsContext = vi.fn().mockResolvedValue('dream content');
 
 vi.mock('../src/context/index.js', () => ({
   buildSharedContext: mockBuildSharedContext,
@@ -43,6 +46,9 @@ vi.mock('../src/context/index.js', () => ({
   safeRead: mockSafeRead,
   getComplexityDistribution: mockGetComplexityDistribution,
   formatComplexityDistribution: mockFormatComplexityDistribution,
+  readLineageContext: mockReadLineageContext,
+  readMoodContext: mockReadMoodContext,
+  readDreamsContext: mockReadDreamsContext,
 }));
 
 // ── Fixtures ─────────────────────────────────────────────────────
@@ -103,6 +109,27 @@ describe('agents/dispatcher', () => {
       expect(result.data.ideas[0].title).toBe('Test Idea');
       expect(result.usage).toEqual({ input: 100, output: 50 });
       expect(mockCallModel).toHaveBeenCalledOnce();
+    });
+
+    it('injects lineage, mood, and dream context into the ideator prompt', async () => {
+      writeFileSync(
+        path.join(tempDir, 'prompts', 'ideator.md'),
+        'Ideator: {shared_context} {stimuli_live} {stimuli_skills} {lineage_context} {mood_context} {dreams_context} {critic_gate1_history} {domain_list} {domain_cooldown} {novelty_window}',
+        'utf-8',
+      );
+      const ideatorYaml = 'ideas:\n  - title: "Context Heavy"\n    domain: prose\n    pitch: "A test"\n    complexity: L\n    why: "Because"\n    project_id: null\n    stimulus_ref: null';
+      mockCallModel.mockResolvedValueOnce({ text: ideatorYaml, usage: { input: 100, output: 50 } });
+
+      const { dispatchIdeator } = await import('../src/agents/dispatcher.js');
+      await dispatchIdeator(makeConfig(), makeModels(), 1);
+
+      const systemPrompt = mockCallModel.mock.calls[0][1];
+      expect(systemPrompt).toContain('lineage content');
+      expect(systemPrompt).toContain('mood content');
+      expect(systemPrompt).toContain('dream content');
+      expect(systemPrompt).not.toContain('{lineage_context}');
+      expect(systemPrompt).not.toContain('{mood_context}');
+      expect(systemPrompt).not.toContain('{dreams_context}');
     });
 
     it('appends rejection context when provided', async () => {

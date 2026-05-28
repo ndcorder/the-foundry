@@ -53,6 +53,12 @@ describe('getNextArtifactId', () => {
     writeFileSync(path.join(tempDir, 'portfolio', 'index.md'), index);
     expect(await getNextArtifactId()).toBe('0010');
   });
+
+  it('reserves ids already used by killed artifacts', async () => {
+    mkdirSync(path.join(tempDir, 'portfolio', 'killed', '0007-killed-piece'), { recursive: true });
+    writeFileSync(path.join(tempDir, 'portfolio', 'index.md'), '| 0003 | Shipped | fiction | 5.0 | 2026-01-01 | — |');
+    expect(await getNextArtifactId()).toBe('0008');
+  });
 });
 
 describe('writeArtifact', () => {
@@ -150,6 +156,20 @@ describe('writeArtifact', () => {
     });
     const readme = readFileSync(path.join(dir, 'README.md'), 'utf-8');
     expect(readme).toContain('**Mean rating:** 10.0');
+  });
+
+  it('rejects artifact file paths that escape the artifact directory', async () => {
+    await expect(writeArtifact({
+      id: '0005',
+      title: 'Escape',
+      domain: 'fiction',
+      files: [{ path: '../../../escaped.txt', content: 'owned' }],
+      review: 'bad',
+      ratings: { originality: 1, specificity: 1, craft: 1, surprise: 1, coherence: 1, portfolio_fit: 1 },
+      testerReport: '',
+      proposal: 'p',
+    })).rejects.toThrow(/path traversal/i);
+    expect(existsSync(path.join(tempDir, 'escaped.txt'))).toBe(false);
   });
 });
 

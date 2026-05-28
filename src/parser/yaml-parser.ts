@@ -42,6 +42,7 @@ const SCHEMAS: Record<string, Record<string, unknown>> = {
     type: "object",
     required: ["evaluations"],
     properties: {
+      selected: { type: ["string", "null"] },
       evaluations: {
         type: "array",
         minItems: 1,
@@ -237,6 +238,13 @@ export function normalizeCriticGate1(data: unknown): unknown {
   const list = d.evaluations ?? d.decisions;
   if (!Array.isArray(list)) return data;
 
+  if (typeof d.selected !== "string" && typeof d.selected_title === "string") {
+    d.selected = d.selected_title;
+  }
+  if (d.selected === undefined || d.selected === "") {
+    d.selected = null;
+  }
+
   d.evaluations = list.map((e: any) => ({
     title: e.title,
     decision: e.decision ?? e.verdict ?? "reject",
@@ -245,12 +253,14 @@ export function normalizeCriticGate1(data: unknown): unknown {
     recommended_complexity: e.recommended_complexity ?? null,
   }));
   delete d.decisions;
+  delete d.selected_title;
   return data;
 }
 
 export function validateCriticGate1(data: unknown): data is CriticGate1Response {
   normalizeCriticGate1(data);
   if (!isObj(data) || !Array.isArray(data.evaluations) || data.evaluations.length === 0) return false;
+  if (data.selected !== undefined && data.selected !== null && typeof data.selected !== "string") return false;
   return data.evaluations.every(
     (e: any) => typeof e.title === "string" && typeof e.decision === "string",
   );

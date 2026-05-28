@@ -92,6 +92,13 @@ vi.mock('../src/files/projects.js', () => ({
   createProject: mockCreateProject,
 }));
 
+const mockBuildLineageGraph = vi.fn().mockResolvedValue({ edges: [], constellations: [] });
+const mockSaveLineageGraph = vi.fn().mockResolvedValue(undefined);
+vi.mock('../src/lineage/index.js', () => ({
+  buildLineageGraph: mockBuildLineageGraph,
+  saveLineageGraph: mockSaveLineageGraph,
+}));
+
 // ── Fixtures ─────────────────────────────────────────────────────
 
 let tempDir: string;
@@ -101,6 +108,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockGetNextArtifactId.mockReset();
   mockGetNextArtifactId.mockResolvedValue('0001');
+  mockBuildLineageGraph.mockReset();
+  mockBuildLineageGraph.mockResolvedValue({ edges: [], constellations: [] });
+  mockSaveLineageGraph.mockReset();
+  mockSaveLineageGraph.mockResolvedValue(undefined);
   mkdirSync(path.join(tempDir, 'logs'), { recursive: true });
 });
 afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
@@ -224,6 +235,7 @@ describe('iteration/runner', () => {
 
       let activeBookkeeping = 0;
       let maxActiveBookkeeping = 0;
+      let lineageStartedDuringBookkeeping = false;
       let nextId = 1;
       mockGetNextArtifactId.mockImplementation(async () => {
         activeBookkeeping++;
@@ -231,6 +243,10 @@ describe('iteration/runner', () => {
         await new Promise((r) => setTimeout(r, 25));
         activeBookkeeping--;
         return String(nextId++).padStart(4, '0');
+      });
+      mockBuildLineageGraph.mockImplementation(async () => {
+        lineageStartedDuringBookkeeping = lineageStartedDuringBookkeeping || activeBookkeeping > 0;
+        return { edges: [], constellations: [] };
       });
 
       const { runIteration } = await import('../src/iteration/runner.js');
@@ -242,6 +258,179 @@ describe('iteration/runner', () => {
       expect(first.outcome).toBe('shipped');
       expect(second.outcome).toBe('shipped');
       expect(maxActiveBookkeeping).toBe(1);
+      expect(lineageStartedDuringBookkeeping).toBe(false);
+    });
+
+    it('runs configured ideation bursts and sends the combined slate to the critic', async () => {
+      const config = makeConfig();
+      config.iteration.ideation_burst_count = 3;
+
+      const proposals = [
+        { title: 'Burst One', domain: 'prose', pitch: 'First slate', complexity: 'L' as const, why: 'One', project_id: null, stimulus_ref: null },
+        { title: 'Burst Two', domain: 'code-tool', pitch: 'Second slate', complexity: 'XL' as const, why: 'Two', project_id: null, stimulus_ref: null, xl_mode: 'single' as const },
+        { title: 'Burst Three', domain: 'poetry', pitch: 'Third slate', complexity: 'M' as const, why: 'Three', project_id: null, stimulus_ref: null },
+      ];
+
+      for (const proposal of proposals) {
+        mockDispatchIdeator.mockResolvedValueOnce({
+          data: { ideas: [proposal] },
+          usage,
+          rawText: '',
+        });
+      }
+
+      mockDispatchCriticGate1.mockResolvedValueOnce({
+        data: { evaluations: [
+          { title: 'Burst One', decision: 'reject', sharpening_notes: '', reasons: 'Less interesting' },
+          { title: 'Burst Two', decision: 'approve', sharpening_notes: 'Build the large version', reasons: '' },
+          { title: 'Burst Three', decision: 'reject', sharpening_notes: '', reasons: 'Less ambitious' },
+        ] },
+        usage,
+        rawText: '',
+      });
+
+      mockIsCodeDomain.mockReturnValue(false);
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Burst Two', files: [{ path: 'large.md', content: '# Large' }], notes: '' },
+        usage,
+        phasesRun: ['plan', 'build-1'],
+        phaseTokens: { plan: 50, 'build-1': 50 },
+      });
+      mockDispatchTesterLightweight.mockResolvedValueOnce({
+        data: { verdict: 'pass', summary: 'OK', tests_run: [], issues: [] },
+        usage,
+        rawText: '',
+      });
+      mockDispatchCriticGate2.mockResolvedValueOnce({
+        data: {
+          decision: 'ship',
+          ratings: { originality: 4, specificity: 4, craft: 4, surprise: 4, coherence: 4, portfolio_fit: 4 },
+          review: 'Strong',
+        },
+        usage,
+        rawText: '',
+      });
+
+      const { runIteration } = await import('../src/iteration/runner.js');
+      const result = await runIteration(config, makeModels(), 1);
+
+      expect(result.title).toBe('Burst Two');
+      expect(mockDispatchIdeator).toHaveBeenCalledTimes(3);
+      expect(mockDispatchIdeator.mock.calls.map((call) => call[4])).toEqual([
+        expect.stringContaining('burst 1/3'),
+        expect.stringContaining('burst 2/3'),
+        expect.stringContaining('burst 3/3'),
+      ]);
+
+      const criticSlate = mockDispatchCriticGate1.mock.calls[0][3];
+      expect(criticSlate).toContain('Burst One');
+      expect(criticSlate).toContain('Burst Two');
+      expect(criticSlate).toContain('Burst Three');
+      expect(mockRunCreatorPipeline.mock.calls[0][1].title).toBe('Burst Two');
+    });
+
+    it('honors the critic selected field when multiple proposals are approved', async () => {
+      const firstProposal = { title: 'Approved First', domain: 'prose', pitch: 'First', complexity: 'S' as const, why: 'One', project_id: null, stimulus_ref: null };
+      const selectedProposal = { title: 'Selected Second', domain: 'prose', pitch: 'Second', complexity: 'L' as const, why: 'Two', project_id: null, stimulus_ref: null };
+
+      mockDispatchIdeator.mockResolvedValueOnce({
+        data: { ideas: [firstProposal, selectedProposal] },
+        usage,
+        rawText: '',
+      });
+      mockDispatchCriticGate1.mockResolvedValueOnce({
+        data: {
+          selected: 'Selected Second',
+          evaluations: [
+            { title: 'Approved First', decision: 'approve', sharpening_notes: 'Good', reasons: '' },
+            { title: 'Selected Second', decision: 'approve', sharpening_notes: 'Better', reasons: '' },
+          ],
+        },
+        usage,
+        rawText: '',
+      });
+
+      mockIsCodeDomain.mockReturnValue(false);
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Selected Second', files: [{ path: 'selected.md', content: '# Selected' }], notes: '' },
+        usage,
+        phasesRun: ['build'],
+        phaseTokens: { build: 50 },
+      });
+      mockDispatchTesterLightweight.mockResolvedValueOnce({
+        data: { verdict: 'pass', summary: 'OK', tests_run: [], issues: [] },
+        usage,
+        rawText: '',
+      });
+      mockDispatchCriticGate2.mockResolvedValueOnce({
+        data: {
+          decision: 'ship',
+          ratings: { originality: 4, specificity: 4, craft: 4, surprise: 4, coherence: 4, portfolio_fit: 4 },
+          review: 'Strong',
+        },
+        usage,
+        rawText: '',
+      });
+
+      const { runIteration } = await import('../src/iteration/runner.js');
+      const result = await runIteration(makeConfig(), makeModels(), 1);
+
+      expect(result.title).toBe('Selected Second');
+      expect(mockRunCreatorPipeline.mock.calls[0][1].title).toBe('Selected Second');
+      expect(mockRunCreatorPipeline.mock.calls[0][2]).toBe('Better');
+    });
+
+    it('continues with successful ideation bursts when one burst fails', async () => {
+      const config = makeConfig();
+      config.iteration.ideation_burst_count = 3;
+
+      const proposalA = { title: 'Surviving Burst A', domain: 'prose', pitch: 'First surviving slate', complexity: 'L' as const, why: 'One', project_id: null, stimulus_ref: null };
+      const proposalB = { title: 'Surviving Burst B', domain: 'poetry', pitch: 'Second surviving slate', complexity: 'M' as const, why: 'Two', project_id: null, stimulus_ref: null };
+
+      mockDispatchIdeator
+        .mockResolvedValueOnce({ data: { ideas: [proposalA] }, usage, rawText: '' })
+        .mockRejectedValueOnce(new Error('burst 2 failed'))
+        .mockResolvedValueOnce({ data: { ideas: [proposalB] }, usage, rawText: '' });
+
+      mockDispatchCriticGate1.mockResolvedValueOnce({
+        data: { evaluations: [
+          { title: 'Surviving Burst A', decision: 'reject', sharpening_notes: '', reasons: 'Less useful' },
+          { title: 'Surviving Burst B', decision: 'approve', sharpening_notes: 'Use the second survivor', reasons: '' },
+        ] },
+        usage,
+        rawText: '',
+      });
+
+      mockIsCodeDomain.mockReturnValue(false);
+      mockRunCreatorPipeline.mockResolvedValueOnce({
+        artifact: { title: 'Surviving Burst B', files: [{ path: 'survivor.md', content: '# Survivor' }], notes: '' },
+        usage,
+        phasesRun: ['plan', 'build-1'],
+        phaseTokens: { plan: 50, 'build-1': 50 },
+      });
+      mockDispatchTesterLightweight.mockResolvedValueOnce({
+        data: { verdict: 'pass', summary: 'OK', tests_run: [], issues: [] },
+        usage,
+        rawText: '',
+      });
+      mockDispatchCriticGate2.mockResolvedValueOnce({
+        data: {
+          decision: 'ship',
+          ratings: { originality: 4, specificity: 4, craft: 4, surprise: 4, coherence: 4, portfolio_fit: 4 },
+          review: 'Strong',
+        },
+        usage,
+        rawText: '',
+      });
+
+      const { runIteration } = await import('../src/iteration/runner.js');
+      const result = await runIteration(config, makeModels(), 1);
+
+      expect(result.title).toBe('Surviving Burst B');
+      expect(mockDispatchIdeator).toHaveBeenCalledTimes(3);
+      const criticSlate = mockDispatchCriticGate1.mock.calls[0][3];
+      expect(criticSlate).toContain('Surviving Burst A');
+      expect(criticSlate).toContain('Surviving Burst B');
     });
   });
 

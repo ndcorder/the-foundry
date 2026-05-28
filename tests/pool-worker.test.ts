@@ -40,8 +40,33 @@ describe("IterationPool", () => {
     };
 
     await pool.run({} as any, {} as any, callbacks);
-    expect(completed).toBe(4);
+    expect(completed).toBeGreaterThanOrEqual(4);
     expect(maxConcurrent).toBeLessThanOrEqual(2);
+  });
+
+  it("converts rejected iterations into skipped completions and continues", async () => {
+    const bus = makeBus();
+    const pool = new IterationPool(2, 1, bus);
+    const completed: IterationResult[] = [];
+
+    const callbacks = {
+      runIteration: async (_c: any, _m: any, iter: number) => {
+        if (iter === 1) throw new Error("model provider unavailable");
+        await new Promise((r) => setTimeout(r, 10));
+        return makeResult(iter);
+      },
+      onIterationComplete: async (result: IterationResult) => {
+        completed.push(result);
+      },
+      shouldStop: () => completed.length >= 3,
+      shouldRunCurator: () => false,
+      runCurator: async () => {},
+    };
+
+    await expect(pool.run({} as any, {} as any, callbacks)).resolves.toBeGreaterThanOrEqual(3);
+    expect(completed.some((r) => r.iteration === 1 && r.outcome === "skipped")).toBe(true);
+    expect(completed.some((r) => r.iteration > 1 && r.outcome === "shipped")).toBe(true);
+    expect(completed.find((r) => r.iteration === 1)?.reason).toContain("model provider unavailable");
   });
 
   it("drains in-flight iterations on shutdown", async () => {
@@ -110,19 +135,24 @@ describe("IterationPool", () => {
     const bus = makeBus();
     const pool = new IterationPool(2, 1, bus);
     let completed = 0;
+    const events: string[] = [];
     let curatorRan = false;
     let inFlightWhenCuratorRan = -1;
 
     const callbacks = {
       runIteration: async (_c: any, _m: any, iter: number) => {
-        await new Promise((r) => setTimeout(r, 30));
+        await new Promise((r) => setTimeout(r, iter === 1 ? 10 : 40));
         return makeResult(iter);
       },
-      onIterationComplete: async () => { completed++; },
+      onIterationComplete: async (result: IterationResult) => {
+        completed++;
+        events.push(`complete-${result.iteration}`);
+      },
       shouldStop: () => completed >= 3,
-      shouldRunCurator: (iter: number) => iter === 2 && !curatorRan,
+      shouldRunCurator: (iter: number) => iter === 1 && !curatorRan,
       runCurator: async () => {
         curatorRan = true;
+        events.push('curator');
         // Access private inFlight via any — pool should have drained before calling curator
         inFlightWhenCuratorRan = (pool as any).inFlight.size;
       },
@@ -131,6 +161,8 @@ describe("IterationPool", () => {
     await pool.run({} as any, {} as any, callbacks);
     expect(curatorRan).toBe(true);
     expect(inFlightWhenCuratorRan).toBe(0);
+    expect(events.indexOf('complete-2')).toBeGreaterThan(-1);
+    expect(events.indexOf('complete-2')).toBeLessThan(events.indexOf('curator'));
   });
 
   it("does not reuse an occupied workspace slot when refilling the pool", async () => {

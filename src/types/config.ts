@@ -12,6 +12,7 @@ export interface FoundryConfig {
     max_idea_retries: number;
     max_revision_rounds: number;
     max_test_fix_cycles: number;
+    ideation_burst_count?: number;
     curator_interval: number;
     domain_cooldown: number;
     novelty_window: number;

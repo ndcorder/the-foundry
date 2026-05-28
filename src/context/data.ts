@@ -2,6 +2,9 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { DecisionLogEntry, TestReportEntry } from "../types/index.js";
 import { resolve } from "../root.js";
+import { loadLineageGraph } from "../lineage/index.js";
+import { getDreamsForIdeator } from "../dreams/index.js";
+import { loadMood } from "../mood/index.js";
 
 export async function safeRead(filePath: string): Promise<string> {
   try {
@@ -175,6 +178,64 @@ export async function pickRandomSkills(count: number): Promise<string> {
     if (text.trim()) contents.push(`### ${file}\n\n${text.trim()}`);
   }
   return contents.length > 0 ? contents.join("\n\n") : "*No skill files available.*";
+}
+
+export async function readLineageContext(): Promise<string> {
+  try {
+    const lineage = await loadLineageGraph();
+    if (!lineage || lineage.constellations.length === 0) {
+      return "*No lineage data yet.*";
+    }
+
+    const constellationLines = lineage.constellations
+      .slice(0, 6)
+      .map((c) => `- **${c.name}** (${c.artifact_ids.length} works): ${c.description}`);
+    const dnaLines = lineage.creative_dna.technique_signatures
+      .slice(0, 5)
+      .map((t) => `- ${t}`);
+    const unexplored = lineage.creative_dna.unexplored_territory
+      .slice(0, 4)
+      .map((t) => `- ${t}`);
+
+    return [
+      "### Active Constellations\n",
+      ...constellationLines,
+      "\n### Our Creative DNA\n",
+      ...dnaLines,
+      "\n### Unexplored Territory\n",
+      ...unexplored,
+    ].join("\n");
+  } catch {
+    return "*No lineage data yet.*";
+  }
+}
+
+export async function readMoodContext(): Promise<string> {
+  try {
+    const mood = await loadMood();
+    if (!mood) return "*Mood not yet computed.*";
+
+    const axesSummary = Object.entries(mood.axes)
+      .filter(([, value]) => Math.abs(value) > 0.2)
+      .map(([axis, value]) => `${axis}: ${value > 0 ? "+" : ""}${value.toFixed(1)}`)
+      .join(", ");
+
+    return [
+      `**Current mood:** ${mood.dominant_mood}`,
+      `**Creative nudge:** ${mood.creative_nudge}`,
+      axesSummary ? `**Axes:** ${axesSummary}` : "",
+    ].filter(Boolean).join("\n");
+  } catch {
+    return "*Mood not yet computed.*";
+  }
+}
+
+export async function readDreamsContext(count: number = 3): Promise<string> {
+  try {
+    return await getDreamsForIdeator(count);
+  } catch {
+    return "*No fallen artifacts yet.*";
+  }
 }
 
 // ── Complexity Distribution ──────────────────────────────────────

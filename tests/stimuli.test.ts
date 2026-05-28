@@ -142,6 +142,11 @@ describe('writeSkillFile', () => {
     await writeSkillFile('deep-skill', 'content');
     expect(existsSync(path.join(tempDir, 'stimuli', 'skills', 'deep-skill.md'))).toBe(true);
   });
+
+  it('rejects skill names that escape stimuli/skills', async () => {
+    await expect(writeSkillFile('../outside', 'content')).rejects.toThrow(/invalid skill name/i);
+    expect(existsSync(path.join(tempDir, 'stimuli', 'outside.md'))).toBe(false);
+  });
 });
 
 import { refreshSource } from '../src/stimuli/index.js';

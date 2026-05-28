@@ -4,6 +4,24 @@ All notable changes to The Foundry are documented here.
 
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [1.1.2] — 2026-05-27
+
+### Added
+
+- Ideation can now run multiple full-context bursts per attempt, giving the Critic a broader slate and increasing throughput.
+- Ideator context now includes lineage, mood, and dream-journal signals so new proposals can riff on past work, avoid repetition, and revive promising killed ideas.
+
+### Fixed
+
+- Parallel worker failures are now recorded as skipped iterations instead of crashing the whole pool.
+- Pool drains now run normal completion bookkeeping for in-flight iterations before curator cycles or shutdown.
+- Artifact and commissioned skill writes now reject path traversal attempts from model-controlled filenames.
+- Killed artifacts now reserve artifact IDs, preventing future shipped work from reusing their IDs.
+- Critic Gate 1 now honors its explicit selected proposal when multiple ideas are approved.
+- Lineage graph rebuilds now run inside serialized portfolio bookkeeping to avoid stale writes during parallel shipping.
+- The packaged dashboard command now includes the dashboard sources in the npm package.
+- Default config version now stays aligned with the package version.
+
 ## [1.1.0] — 2026-05-27
 
 ### Fixed
@@ -64,5 +82,6 @@ First stable release. Five adversarial agents collaborate to produce an ever-gro
 - [CONTRIBUTING.md](CONTRIBUTING.md) — Contribution guide with testing instructions
 - [FOUNDRY-SPEC.md](FOUNDRY-SPEC.md) — Full system specification
 
+[1.1.2]: https://github.com/ndcorder/the-foundry/releases/tag/v1.1.2
 [1.1.0]: https://github.com/ndcorder/the-foundry/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ndcorder/the-foundry/releases/tag/v1.0.0

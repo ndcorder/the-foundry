@@ -115,6 +115,10 @@ export async function refreshAllStale(
 }
 
 export async function writeSkillFile(name: string, content: string): Promise<void> {
+  if (!/^[a-z0-9][a-z0-9_-]*$/i.test(name)) {
+    throw new Error(`Invalid skill name: ${name}`);
+  }
+
   const outPath = resolve("stimuli", "skills", `${name}.md`);
   await mkdir(path.dirname(outPath), { recursive: true });
   await writeFile(outPath, content, "utf-8");

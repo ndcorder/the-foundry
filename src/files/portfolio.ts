@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { CriticRatings, CreatorFile } from "../types/index.js";
 import { resolve } from "../root.js";
@@ -23,15 +23,42 @@ export function slugify(title: string): string {
     .slice(0, 40);
 }
 
+function resolveWithin(baseDir: string, relativePath: string): string {
+  if (!relativePath || path.isAbsolute(relativePath)) {
+    throw new Error(`Path traversal blocked: ${relativePath}`);
+  }
+
+  const base = path.resolve(baseDir);
+  const target = path.resolve(base, relativePath);
+  if (target !== base && !target.startsWith(base + path.sep)) {
+    throw new Error(`Path traversal blocked: ${relativePath}`);
+  }
+
+  return target;
+}
+
 export async function getNextArtifactId(): Promise<string> {
   const indexPath = resolve("portfolio", "index.md");
-  let content: string;
+  const ids: number[] = [];
+
   try {
-    content = await readFile(indexPath, "utf-8");
+    const content = await readFile(indexPath, "utf-8");
+    ids.push(...[...content.matchAll(/\|\s*(\d{4})\s*\|/g)].map((m) => parseInt(m[1], 10)));
   } catch {
-    return "0001";
+    // Missing index is fine on a new install.
   }
-  const ids = [...content.matchAll(/\|\s*(\d{4})\s*\|/g)].map((m) => parseInt(m[1], 10));
+
+  try {
+    const killedEntries = await readdir(resolve("portfolio", "killed"), { withFileTypes: true });
+    for (const entry of killedEntries) {
+      if (!entry.isDirectory()) continue;
+      const match = entry.name.match(/^(\d{4})-/);
+      if (match) ids.push(parseInt(match[1], 10));
+    }
+  } catch {
+    // Killed directory may not exist yet.
+  }
+
   const max = ids.length > 0 ? Math.max(...ids) : 0;
   return String(max + 1).padStart(4, "0");
 }
@@ -56,7 +83,7 @@ export async function writeArtifact(opts: WriteArtifactOpts): Promise<string> {
 
   // Write artifact files
   for (const f of opts.files) {
-    const filePath = path.join(artifactDir, f.path);
+    const filePath = resolveWithin(artifactDir, f.path);
     const fileDir = path.dirname(filePath);
     await mkdir(fileDir, { recursive: true });
     await writeFile(filePath, f.content, "utf-8");

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setRootDir } from '../src/root.js';
-import type { FoundryConfig, ModelsConfig, CuratorFullResponse } from '../src/types/index.js';
+import type { FoundryConfig, ModelsConfig, CuratorFullResponse, StimuliRefreshState } from '../src/types/index.js';
 
 // ── Mocks ────────────────────────────────────────────────────────
 
@@ -17,14 +17,26 @@ vi.mock('../src/context/agent-context.js', () => ({
   buildCuratorContext: mockBuildCuratorContext,
 }));
 
+const mockLoadDomainsConfig = vi.fn().mockResolvedValue({
+  domains: [
+    { name: 'prose', description: 'Prose', weight: 1 },
+    { name: 'code-tool', description: 'Code tools', weight: 1 },
+  ],
+});
+vi.mock('../src/context/config.js', () => ({
+  loadDomainsConfig: mockLoadDomainsConfig,
+}));
+
 const mockAppendJournal = vi.fn().mockResolvedValue(undefined);
 vi.mock('../src/files/journal.js', () => ({
   appendJournal: mockAppendJournal,
 }));
 
 const mockUpdateProjectStatus = vi.fn().mockResolvedValue(undefined);
+const mockGetActiveProjects = vi.fn().mockResolvedValue([]);
 vi.mock('../src/files/projects.js', () => ({
   updateProjectStatus: mockUpdateProjectStatus,
+  getActiveProjects: mockGetActiveProjects,
 }));
 
 const mockRefreshSource = vi.fn().mockResolvedValue('refreshed');
@@ -34,6 +46,46 @@ vi.mock('../src/stimuli/index.js', () => ({
   refreshSource: mockRefreshSource,
   writeSkillFile: mockWriteSkillFile,
   loadStimuliConfig: mockLoadStimuliConfig,
+  summarizeStimuliRefreshHealth: vi.fn((config: any, states: Map<string, any>, currentIteration: number, enabled: boolean) => {
+    const entries = Object.entries(config.mcp ?? {}).map(([source, sourceConfig]: [string, any]) => {
+      const state = states.get(source) ?? {
+        last_refresh_iteration: 0,
+        consecutive_failures: 0,
+        disabled: false,
+      };
+      const refreshInterval = Math.max(1, Math.floor(sourceConfig.refresh_interval));
+      const lastRefreshIteration = Math.max(0, Math.floor(state.last_refresh_iteration));
+      const iterationsSinceRefresh = Math.max(0, currentIteration - lastRefreshIteration);
+      const due = !state.disabled && iterationsSinceRefresh >= refreshInterval;
+      const sourceState = state.disabled
+        ? 'disabled'
+        : state.consecutive_failures > 0
+          ? 'failing'
+          : due
+            ? 'due'
+            : 'healthy';
+      return {
+        source,
+        server: sourceConfig.server,
+        refreshInterval,
+        lastRefreshIteration,
+        iterationsSinceRefresh,
+        consecutiveFailures: state.consecutive_failures,
+        disabled: state.disabled,
+        due,
+        state: sourceState,
+      };
+    });
+    return {
+      enabled,
+      sources: entries.length,
+      healthy: entries.filter((entry) => entry.state === 'healthy').length,
+      due: entries.filter((entry) => entry.due).length,
+      failing: entries.filter((entry) => entry.consecutiveFailures > 0 && !entry.disabled).length,
+      disabled: entries.filter((entry) => entry.disabled).length,
+      entries,
+    };
+  }),
 }));
 
 import { StatsTracker } from '../src/stats/index.js';
@@ -52,6 +104,15 @@ beforeEach(() => {
   writeFileSync(path.join(tempDir, 'prompts', 'curator.md'), 'Curator: {shared_context_full} {curator_interval} {compression_cutoff} {domain_stats} {project_statuses} {stimuli_staleness} {requests_content}', 'utf-8');
   writeFileSync(path.join(tempDir, 'identity', 'manifesto.md'), '# Manifesto\n\nOld text here.\n\n## Values\n\nIntegrity', 'utf-8');
   writeFileSync(path.join(tempDir, 'identity', 'journal.md'), '# Journal\n', 'utf-8');
+  mockGetActiveProjects.mockReset();
+  mockGetActiveProjects.mockResolvedValue([]);
+  mockLoadDomainsConfig.mockReset();
+  mockLoadDomainsConfig.mockResolvedValue({
+    domains: [
+      { name: 'prose', description: 'Prose', weight: 1 },
+      { name: 'code-tool', description: 'Code tools', weight: 1 },
+    ],
+  });
 });
 afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
 
@@ -104,7 +165,7 @@ describe('curator', () => {
 
   describe('dispatchCuratorFull', () => {
     it('calls model and returns parsed response', async () => {
-      const curatorYaml = 'retrospective: "Good progress"\ncompressed_journal: "Summary of iterations"\nmanifesto_changes: []\ndomain_recommendations: "Diversify"\nproject_decisions: []\nstimuli_actions: []';
+      const curatorYaml = 'retrospective: "Good progress"\ncompressed_journal: "Summary of iterations"\nmanifesto_changes: []\ndomain_recommendations: "Diversify"\nproject_decisions: []\nstimuli_actions: []\nhuman_redirect: null';
       mockCallModel.mockResolvedValueOnce({ text: curatorYaml, usage: { input: 500, output: 200 } });
 
       const { dispatchCuratorFull } = await import('../src/curator/index.js');
@@ -115,11 +176,79 @@ describe('curator', () => {
       expect(result.compressed_journal).toBe('Summary of iterations');
     });
 
+    it('injects critic artifact rejection pressure into the curator prompt', async () => {
+      writeFileSync(
+        path.join(tempDir, 'prompts', 'curator.md'),
+        'Curator: {shared_context_full} {critic_rejection_rate}',
+        'utf-8',
+      );
+      const curatorYaml = 'retrospective: "Review rejection pressure"\ncompressed_journal: "Summary"\nmanifesto_changes: []\ndomain_recommendations: ""\nproject_decisions: []\nstimuli_actions: []\nhuman_redirect: null';
+      mockCallModel.mockResolvedValueOnce({ text: curatorYaml, usage: { input: 500, output: 200 } });
+      const stats = StatsTracker.fresh();
+      stats.recordCriticDecision(1, true);
+      stats.recordCriticDecision(2, false);
+
+      const { dispatchCuratorFull } = await import('../src/curator/index.js');
+      await dispatchCuratorFull(makeConfig(), makeModels(), 10, stats);
+
+      expect(mockCallModel.mock.calls[0][1]).toContain(
+        '50% over last 2 artifact decisions (1 killed, 1 shipped). Above 40%; reflect on whether Critic standards are drifting.',
+      );
+    });
+
+    it('injects deterministic stimuli source health into the curator prompt', async () => {
+      writeFileSync(
+        path.join(tempDir, 'prompts', 'curator.md'),
+        'Curator stimuli: {stimuli_staleness}',
+        'utf-8',
+      );
+      mockLoadStimuliConfig.mockResolvedValueOnce({
+        mcp: {
+          news: {
+            server: 'tavily',
+            query_template: 'interesting news',
+            max_items: 5,
+            refresh_interval: 10,
+          },
+          cultural: {
+            server: 'tavily',
+            queries: ['trending repos'],
+            max_items: 5,
+            refresh_interval: 20,
+          },
+          knowledge: {
+            server: 'context7',
+            strategy: 'random',
+            max_items: 3,
+            refresh_interval: 10,
+          },
+        },
+        stimuli_ttl: 24,
+        skills_per_context: 2,
+      });
+      const states = new Map([
+        ['news', { source: 'news', last_refresh_iteration: 18, consecutive_failures: 2, disabled: false }],
+        ['cultural', { source: 'cultural', last_refresh_iteration: 12, consecutive_failures: 3, disabled: true }],
+        ['knowledge', { source: 'knowledge', last_refresh_iteration: 29, consecutive_failures: 0, disabled: false }],
+      ]);
+      const curatorYaml = 'retrospective: "Review stimuli"\ncompressed_journal: "Summary"\nmanifesto_changes: []\ndomain_recommendations: ""\nproject_decisions: []\nstimuli_actions: []\nhuman_redirect: null';
+      mockCallModel.mockResolvedValueOnce({ text: curatorYaml, usage: { input: 500, output: 200 } });
+
+      const { dispatchCuratorFull } = await import('../src/curator/index.js');
+      await dispatchCuratorFull(makeConfig(), makeModels(), 30, StatsTracker.fresh(), states);
+
+      const prompt = mockCallModel.mock.calls[0][1];
+      expect(prompt).toContain('Stimuli sources: 3 (1 healthy, 1 due, 1 failing, 1 disabled).');
+      expect(prompt).toContain('- news: failing, tavily, last #18, 12 iterations ago, every 10 iterations, 2 failures, due');
+      expect(prompt).toContain('- cultural: disabled, tavily, last #12, 18 iterations ago, every 20 iterations, 3 failures');
+      expect(prompt).toContain('- knowledge: healthy, context7, last #29, 1 iteration ago, every 10 iterations, no failures');
+    });
+
     it('retries on invalid YAML', async () => {
       mockCallModel
         .mockResolvedValueOnce({ text: 'bad yaml {{{', usage: { input: 100, output: 50 } })
         .mockResolvedValueOnce({
-          text: 'retrospective: "OK"\ncompressed_journal: "OK"\nmanifesto_changes: []\ndomain_recommendations: ""\nproject_decisions: []\nstimuli_actions: []',
+          text: 'retrospective: "OK"\ncompressed_journal: "OK"\nmanifesto_changes: []\ndomain_recommendations: ""\nproject_decisions: []\nstimuli_actions: []\nhuman_redirect: null',
           usage: { input: 100, output: 50 },
         });
 
@@ -128,6 +257,127 @@ describe('curator', () => {
       const result = await dispatchCuratorFull(makeConfig(), makeModels(), 10, stats);
       expect(result.retrospective).toBe('OK');
       expect(mockCallModel).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries when project decisions reference inactive projects', async () => {
+      mockGetActiveProjects.mockResolvedValueOnce([{ project_id: 'P001', name: 'Active Project' }]);
+      mockCallModel
+        .mockResolvedValueOnce({
+          text: 'retrospective: "OK"\ncompressed_journal: "OK"\nmanifesto_changes: []\ndomain_recommendations: ""\nproject_decisions:\n  - project_id: "P999"\n    action: "complete"\n    reason: "Looks done"\nstimuli_actions: []\nhuman_redirect: null',
+          usage: { input: 100, output: 50 },
+        })
+        .mockResolvedValueOnce({
+          text: 'retrospective: "OK"\ncompressed_journal: "OK"\nmanifesto_changes: []\ndomain_recommendations: ""\nproject_decisions:\n  - project_id: "P001"\n    action: "continue"\n    reason: "Still active"\nstimuli_actions: []\nhuman_redirect: null',
+          usage: { input: 100, output: 50 },
+        });
+
+      const { dispatchCuratorFull } = await import('../src/curator/index.js');
+      const result = await dispatchCuratorFull(makeConfig(), makeModels(), 10, StatsTracker.fresh());
+
+      expect(mockCallModel).toHaveBeenCalledTimes(2);
+      expect(result.project_decisions).toEqual([
+        { project_id: 'P001', action: 'continue', reason: 'Still active' },
+      ]);
+    });
+
+    it('retries when human redirects reference inactive projects', async () => {
+      mockGetActiveProjects.mockResolvedValueOnce([{ project_id: 'P001', name: 'Active Project' }]);
+      mockCallModel
+        .mockResolvedValueOnce({
+          text: 'retrospective: "OK"\ncompressed_journal: "OK"\nmanifesto_changes: []\ndomain_recommendations: ""\nproject_decisions: []\nstimuli_actions: []\nhuman_redirect:\n  proposal:\n    title: "Stale Redirect"\n    domain: prose\n    pitch: "Continue stale work"\n    complexity: S\n    why: "Human request"\n    project_id: "P999"\n    stimulus_ref: null\n    xl_mode: null\n    project: null',
+          usage: { input: 100, output: 50 },
+        })
+        .mockResolvedValueOnce({
+          text: 'retrospective: "OK"\ncompressed_journal: "OK"\nmanifesto_changes: []\ndomain_recommendations: ""\nproject_decisions: []\nstimuli_actions: []\nhuman_redirect:\n  proposal:\n    title: "Active Redirect"\n    domain: prose\n    pitch: "Continue active work"\n    complexity: S\n    why: "Human request"\n    project_id: "P001"\n    stimulus_ref: null\n    xl_mode: null\n    project: null',
+          usage: { input: 100, output: 50 },
+        });
+
+      const { dispatchCuratorFull } = await import('../src/curator/index.js');
+      const result = await dispatchCuratorFull(makeConfig(), makeModels(), 10, StatsTracker.fresh());
+
+      expect(mockCallModel).toHaveBeenCalledTimes(2);
+      expect(result.human_redirect?.proposal.project_id).toBe('P001');
+    });
+
+    it('retries when human redirects use domains outside the configured list', async () => {
+      mockCallModel
+        .mockResolvedValueOnce({
+          text: 'retrospective: "OK"\ncompressed_journal: "OK"\nmanifesto_changes: []\ndomain_recommendations: ""\nproject_decisions: []\nstimuli_actions: []\nhuman_redirect:\n  proposal:\n    title: "Wrong Domain"\n    domain: dance\n    pitch: "Build outside the configured list"\n    complexity: M\n    why: "Human request"\n    project_id: null\n    stimulus_ref: null',
+          usage: { input: 100, output: 50 },
+        })
+        .mockResolvedValueOnce({
+          text: 'retrospective: "OK"\ncompressed_journal: "OK"\nmanifesto_changes: []\ndomain_recommendations: ""\nproject_decisions: []\nstimuli_actions: []\nhuman_redirect:\n  proposal:\n    title: "Allowed Domain"\n    domain: prose\n    pitch: "Build inside the configured list"\n    complexity: M\n    why: "Human request"\n    project_id: null\n    stimulus_ref: null',
+          usage: { input: 100, output: 50 },
+        });
+
+      const { dispatchCuratorFull } = await import('../src/curator/index.js');
+      const result = await dispatchCuratorFull(makeConfig(), makeModels(), 10, StatsTracker.fresh());
+
+      expect(mockCallModel).toHaveBeenCalledTimes(2);
+      expect(result.human_redirect?.proposal.domain).toBe('prose');
+    });
+
+    it('retries when human redirect project starters exceed the configured project cap', async () => {
+      const config = makeConfig();
+      config.projects.max_iterations_per_project = 4;
+      mockCallModel
+        .mockResolvedValueOnce({
+          text: 'retrospective: "OK"\ncompressed_journal: "OK"\nmanifesto_changes: []\ndomain_recommendations: ""\nproject_decisions: []\nstimuli_actions: []\nhuman_redirect:\n  proposal:\n    title: "Too Long Project"\n    domain: prose\n    pitch: "Start a long project"\n    complexity: L\n    why: "Human request"\n    project_id: null\n    stimulus_ref: null\n    xl_mode: project\n    project:\n      name: "Too Long"\n      description: "Oversized project"\n      estimated_iterations: 99\n      structure:\n        - part_1: "Opening"',
+          usage: { input: 100, output: 50 },
+        })
+        .mockResolvedValueOnce({
+          text: 'retrospective: "OK"\ncompressed_journal: "OK"\nmanifesto_changes: []\ndomain_recommendations: ""\nproject_decisions: []\nstimuli_actions: []\nhuman_redirect:\n  proposal:\n    title: "Right Sized Project"\n    domain: prose\n    pitch: "Start a capped project"\n    complexity: L\n    why: "Human request"\n    project_id: null\n    stimulus_ref: null\n    xl_mode: project\n    project:\n      name: "Right Sized"\n      description: "Within cap"\n      estimated_iterations: 4\n      structure:\n        - part_1: "Opening"',
+          usage: { input: 100, output: 50 },
+        });
+
+      const { dispatchCuratorFull } = await import('../src/curator/index.js');
+      const result = await dispatchCuratorFull(config, makeModels(), 10, StatsTracker.fresh());
+
+      expect(mockCallModel).toHaveBeenCalledTimes(2);
+      expect(result.human_redirect?.proposal.project?.estimated_iterations).toBe(4);
+    });
+
+    it('retries when stimuli refresh actions target unknown sources', async () => {
+      mockLoadStimuliConfig.mockResolvedValueOnce({
+        mcp: { news: { server: 'tavily', max_items: 5, refresh_interval: 10 } },
+        stimuli_ttl: 24,
+        skills_per_context: 2,
+      });
+      mockCallModel
+        .mockResolvedValueOnce({
+          text: 'retrospective: "OK"\ncompressed_journal: "OK"\nmanifesto_changes: []\ndomain_recommendations: ""\nproject_decisions: []\nstimuli_actions:\n  - action: "refresh"\n    target: "unknown"\nhuman_redirect: null',
+          usage: { input: 100, output: 50 },
+        })
+        .mockResolvedValueOnce({
+          text: 'retrospective: "OK"\ncompressed_journal: "OK"\nmanifesto_changes: []\ndomain_recommendations: ""\nproject_decisions: []\nstimuli_actions:\n  - action: "refresh"\n    target: "news"\nhuman_redirect: null',
+          usage: { input: 100, output: 50 },
+        });
+
+      const { dispatchCuratorFull } = await import('../src/curator/index.js');
+      const result = await dispatchCuratorFull(makeConfig(), makeModels(), 10, StatsTracker.fresh());
+
+      expect(mockCallModel).toHaveBeenCalledTimes(2);
+      expect(result.stimuli_actions).toEqual([{ action: 'refresh', target: 'news' }]);
+    });
+
+    it('retries when commissioned skill actions omit content', async () => {
+      mockCallModel
+        .mockResolvedValueOnce({
+          text: 'retrospective: "OK"\ncompressed_journal: "OK"\nmanifesto_changes: []\ndomain_recommendations: ""\nproject_decisions: []\nstimuli_actions:\n  - action: "commission_skill"\n    target: "poetics"\nhuman_redirect: null',
+          usage: { input: 100, output: 50 },
+        })
+        .mockResolvedValueOnce({
+          text: 'retrospective: "OK"\ncompressed_journal: "OK"\nmanifesto_changes: []\ndomain_recommendations: ""\nproject_decisions: []\nstimuli_actions:\n  - action: "commission_skill"\n    target: "poetics"\n    content: "# Poetics\\n\\nSpecific techniques."\nhuman_redirect: null',
+          usage: { input: 100, output: 50 },
+        });
+
+      const { dispatchCuratorFull } = await import('../src/curator/index.js');
+      const result = await dispatchCuratorFull(makeConfig(), makeModels(), 10, StatsTracker.fresh());
+
+      expect(mockCallModel).toHaveBeenCalledTimes(2);
+      expect(result.stimuli_actions).toEqual([
+        { action: 'commission_skill', target: 'poetics', content: '# Poetics\n\nSpecific techniques.' },
+      ]);
     });
 
     it('throws after exhausting retries', async () => {
@@ -157,6 +407,24 @@ describe('curator', () => {
       expect(mockAppendJournal).toHaveBeenCalledWith(expect.stringContaining('RETROSPECTIVE'));
     });
 
+    it('skips blank retrospective entries', async () => {
+      const { applyCuratorCycle } = await import('../src/curator/index.js');
+      const response: CuratorFullResponse = {
+        retrospective: '   ',
+        compressed_journal: 'Compressed version',
+        manifesto_changes: [],
+        domain_recommendations: '',
+        project_decisions: [],
+        stimuli_actions: [],
+        human_redirect: null,
+      };
+
+      await applyCuratorCycle(response, 10);
+
+      expect(mockAppendJournal).not.toHaveBeenCalledWith(expect.stringContaining('RETROSPECTIVE'));
+      expect(mockAppendJournal).toHaveBeenCalledWith('[CURATOR] Full cycle complete at iteration 10');
+    });
+
     it('writes compressed journal file', async () => {
       const { applyCuratorCycle } = await import('../src/curator/index.js');
       const response: CuratorFullResponse = {
@@ -173,6 +441,26 @@ describe('curator', () => {
 
       const compressed = readFileSync(path.join(tempDir, 'identity', 'journal-compressed.md'), 'utf-8');
       expect(compressed).toBe('Compressed journal content');
+    });
+
+    it('does not overwrite compressed journal with blank content', async () => {
+      writeFileSync(path.join(tempDir, 'identity', 'journal-compressed.md'), 'Existing memory', 'utf-8');
+
+      const { applyCuratorCycle } = await import('../src/curator/index.js');
+      const response: CuratorFullResponse = {
+        retrospective: 'Retro',
+        compressed_journal: '   ',
+        manifesto_changes: [],
+        domain_recommendations: '',
+        project_decisions: [],
+        stimuli_actions: [],
+        human_redirect: null,
+      };
+
+      await applyCuratorCycle(response, 10);
+
+      const compressed = readFileSync(path.join(tempDir, 'identity', 'journal-compressed.md'), 'utf-8');
+      expect(compressed).toBe('Existing memory');
     });
 
     it('applies manifesto changes', async () => {
@@ -193,6 +481,27 @@ describe('curator', () => {
 
       const manifesto = readFileSync(path.join(tempDir, 'identity', 'manifesto.md'), 'utf-8');
       expect(manifesto).toContain('Integrity and curiosity');
+    });
+
+    it('skips manifesto changes with blank old text', async () => {
+      const { applyCuratorCycle } = await import('../src/curator/index.js');
+      const response: CuratorFullResponse = {
+        retrospective: 'Retro',
+        compressed_journal: 'Compressed',
+        manifesto_changes: [
+          { section: 'Values', old: '', new: 'Injected prefix', reason: 'Bad diff' },
+        ],
+        domain_recommendations: '',
+        project_decisions: [],
+        stimuli_actions: [],
+        human_redirect: null,
+      };
+
+      await applyCuratorCycle(response, 10);
+
+      const manifesto = readFileSync(path.join(tempDir, 'identity', 'manifesto.md'), 'utf-8');
+      expect(manifesto.startsWith('Injected prefix')).toBe(false);
+      expect(manifesto).toContain('Integrity');
     });
 
     it('writes domain recommendations file', async () => {
@@ -272,6 +581,44 @@ describe('curator', () => {
       await applyCuratorCycle(response, 10);
 
       expect(mockRefreshSource).toHaveBeenCalled();
+    });
+
+    it('updates stimuli refresh state after successful curator refresh action', async () => {
+      mockLoadStimuliConfig.mockResolvedValueOnce({
+        mcp: { news: { server: 'tavily', max_items: 5, refresh_interval: 10 } },
+        stimuli_ttl: 24,
+        skills_per_context: 2,
+      });
+
+      const states = new Map<string, StimuliRefreshState>([
+        ['news', {
+          source: 'news',
+          last_refresh_iteration: 12,
+          consecutive_failures: 2,
+          disabled: false,
+        }],
+      ]);
+
+      const { applyCuratorCycle } = await import('../src/curator/index.js');
+      const response: CuratorFullResponse = {
+        retrospective: 'Retro',
+        compressed_journal: 'Compressed',
+        manifesto_changes: [],
+        domain_recommendations: '',
+        project_decisions: [],
+        stimuli_actions: [{ action: 'refresh', target: 'news' }],
+        human_redirect: null,
+      };
+
+      await applyCuratorCycle(response, 42, states);
+
+      expect(mockRefreshSource).toHaveBeenCalled();
+      expect(states.get('news')).toEqual({
+        source: 'news',
+        last_refresh_iteration: 42,
+        consecutive_failures: 0,
+        disabled: false,
+      });
     });
 
     it('handles stimuli commission_skill action', async () => {
@@ -469,6 +816,45 @@ describe('curator', () => {
       errSpy.mockRestore();
     });
 
+    it('updates stimuli refresh state after failed curator refresh action', async () => {
+      mockLoadStimuliConfig.mockResolvedValueOnce({
+        mcp: { news: { server: 'tavily', max_items: 5, refresh_interval: 10 } },
+        stimuli_ttl: 24,
+        skills_per_context: 2,
+      });
+      mockRefreshSource.mockRejectedValueOnce(new Error('refresh failed'));
+      const states = new Map<string, StimuliRefreshState>([
+        ['news', {
+          source: 'news',
+          last_refresh_iteration: 12,
+          consecutive_failures: 2,
+          disabled: false,
+        }],
+      ]);
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const { applyCuratorCycle } = await import('../src/curator/index.js');
+      const response: CuratorFullResponse = {
+        retrospective: 'Retro',
+        compressed_journal: 'Compressed',
+        manifesto_changes: [],
+        domain_recommendations: '',
+        project_decisions: [],
+        stimuli_actions: [{ action: 'refresh', target: 'news' }],
+        human_redirect: null,
+      };
+
+      await applyCuratorCycle(response, 42, states);
+
+      expect(states.get('news')).toEqual({
+        source: 'news',
+        last_refresh_iteration: 12,
+        consecutive_failures: 3,
+        disabled: true,
+      });
+      errSpy.mockRestore();
+    });
+
     it('handles summary journal entry failure', async () => {
       // Make the last appendJournal call fail
       // appendJournal is called multiple times; we need the last one to fail
@@ -536,6 +922,31 @@ describe('curator', () => {
       // Should not throw
       await applyCuratorCycle(response, 10);
       expect(mockRefreshSource).not.toHaveBeenCalled();
+    });
+
+    it('does not create stimuli refresh state for unknown curator refresh source', async () => {
+      mockLoadStimuliConfig.mockResolvedValueOnce({
+        mcp: {},
+        stimuli_ttl: 24,
+        skills_per_context: 2,
+      });
+
+      const states = new Map<string, StimuliRefreshState>();
+      const { applyCuratorCycle } = await import('../src/curator/index.js');
+      const response: CuratorFullResponse = {
+        retrospective: 'Retro',
+        compressed_journal: 'Compressed',
+        manifesto_changes: [],
+        domain_recommendations: '',
+        project_decisions: [],
+        stimuli_actions: [{ action: 'refresh', target: 'nonexistent-source' }],
+        human_redirect: null,
+      };
+
+      await applyCuratorCycle(response, 10, states);
+
+      expect(mockRefreshSource).not.toHaveBeenCalled();
+      expect(states.has('nonexistent-source')).toBe(false);
     });
   });
 });

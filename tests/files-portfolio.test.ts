@@ -68,13 +68,13 @@ describe('writeArtifact', () => {
       { path: 'lib/util.py', content: 'def helper(): pass' },
     ];
     const ratings: CriticRatings = {
-      originality: 8,
-      specificity: 7,
-      craft: 9,
-      surprise: 6,
-      coherence: 8,
-      portfolio_fit: 7,
-      technical_quality: 8,
+      originality: 4,
+      specificity: 4,
+      craft: 5,
+      surprise: 4,
+      coherence: 4,
+      portfolio_fit: 4,
+      technical_quality: 4,
     };
     const dir = await writeArtifact({
       id: '0001',
@@ -121,7 +121,7 @@ describe('writeArtifact', () => {
       domain: 'poetry',
       files: [{ path: 'poem.md', content: 'roses' }],
       review: 'Beautiful',
-      ratings: { originality: 9, specificity: 8, craft: 9, surprise: 7, coherence: 8, portfolio_fit: 7 },
+      ratings: { originality: 4, specificity: 4, craft: 5, surprise: 4, coherence: 4, portfolio_fit: 4 },
       testerReport: '',
       proposal: 'Write a poem',
     });
@@ -135,7 +135,7 @@ describe('writeArtifact', () => {
       domain: 'essay',
       files: [{ path: 'essay.md', content: 'thoughts' }],
       review: 'Insightful',
-      ratings: { originality: 7, specificity: 7, craft: 7, surprise: 7, coherence: 7, portfolio_fit: 7 },
+      ratings: { originality: 4, specificity: 4, craft: 4, surprise: 4, coherence: 4, portfolio_fit: 4 },
       testerReport: '',
       proposal: 'Write essay',
     });
@@ -150,12 +150,63 @@ describe('writeArtifact', () => {
       domain: 'fiction',
       files: [{ path: 'story.md', content: 'once' }],
       review: 'ok',
-      ratings: { originality: 10, specificity: 10, craft: 10, surprise: 10, coherence: 10, portfolio_fit: 10 },
+      ratings: { originality: 4, specificity: 4, craft: 4, surprise: 4, coherence: 4, portfolio_fit: 4 },
       testerReport: '',
       proposal: 'p',
     });
     const readme = readFileSync(path.join(dir, 'README.md'), 'utf-8');
-    expect(readme).toContain('**Mean rating:** 10.0');
+    expect(readme).toContain('**Mean rating:** 4.0');
+  });
+
+  it('rejects shipped ratings outside the Critic Gate 2 range', async () => {
+    await expect(writeArtifact({
+      id: '0004',
+      title: 'Bad Rating',
+      domain: 'fiction',
+      files: [{ path: 'story.md', content: 'once' }],
+      review: 'ok',
+      ratings: { originality: 6, specificity: 4, craft: 4, surprise: 4, coherence: 4, portfolio_fit: 4 },
+      testerReport: '',
+      proposal: 'p',
+    })).rejects.toThrow(/rating/i);
+  });
+
+  it('rejects shipped ratings below the Critic Gate 2 ship threshold', async () => {
+    await expect(writeArtifact({
+      id: '0004',
+      title: 'Almost Rating',
+      domain: 'fiction',
+      files: [{ path: 'story.md', content: 'once' }],
+      review: 'ok',
+      ratings: { originality: 3, specificity: 3, craft: 3, surprise: 2, coherence: 3, portfolio_fit: 3 },
+      testerReport: '',
+      proposal: 'p',
+    })).rejects.toThrow(/ship threshold/i);
+  });
+
+  it('writes refinery lineage into the artifact README', async () => {
+    const dir = await writeArtifact({
+      id: '0006',
+      title: 'Clock Complaint Ledger Reforged [refined]',
+      domain: 'prose',
+      files: [{ path: 'README.md', content: '# Reforged' }],
+      review: 'Sharper on the second pass',
+      ratings: { originality: 4, specificity: 4, craft: 4, surprise: 4, coherence: 4, portfolio_fit: 4 },
+      testerReport: 'Complete',
+      proposal: 'Refine the clock dream',
+      refinery: {
+        source_type: 'dream',
+        source_id: '0007',
+        source_title: 'Clock Complaint Ledger',
+        refinement_type: 'resurrected',
+        original_rating: 3.1,
+      },
+    });
+    const readme = readFileSync(path.join(dir, 'README.md'), 'utf-8');
+    expect(readme).toContain('## Refinery Lineage');
+    expect(readme).toContain('Refined from dream #0007: Clock Complaint Ledger.');
+    expect(readme).toContain('Refinement type: resurrected.');
+    expect(readme).toContain('Original rating: 3.1.');
   });
 
   it('rejects artifact file paths that escape the artifact directory', async () => {
@@ -165,7 +216,7 @@ describe('writeArtifact', () => {
       domain: 'fiction',
       files: [{ path: '../../../escaped.txt', content: 'owned' }],
       review: 'bad',
-      ratings: { originality: 1, specificity: 1, craft: 1, surprise: 1, coherence: 1, portfolio_fit: 1 },
+      ratings: { originality: 4, specificity: 4, craft: 4, surprise: 4, coherence: 4, portfolio_fit: 4 },
       testerReport: '',
       proposal: 'p',
     })).rejects.toThrow(/path traversal/i);
@@ -216,6 +267,32 @@ describe('updatePortfolioIndex', () => {
     await updatePortfolioIndex('0002', 'Solo Art', 'fiction', '6.0');
     const content = readFileSync(path.join(tempDir, 'portfolio', 'index.md'), 'utf-8');
     expect(content).toContain('| — |');
+  });
+
+  it('adds a refined-from column when indexing a refined artifact', async () => {
+    const existing = [
+      '# Portfolio Index',
+      '',
+      '| ID | Title | Domain | Rating | Date | Project |',
+      '|---|---|---|---|---|---|',
+      '| 0001 | First | fiction | 6.0 | 2026-01-01 | — |',
+    ].join('\n');
+    writeFileSync(path.join(tempDir, 'portfolio', 'index.md'), existing);
+
+    await updatePortfolioIndex(
+      '0002',
+      'Second [refined]',
+      'poetry',
+      '8.0',
+      undefined,
+      { refined_from: '0001' },
+    );
+
+    const content = readFileSync(path.join(tempDir, 'portfolio', 'index.md'), 'utf-8');
+    expect(content).toContain('| ID | Title | Domain | Rating | Date | Project | Refined From |');
+    expect(content).toContain('| 0001 | First | fiction | 6.0 | 2026-01-01 | — | — |');
+    expect(content).toContain('| 0002 | Second [refined] | poetry | 8.0 |');
+    expect(content).toContain('| #0001 |');
   });
 });
 

@@ -70,9 +70,7 @@ export async function createProject(
     "utf-8",
   );
 
-  const allProjects = await getAllProjects();
-  allProjects.push(status);
-  await updateProjectsIndex(allProjects);
+  await updateProjectsIndex(await getAllProjects());
 
   return projectId;
 }
@@ -174,6 +172,7 @@ export async function updateProjectStatus(
     yaml.stringify(merged),
     "utf-8",
   );
+  await updateProjectsIndex(await getAllProjects());
 }
 
 export async function linkArtifactToProject(

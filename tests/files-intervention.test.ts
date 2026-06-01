@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setRootDir } from '../src/root.js';
-import { checkStopFile, readRequests, clearRequests } from '../src/files/intervention.js';
+import { checkStopFile, readRequests, clearRequests, writeRequests } from '../src/files/intervention.js';
 import type { FoundryConfig } from '../src/types/config.js';
 
 let tempDir: string;
@@ -84,6 +84,26 @@ describe('intervention', () => {
       await clearRequests(makeConfig());
       const result = await readRequests(makeConfig());
       expect(result).toBe('');
+    });
+  });
+
+  describe('writeRequests', () => {
+    it('writes trimmed request content with a trailing newline', async () => {
+      await writeRequests(makeConfig(), '  Build a clockwork atlas  ');
+
+      expect(readFileSync(path.join(tempDir, 'requests.md'), 'utf-8')).toBe('Build a clockwork atlas\n');
+      await expect(readRequests(makeConfig())).resolves.toBe('Build a clockwork atlas');
+    });
+
+    it('creates parent directories for custom request file paths', async () => {
+      await writeRequests(
+        makeConfig({ requests_file: 'ops/human/requests.md' }),
+        'Build a brass compass',
+      );
+
+      expect(existsSync(path.join(tempDir, 'ops', 'human'))).toBe(true);
+      await expect(readRequests(makeConfig({ requests_file: 'ops/human/requests.md' })))
+        .resolves.toBe('Build a brass compass');
     });
   });
 });

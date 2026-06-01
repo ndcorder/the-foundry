@@ -76,6 +76,46 @@ describe('logger', () => {
     });
   });
 
+  describe('logStoker', () => {
+    it('writes to stoker.jsonl', async () => {
+      const { logStoker } = await import('../src/logging/logger.js');
+      await logStoker({ for_iteration: 8, urgency: 'high', rules_fired: ['running_cold'] });
+      const entries = readJsonl('stoker.jsonl');
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ for_iteration: 8, urgency: 'high' });
+    });
+  });
+
+  describe('logStimuli', () => {
+    it('writes to stimuli.jsonl', async () => {
+      const { logStimuli } = await import('../src/logging/logger.js');
+      await logStimuli({ action: 'refresh', source: 'news', status: 'refreshed' });
+      const entries = readJsonl('stimuli.jsonl');
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ action: 'refresh', source: 'news', status: 'refreshed' });
+    });
+  });
+
+  describe('logSpark', () => {
+    it('writes to spark.jsonl', async () => {
+      const { logSpark } = await import('../src/logging/logger.js');
+      await logSpark({ mode: 'set', domain: 'poetry', title: 'Poetry for a False Map' });
+      const entries = readJsonl('spark.jsonl');
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ mode: 'set', domain: 'poetry', title: 'Poetry for a False Map' });
+    });
+  });
+
+  describe('logRequest', () => {
+    it('writes to requests.jsonl', async () => {
+      const { logRequest } = await import('../src/logging/logger.js');
+      await logRequest({ action: 'set', request_file: 'requests.md', request_length: 24 });
+      const entries = readJsonl('requests.jsonl');
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ action: 'set', request_file: 'requests.md', request_length: 24 });
+    });
+  });
+
   describe('log rotation', () => {
     it('rotates file when size exceeds threshold', async () => {
       const { logDecision } = await import('../src/logging/logger.js');
@@ -113,6 +153,108 @@ describe('logger', () => {
       );
       expect(archived).toHaveLength(0);
     });
+
+    it('keeps both archives when two rotations happen in the same millisecond', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+
+      const { logDecision } = await import('../src/logging/logger.js');
+      const { mkdirSync } = await import('node:fs');
+      mkdirSync(path.join(tempDir, 'logs'), { recursive: true });
+      const decisionsFile = path.join(tempDir, 'logs', 'decisions.jsonl');
+
+      writeFileSync(decisionsFile, 'first\n' + 'x'.repeat(51 * 1024 * 1024), 'utf-8');
+      await logDecision({ rotation_test: 1 });
+
+      writeFileSync(decisionsFile, 'second\n' + 'x'.repeat(51 * 1024 * 1024), 'utf-8');
+      await logDecision({ rotation_test: 2 });
+
+      const archived = readdirSync(path.join(tempDir, 'logs')).filter(
+        (f) => f.startsWith('decisions.2026-01-01T00-00-00-000Z') && f !== 'decisions.jsonl',
+      );
+      expect(archived).toHaveLength(2);
+      expect(archived.some((file) => readFileSync(path.join(tempDir, 'logs', file), 'utf-8').startsWith('first'))).toBe(true);
+      expect(archived.some((file) => readFileSync(path.join(tempDir, 'logs', file), 'utf-8').startsWith('second'))).toBe(true);
+    });
+  });
+
+  describe('readJsonlLogHealth', () => {
+    it('summarizes active logs and rotated archives', async () => {
+      const { readJsonlLogHealth } = await import('../src/logging/logger.js');
+      const { mkdirSync } = await import('node:fs');
+      mkdirSync(path.join(tempDir, 'logs'), { recursive: true });
+      writeFileSync(path.join(tempDir, 'logs', 'iterations.jsonl'), '{"iteration":1}\n', 'utf-8');
+      writeFileSync(path.join(tempDir, 'logs', 'events.jsonl'), '{"event":"x"}\n{"event":"y"}\n', 'utf-8');
+      const archiveEntry = '{"event":"old"}\n';
+      writeFileSync(path.join(tempDir, 'logs', 'events.2026-01-01T00-00-00-000Z.jsonl'), archiveEntry, 'utf-8');
+
+      const health = await readJsonlLogHealth();
+
+      expect(health.activeFiles).toBe(2);
+      expect(health.archiveCount).toBe(1);
+      expect(health.totalActiveBytes).toBeGreaterThan(0);
+      expect(health.totalArchiveBytes).toBe(Buffer.byteLength(archiveEntry));
+      expect(health.totalLogBytes).toBe(health.totalActiveBytes + health.totalArchiveBytes);
+      expect(health.largestActive?.name).toBe('events.jsonl');
+      expect(health.largestArchive).toEqual({
+        name: 'events.2026-01-01T00-00-00-000Z.jsonl',
+        bytes: Buffer.byteLength(archiveEntry),
+      });
+      expect(health.rotationThresholdBytes).toBe(50 * 1024 * 1024);
+      expect(health.largestActivePercent).toBe(0);
+      expect(health.rotationPressure).toBe('clear');
+      expect(health.healthState).toBe('healthy');
+      expect(health.malformedActiveLines).toBe(0);
+      expect(health.malformedActiveFiles).toEqual([]);
+      expect(health.malformedActiveFileDetails).toEqual([]);
+      expect(health.recommendedActions).toEqual([]);
+      expect(health.largestActiveBytesRemaining).toBe(
+        health.rotationThresholdBytes - (health.largestActive?.bytes ?? 0),
+      );
+    });
+
+    it('reports malformed lines in active JSONL logs', async () => {
+      const { readJsonlLogHealth } = await import('../src/logging/logger.js');
+      const { mkdirSync } = await import('node:fs');
+      mkdirSync(path.join(tempDir, 'logs'), { recursive: true });
+      writeFileSync(path.join(tempDir, 'logs', 'events.jsonl'), '{"ok":true}\nnot json\n{"ok":false}\n{broken\n', 'utf-8');
+      writeFileSync(path.join(tempDir, 'logs', 'iterations.jsonl'), '{"iteration":1}\n', 'utf-8');
+
+      const health = await readJsonlLogHealth();
+
+      expect(health.malformedActiveLines).toBe(2);
+      expect(health.malformedActiveFiles).toEqual(['events.jsonl']);
+      expect(health.malformedActiveFileDetails).toEqual([
+        { name: 'events.jsonl', malformedLines: 2, firstMalformedLine: 2 },
+      ]);
+      expect(health.healthState).toBe('malformed');
+      expect(health.recommendedActions).toEqual([
+        'Repair or rotate malformed active JSONL logs before trusting monitor summaries.',
+        'Inspect events.jsonl at line 2.',
+      ]);
+    });
+
+    it('reports rotation pressure when the largest active log is near the threshold', async () => {
+      const { readJsonlLogHealth } = await import('../src/logging/logger.js');
+      const { mkdirSync } = await import('node:fs');
+      mkdirSync(path.join(tempDir, 'logs'), { recursive: true });
+      writeFileSync(
+        path.join(tempDir, 'logs', 'events.jsonl'),
+        `${JSON.stringify({ payload: 'x'.repeat(51 * 1024 * 1024) })}\n`,
+        'utf-8',
+      );
+
+      const health = await readJsonlLogHealth();
+
+      expect(health.largestActivePercent).toBe(100);
+      expect(health.largestActiveBytesRemaining).toBe(0);
+      expect(health.rotationPressure).toBe('rotate-soon');
+      expect(health.healthState).toBe('rotate-soon');
+      expect(health.malformedActiveFileDetails).toEqual([]);
+      expect(health.recommendedActions).toEqual([
+        'Rotate or archive active logs before the next long unattended run.',
+      ]);
+    });
   });
 
   describe('resetLoggerState', () => {
@@ -147,6 +289,24 @@ describe('logger', () => {
       const { logIteration } = await import('../src/logging/logger.js');
       await logIteration({ init: true });
       expect(existsSync(path.join(tempDir, 'logs'))).toBe(true);
+    });
+
+    it('re-ensures the logs directory after the project root changes', async () => {
+      const { logIteration } = await import('../src/logging/logger.js');
+      await logIteration({ root: 'first' });
+
+      const nextRoot = mkdtempSync(path.join(tmpdir(), 'foundry-test-next-'));
+      try {
+        const { setRootDir } = await import('../src/root.js');
+        setRootDir(nextRoot);
+
+        await logIteration({ root: 'second' });
+
+        const entries = readFileSync(path.join(nextRoot, 'logs', 'iterations.jsonl'), 'utf-8');
+        expect(entries).toContain('"root":"second"');
+      } finally {
+        rmSync(nextRoot, { recursive: true, force: true });
+      }
     });
   });
 });

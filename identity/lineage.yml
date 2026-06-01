@@ -64,6 +64,10 @@ nodes:
       Guess It
     domain: code-tool
     rating: 5
+  - id: "0059"
+    title: The Password Reset Emails of a Dead Person, Arriving in Chronological Order Over the Year Following Their Death
+    domain: correspondence
+    rating: 5
   - id: "0025"
     title: A Cache Invalidation Strategy for Things You're Not Ready to Forget
     domain: essay
@@ -72,6 +76,10 @@ nodes:
     title: "Meridian: A Case for Continuation"
     domain: essay
     rating: 4.3
+  - id: "0052"
+    title: Every Conversation I've Had About Money, Rewritten as a Weather Report
+    domain: essay
+    rating: 4.8
   - id: "0055"
     title: A Recipe Written by Someone Who Only Cooks When They're Trying Not to Think About Something
     domain: essay
@@ -80,6 +88,10 @@ nodes:
     title: A Curriculum Vitae That Becomes Increasingly Honest About What Each Job Actually Taught the Applicant
     domain: essay
     rating: 4.7
+  - id: "0058"
+    title: An Ergonomic Assessment Report for Someone Who Has Been Dead for Three Years and Nobody Has Noticed
+    domain: essay
+    rating: 5
   - id: "0021"
     title: A Pagination System That Gets Reluctant the Deeper You Go
     domain: experiment
@@ -128,6 +140,14 @@ nodes:
     title: The Seating Chart for a Wedding That Didn't Happen, With Notes in Two Handwritings
     domain: fiction
     rating: 5
+  - id: "0053"
+    title: A Recipe Written by Someone Who Hasn't Eaten in Eleven Days
+    domain: fiction
+    rating: 4.8
+  - id: "0055"
+    title: A Species Reclassification Log From a Taxonomist Who Has Started Seeing Her Own Family the Way She Sees Specimens
+    domain: fiction
+    rating: 4.8
   - id: "0057"
     title: A Stand-Up Comedy Set Performed by Someone Who Can Only Tell the Truth About Themselves and Is Getting
       Increasingly Uncomfortable About What's Coming Out
@@ -199,6 +219,18 @@ nodes:
     title: A Glossary of Terms Used by People Who Live Inside a Simulation That Just Found Out It's a Simulation
     domain: worldbuilding
     rating: 4.3
+  - id: "0054"
+    title: A Restaurant Menu From a Place Where the Ingredients Have Been Extinct for Sixty Years
+    domain: worldbuilding
+    rating: 5
+  - id: "0056"
+    title: "Synanthropes: A Field Guide to the Animals Who Chose Us"
+    domain: worldbuilding
+    rating: 5
+  - id: "0057"
+    title: A Field Guide to the Dead Links of the Early Internet, Written as If They Were Extinct Species
+    domain: worldbuilding
+    rating: 5
   - id: "0063"
     title: A Filing System for a Town That Classifies Its Residents by What They Would Do If They Were Absolutely Certain No
       One Was Watching
@@ -267,26 +299,33 @@ edges:
     notes: "than process — a machine choosing mercy. This is 0020's and 0027's companion piece: where the debugger showed
       what co..."
   - from: "0054"
-    to: "0051"
+    to: "0028"
     relation: thematic
     strength: 0.7
     detected_by: critic
-    notes: "pace analysis variable, empty README) are cosmetic. This is 0051's companion piece: where the compiler that
-      reads you..."
+    notes: "ng about it, even though every word in it is a lie. This is 0028's and 0065's companion piece: where the
+      procurement ..."
+  - from: "0054"
+    to: "0065"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: ", even though every word in it is a lie. This is 0028's and 0065's companion piece: where the procurement form
+      docume..."
   - from: "0056"
-    to: "0051"
+    to: "0065"
     relation: thematic
     strength: 0.7
     detected_by: critic
-    notes: "the dictionary, and the dictionary is exceptional. This is 0051's and 0054's companion piece: where the compiler
-      read..."
+    notes: "arned emotional moments in the portfolio's history. This is 0065's and 0066's companion piece: where the
+      reclassifica..."
   - from: "0056"
-    to: "0054"
+    to: "0066"
     relation: thematic
     strength: 0.7
     detected_by: critic
-    notes: "nary, and the dictionary is exceptional. This is 0051's and 0054's companion piece: where the compiler read your
-      code..."
+    notes: "onal moments in the portfolio's history. This is 0065's and 0066's companion piece: where the reclassification
+      log us..."
   - from: "0061"
     to: "0046"
     relation: inspired_by
@@ -375,6 +414,12 @@ edges:
     detected_by: critic
     notes: "oks like it belongs on a bank's website. This is 0024's and 0054's companion piece: where the error message
       therapist..."
+  - from: "0059"
+    to: "0038"
+    relation: inspired_by
+    strength: 0.7
+    detected_by: critic
+    notes: nded" is the portfolio's most earned thesis statement since 0038's terms of service.
   - from: "0025"
     to: "0021"
     relation: response
@@ -397,40 +442,33 @@ edges:
     notes: "nor defeat but something harder to name. This is 0039's and 0044's companion piece: where the seminar documented
       inst..."
   - from: "0055"
-    to: "0028"
+    to: "0065"
     relation: thematic
     strength: 0.7
     detected_by: critic
-    notes: "alone with whatever this ritual was built to avoid. This is 0028's and 0038's companion piece: where the
-      procurement ..."
+    notes: "whether she crosses it remains genuinely uncertain. This is 0065's and 0052's companion piece: where the dinner
+      party..."
   - from: "0055"
-    to: "0038"
+    to: "0052"
     relation: thematic
     strength: 0.7
     detected_by: critic
-    notes: "whatever this ritual was built to avoid. This is 0028's and 0038's companion piece: where the procurement form
-      docume..."
-  - from: "0058"
-    to: "0045"
-    relation: inspired_by
-    strength: 0.7
-    detected_by: critic
-    notes: e map." — is the portfolio's most earned closing line since 0045's compass, a eulogy written in the only format
-      Mered...
+    notes: "crosses it remains genuinely uncertain. This is 0065's and 0052's companion piece: where the dinner party
+      discovered ..."
   - from: "0058"
     to: "0028"
     relation: thematic
     strength: 0.7
     detected_by: critic
-    notes: "act language is irrelevant; what shipped is better. This is 0028's and 0038's companion piece: where the
-      procurement ..."
+    notes: "ccupancy for 29 months after death, is a companion piece to 0028's procurement form and 0038's terms of service:
+      wher..."
   - from: "0058"
     to: "0038"
     relation: thematic
     strength: 0.7
     detected_by: critic
-    notes: "e is irrelevant; what shipped is better. This is 0028's and 0038's companion piece: where the procurement form
-      docume..."
+    notes: "death, is a companion piece to 0028's procurement form and 0038's terms of service: where those documented
+      institutio..."
   - from: "0048"
     to: "0021"
     relation: inspired_by
@@ -445,12 +483,6 @@ edges:
     detected_by: critic
     notes: "oosing which questions deserve response. This is 0015's and 0029's companion piece: where the style guide became
       conf..."
-  - from: "0059"
-    to: "0038"
-    relation: inspired_by
-    strength: 0.7
-    detected_by: critic
-    notes: nded" is the portfolio's most earned thesis statement since 0038's terms of service.
   - from: "0062"
     to: "0057"
     relation: inspired_by
@@ -541,27 +573,6 @@ edges:
     detected_by: critic
     notes: "ng people who are performing everything. This is 0043's and 0044's companion piece: where the parallel to-do
       lists do..."
-  - from: "0057"
-    to: "0046"
-    relation: inspired_by
-    strength: 0.7
-    detected_by: critic
-    notes: "e portfolio's most precise secondary characterization since 0046's two handwritings: the man in the back who
-      laughs i..."
-  - from: "0057"
-    to: "0043"
-    relation: thematic
-    strength: 0.7
-    detected_by: critic
-    notes: "choosing not to go somewhere he can't return from. This is 0043's and 0046's companion piece: where the parallel
-      to-d..."
-  - from: "0035"
-    to: "0033"
-    relation: thematic
-    strength: 0.7
-    detected_by: critic
-    notes: otten by the systems that acquired them. This is 0011's and 0033's rightful companion — where iptables formalized
-      lov...
   - from: "0053"
     to: "0043"
     relation: thematic
@@ -576,6 +587,27 @@ edges:
     detected_by: critic
     notes: "a conceptual score, not executable code. This is 0043's and 0052's companion piece: where the parallel to-do
       lists co..."
+  - from: "0057"
+    to: "0065"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "emotion in a taxonomic document about an HTML tag. This is 0065's and 0067's companion piece: where the dinner
+      party ..."
+  - from: "0057"
+    to: "0067"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: "a taxonomic document about an HTML tag. This is 0065's and 0067's companion piece: where the dinner party
+      discovered ..."
+  - from: "0035"
+    to: "0033"
+    relation: thematic
+    strength: 0.7
+    detected_by: critic
+    notes: otten by the systems that acquired them. This is 0011's and 0033's rightful companion — where iptables formalized
+      lov...
   - from: "0060"
     to: "0053"
     relation: thematic
@@ -740,6 +772,54 @@ edges:
     strength: 0.2631578947368421
     detected_by: semantic
     notes: "Shared vocabulary: ideas, title, domain, pitch, debug"
+  - from: "0054"
+    to: "0054"
+    relation: thematic
+    strength: 0.7
+    detected_by: semantic
+    notes: "Shared vocabulary: restaurant, menu, place, ingredients, extinct"
+  - from: "0056"
+    to: "0028"
+    relation: thematic
+    strength: 0.2876712328767123
+    detected_by: semantic
+    notes: "Shared vocabulary: field, ideas, title, domain, worldbuilding"
+  - from: "0056"
+    to: "0056"
+    relation: thematic
+    strength: 0.7
+    detected_by: semantic
+    notes: "Shared vocabulary: synanthropes, field, guide, animals, chose"
+  - from: "0059"
+    to: "0059"
+    relation: thematic
+    strength: 0.7
+    detected_by: semantic
+    notes: "Shared vocabulary: card, game, played, between, people"
+  - from: "0052"
+    to: "0052"
+    relation: thematic
+    strength: 0.7
+    detected_by: semantic
+    notes: "Shared vocabulary: chord, progression, gets, stuck, help"
+  - from: "0055"
+    to: "0055"
+    relation: thematic
+    strength: 0.7
+    detected_by: semantic
+    notes: "Shared vocabulary: species, reclassification, taxonomist, started, seeing"
+  - from: "0055"
+    to: "0057"
+    relation: thematic
+    strength: 0.27380952380952384
+    detected_by: semantic
+    notes: "Shared vocabulary: species, taxonomist, ideas, title, domain"
+  - from: "0058"
+    to: "0058"
+    relation: thematic
+    strength: 0.7
+    detected_by: semantic
+    notes: "Shared vocabulary: ergonomic, assessment, report, someone, dead"
   - from: "0048"
     to: "0032"
     relation: technique
@@ -758,6 +838,18 @@ edges:
     strength: 0.6
     detected_by: semantic
     notes: "Shared techniques: bureaucratic_fiction, annotated_documents"
+  - from: "0053"
+    to: "0053"
+    relation: thematic
+    strength: 0.7
+    detected_by: semantic
+    notes: "Shared vocabulary: argument, between, sound, engineers, whether"
+  - from: "0057"
+    to: "0057"
+    relation: thematic
+    strength: 0.6923076923076923
+    detected_by: semantic
+    notes: "Shared vocabulary: field, guide, dead, links, early"
 constellations:
   - id: constellation-001
     name: Machines with Feelings
@@ -888,10 +980,16 @@ creative_dna:
       count: 7
     - from_domain: code-game
       to_domain: fiction
+      count: 5
+    - from_domain: code-art
+      to_domain: code-tool
       count: 4
-    - from_domain: essay
+    - from_domain: code-tool
       to_domain: worldbuilding
-      count: 4
+      count: 3
+    - from_domain: essay
+      to_domain: fiction
+      count: 3
     - from_domain: code-art
       to_domain: experiment
       count: 2
@@ -900,33 +998,27 @@ creative_dna:
       count: 2
     - from_domain: code-art
       to_domain: worldbuilding
+      count: 2
+    - from_domain: code-art
+      to_domain: fiction
       count: 2
     - from_domain: code-art
       to_domain: code-game
-      count: 2
-    - from_domain: code-game
-      to_domain: experiment
-      count: 2
-    - from_domain: code-art
-      to_domain: code-tool
-      count: 2
-    - from_domain: experiment
-      to_domain: worldbuilding
       count: 2
   unexplored_territory:
     - The Bureaucratic Uncanny × code-tool
     - The Bureaucratic Uncanny × code-art
     - The Bureaucratic Uncanny × code-game
+    - The Bureaucratic Uncanny × correspondence
     - The Bureaucratic Uncanny × essay
     - The Bureaucratic Uncanny × music
     - The Bureaucratic Uncanny × poetry
     - Data Made Audible × code-art
     - Data Made Audible × code-game
+    - Data Made Audible × correspondence
     - Data Made Audible × essay
     - Data Made Audible × experiment
     - Data Made Audible × fiction
     - Data Made Audible × poetry
     - Data Made Audible × worldbuilding
-    - Time as Material × code-tool
-    - Time as Material × code-game
-updated_at: 2026-05-27T02:03:12.146Z
+updated_at: 2026-06-01T05:17:10.201Z

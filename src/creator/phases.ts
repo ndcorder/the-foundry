@@ -18,6 +18,8 @@ import { loadCreatorPhasePrompt, injectVars } from "../agents/prompt.js";
 import { buildSharedContext } from "../context/index.js";
 import { safeRead } from "../context/data.js";
 import { resolve } from "../root.js";
+import { formatStreakContext, loadStreakHistory } from "../streaks/index.js";
+import { getProjectContext } from "../files/projects.js";
 
 export type { CreatorPlan };
 
@@ -80,6 +82,12 @@ function extractQualityStandards(manifesto: string): string {
   return extracted.length > 0 ? extracted.join("\n") : manifesto;
 }
 
+async function loadProjectContextForProposal(proposal: IdeatorProposal): Promise<string> {
+  if (!proposal.project_id) return "*No project context (standalone artifact).*";
+  const projectContext = await getProjectContext(proposal.project_id);
+  return projectContext.trim() || `*Project context unavailable for ${proposal.project_id}; treat as a standalone artifact.*`;
+}
+
 // ── Plan ──────────────────────────────────────────────────────
 
 export async function dispatchPlan(
@@ -91,19 +99,27 @@ export async function dispatchPlan(
   const shared = await buildSharedContext(ctx.config);
   const manifesto = await safeRead(resolve("identity", "manifesto.md"));
   const template = await loadCreatorPhasePrompt("plan");
+  const streakContext = formatStreakContext(
+    await loadStreakHistory(),
+    "creator",
+    ctx.config.streaks,
+  );
+  const projectContext = await loadProjectContextForProposal(proposal);
 
   const proposalText = [
     `**${proposal.title}** [${proposal.domain}, ${proposal.complexity}]`,
     "", proposal.pitch, "", `Why: ${proposal.why}`,
   ].join("\n");
 
-  const prompt = injectVars(template, {
+  const basePrompt = injectVars(template, {
     shared_context: shared,
     approved_proposal: proposalText,
     critic_sharpening_notes: criticNotes || "*No sharpening notes.*",
-    project_context: "*No project context (standalone artifact).*",
+    project_context: projectContext,
     manifesto_quality_standards: extractQualityStandards(manifesto),
+    streak_context: streakContext,
   });
+  const prompt = streakContext ? `${basePrompt}\n\n${streakContext}` : basePrompt;
 
   const result = await callPhase<CreatorPlanResponse>(
     ctx, prompt, "creator-plan", maxTokens, validateCreatorPlan, "creator-plan",

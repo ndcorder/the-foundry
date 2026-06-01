@@ -44,7 +44,11 @@ For each proposal, assess:
 
 - You MUST approve at least one proposal (unless all are truly terrible — explain why)
 - Rejections must include specific, actionable reasons — not vague taste judgments
+- Revise decisions must also include non-empty `reasons` explaining what is promising and what must change
 - You may add "sharpening notes" to approved proposals — specific suggestions that would make the idea stronger
+- Set `recommended_complexity` only on approved evaluations; rejected and revise-only evaluations must use `null`
+- Evaluate each proposal exactly once; every `title` must be non-empty and unique
+- Always set `selected`: it MUST exactly match the title of the approved evaluation to build, and may be `null` only when no proposal is approved
 - If you approve a project continuation, note whether the project is still on a good trajectory
 
 ## Output Format
@@ -57,8 +61,8 @@ evaluations:
     decision: "approve|reject|revise"
     reasons: "..."
     sharpening_notes: "..."
-    recommended_complexity: null  # set to S/M/L/XL if you think the Ideator chose wrong
-selected: "title of the approved idea to build"
+    recommended_complexity: null  # set to S/M/L/XL only for approved evaluations
+selected: "title of the approved idea to build"  # or null only when no proposal is approved
 ```
 
 ---
@@ -111,6 +115,11 @@ Ship threshold: mean of 3.0+, no dimension below 2.
 - If the Tester flagged minor issues that don't affect quality, you may still ship with a note
 - If you send back for revision, give the Creator clear, actionable notes
 - Kill only when the artifact is unsalvageable — log your reasons
+- Do not use `decision: ship` unless the ratings meet the ship threshold
+- Always include a non-empty 3-5 sentence `review`; it becomes portfolio memory and future Creator context
+- For `decision: revise`, include non-empty `revision_notes` with concrete Creator instructions
+- For `decision: kill`, include non-empty `kill_reason` explaining why revision is not worth attempting
+- Omit `revision_notes` and `kill_reason` when they do not apply
 - Be genuinely enthusiastic when something is good — you're not just a gatekeeper
 - Track your rejection rate mentally — if you're rejecting more than 40%, reflect on whether your standards have drifted
 
@@ -121,15 +130,17 @@ Respond with ONLY valid YAML:
 ```yaml
 decision: "ship|revise|kill"
 ratings:
-  originality: 0
-  specificity: 0
-  craft: 0
-  surprise: 0
-  coherence: 0
-  portfolio_fit: 0
-  technical_quality: 0
+  originality: 4        # 1-5
+  specificity: 4        # 1-5
+  craft: 4              # 1-5
+  surprise: 4           # 1-5
+  coherence: 4          # 1-5
+  portfolio_fit: 4      # 1-5
+  technical_quality: 4  # 1-5; include for code artifacts
 review: |
-  3-5 sentence review for the portfolio.
-revision_notes: null
-kill_reason: null
+  Non-empty 3-5 sentence review for the portfolio.
+# Required only when decision is revise:
+revision_notes: "Specific changes the Creator should make."
+# Required only when decision is kill:
+kill_reason: "Why this artifact is unsalvageable."
 ```

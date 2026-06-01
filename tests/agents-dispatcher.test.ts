@@ -17,6 +17,36 @@ vi.mock('../src/logging/index.js', () => ({
   logDecision: mockLogDecision,
 }));
 
+const mockLoadStreakHistory = vi.fn().mockResolvedValue({});
+const mockFormatStreakContext = vi.fn().mockReturnValue('');
+vi.mock('../src/streaks/index.js', () => ({
+  loadStreakHistory: mockLoadStreakHistory,
+  formatStreakContext: mockFormatStreakContext,
+}));
+
+const mockLoadComplexityBias = vi.fn().mockResolvedValue({});
+const mockFormatComplexityBias = vi.fn().mockReturnValue('');
+vi.mock('../src/complexity/index.js', () => ({
+  loadComplexityBias: mockLoadComplexityBias,
+  formatComplexityBias: mockFormatComplexityBias,
+}));
+
+const mockLoadStokerDirective = vi.fn().mockResolvedValue(null);
+const mockFormatStokerDirective = vi.fn().mockReturnValue('');
+vi.mock('../src/stoker/index.js', () => ({
+  loadStokerDirective: (...args: any[]) => mockLoadStokerDirective(...args),
+  formatStokerDirective: (...args: any[]) => mockFormatStokerDirective(...args),
+}));
+
+const mockLoadSpeculativeIdeas = vi.fn().mockResolvedValue([]);
+const mockFormatSpeculativeIdeas = vi.fn().mockReturnValue('');
+const mockFilterCurrentSpeculativeIdeas = vi.fn();
+vi.mock('../src/speculative/index.js', () => ({
+  loadSpeculativeIdeas: (...args: any[]) => mockLoadSpeculativeIdeas(...args),
+  filterCurrentSpeculativeIdeas: (...args: any[]) => mockFilterCurrentSpeculativeIdeas(...args),
+  formatSpeculativeIdeas: (...args: any[]) => mockFormatSpeculativeIdeas(...args),
+}));
+
 const mockBuildSharedContext = vi.fn().mockResolvedValue('shared context');
 const mockLoadDomainsConfig = vi.fn().mockResolvedValue({ domains: [{ name: 'code-tool' }, { name: 'prose' }] });
 const mockReadDecisions = vi.fn().mockResolvedValue([{ gate: 'gate2', decision: 'ship', proposal_title: 'Old', review: 'Good' }]);
@@ -32,6 +62,7 @@ const mockFormatComplexityDistribution = vi.fn().mockReturnValue("S: 5 (56%)  M:
 const mockReadLineageContext = vi.fn().mockResolvedValue('lineage content');
 const mockReadMoodContext = vi.fn().mockResolvedValue('mood content');
 const mockReadDreamsContext = vi.fn().mockResolvedValue('dream content');
+const mockReadJsonlEntries = vi.fn().mockResolvedValue([]);
 
 vi.mock('../src/context/index.js', () => ({
   buildSharedContext: mockBuildSharedContext,
@@ -49,6 +80,14 @@ vi.mock('../src/context/index.js', () => ({
   readLineageContext: mockReadLineageContext,
   readMoodContext: mockReadMoodContext,
   readDreamsContext: mockReadDreamsContext,
+  readJsonlEntries: mockReadJsonlEntries,
+}));
+
+const mockGetProjectContext = vi.fn().mockResolvedValue('');
+const mockGetActiveProjects = vi.fn().mockResolvedValue([]);
+vi.mock('../src/files/projects.js', () => ({
+  getProjectContext: (...args: any[]) => mockGetProjectContext(...args),
+  getActiveProjects: (...args: any[]) => mockGetActiveProjects(...args),
 }));
 
 // ── Fixtures ─────────────────────────────────────────────────────
@@ -58,6 +97,11 @@ beforeEach(() => {
   tempDir = mkdtempSync(path.join(tmpdir(), 'foundry-disp-'));
   setRootDir(tempDir);
   vi.clearAllMocks();
+  mockCallModel.mockReset();
+  mockGetProjectContext.mockReset();
+  mockGetProjectContext.mockResolvedValue('');
+  mockGetActiveProjects.mockReset();
+  mockGetActiveProjects.mockResolvedValue([]);
 
   // Create prompts directory with test prompts
   const promptsDir = path.join(tempDir, 'prompts');
@@ -71,6 +115,11 @@ beforeEach(() => {
   // Create identity dir for manifesto
   mkdirSync(path.join(tempDir, 'identity'), { recursive: true });
   writeFileSync(path.join(tempDir, 'identity', 'manifesto.md'), '## What We Value\n\nQuality\n\n## What We Avoid\n\nJunk\n\n## Our Aesthetic\n\nMinimal', 'utf-8');
+
+  mockFilterCurrentSpeculativeIdeas.mockImplementation((ideas, targetIteration) => {
+    if (targetIteration == null) return ideas;
+    return ideas.filter((idea: any) => idea.iteration === targetIteration - 1);
+  });
 });
 afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
 
@@ -96,16 +145,60 @@ const makeModels = (): ModelsConfig => ({
   },
 });
 
+type IdeaYamlInput = {
+  title: string;
+  domain?: string;
+  pitch?: string;
+  complexity?: string;
+  why?: string;
+  project_id?: string | null;
+  xl_mode?: string;
+  project?: string;
+};
+
+function ideaYamlEntry(idea: IdeaYamlInput): string {
+  const projectId = idea.project_id === undefined || idea.project_id === null
+    ? 'null'
+    : `"${idea.project_id}"`;
+  return [
+    `  - title: "${idea.title}"`,
+    `    domain: ${idea.domain ?? 'prose'}`,
+    `    pitch: "${idea.pitch ?? 'A test'}"`,
+    `    complexity: ${idea.complexity ?? 'M'}`,
+    `    why: "${idea.why ?? 'Because'}"`,
+    `    project_id: ${projectId}`,
+    '    stimulus_ref: null',
+    `    xl_mode: ${idea.xl_mode ?? (idea.complexity === 'XL' ? 'single' : 'null')}`,
+    `    project: ${idea.project ?? 'null'}`,
+  ].join('\n');
+}
+
+function ideatorYaml(primary: IdeaYamlInput, extras: IdeaYamlInput[] = []): string {
+  const fillers: IdeaYamlInput[] = [
+    { title: 'Fixture Idea Two', domain: 'prose', pitch: 'A second fixture proposal.', complexity: 'M', why: 'Keeps the slate full.' },
+    { title: 'Fixture Idea Three', domain: 'code-tool', pitch: 'A third fixture proposal.', complexity: 'L', why: 'Keeps the slate varied.' },
+    { title: 'Fixture Idea Four', domain: 'prose', pitch: 'A fourth fixture proposal.', complexity: 'L', why: 'Keeps the slate ambitious.' },
+    { title: 'Fixture Idea Five', domain: 'code-tool', pitch: 'A fifth fixture proposal.', complexity: 'XL', why: 'Keeps the slate complete.' },
+  ];
+  const used = new Set<string>();
+  const ideas = [primary, ...extras, ...fillers].filter((idea) => {
+    if (used.has(idea.title)) return false;
+    used.add(idea.title);
+    return true;
+  }).slice(0, 5);
+  return `ideas:\n${ideas.map(ideaYamlEntry).join('\n')}`;
+}
+
 describe('agents/dispatcher', () => {
   describe('dispatchIdeator', () => {
     it('assembles prompt and returns parsed ideator response', async () => {
-      const ideatorYaml = 'ideas:\n  - title: "Test Idea"\n    domain: code-tool\n    pitch: "A test"\n    complexity: S\n    why: "Because"\n    project_id: null\n    stimulus_ref: null';
-      mockCallModel.mockResolvedValueOnce({ text: ideatorYaml, usage: { input: 100, output: 50 } });
+      const ideatorYamlText = ideatorYaml({ title: 'Test Idea', domain: 'code-tool', complexity: 'S' });
+      mockCallModel.mockResolvedValueOnce({ text: ideatorYamlText, usage: { input: 100, output: 50 } });
 
       const { dispatchIdeator } = await import('../src/agents/dispatcher.js');
       const result = await dispatchIdeator(makeConfig(), makeModels(), 1);
 
-      expect(result.data.ideas).toHaveLength(1);
+      expect(result.data.ideas).toHaveLength(5);
       expect(result.data.ideas[0].title).toBe('Test Idea');
       expect(result.usage).toEqual({ input: 100, output: 50 });
       expect(mockCallModel).toHaveBeenCalledOnce();
@@ -117,8 +210,8 @@ describe('agents/dispatcher', () => {
         'Ideator: {shared_context} {stimuli_live} {stimuli_skills} {lineage_context} {mood_context} {dreams_context} {critic_gate1_history} {domain_list} {domain_cooldown} {novelty_window}',
         'utf-8',
       );
-      const ideatorYaml = 'ideas:\n  - title: "Context Heavy"\n    domain: prose\n    pitch: "A test"\n    complexity: L\n    why: "Because"\n    project_id: null\n    stimulus_ref: null';
-      mockCallModel.mockResolvedValueOnce({ text: ideatorYaml, usage: { input: 100, output: 50 } });
+      const ideatorYamlText = ideatorYaml({ title: 'Context Heavy', complexity: 'L' });
+      mockCallModel.mockResolvedValueOnce({ text: ideatorYamlText, usage: { input: 100, output: 50 } });
 
       const { dispatchIdeator } = await import('../src/agents/dispatcher.js');
       await dispatchIdeator(makeConfig(), makeModels(), 1);
@@ -132,9 +225,191 @@ describe('agents/dispatcher', () => {
       expect(systemPrompt).not.toContain('{dreams_context}');
     });
 
+    it('appends adaptive streak and complexity guidance to the ideator prompt', async () => {
+      mockFormatStreakContext.mockReturnValueOnce('## Hot Streak\n\nPush fiction further.');
+      mockFormatComplexityBias.mockReturnValueOnce('## Complexity Guidance\n\nRecommendation: Lean toward S-tier.');
+      const ideatorYamlText = ideatorYaml({ title: 'Adaptive', complexity: 'M' });
+      mockCallModel.mockResolvedValueOnce({ text: ideatorYamlText, usage: { input: 100, output: 50 } });
+
+      const { dispatchIdeator } = await import('../src/agents/dispatcher.js');
+      await dispatchIdeator(makeConfig(), makeModels(), 1);
+
+      const systemPrompt = mockCallModel.mock.calls[0][1];
+      expect(systemPrompt).toContain('Hot Streak');
+      expect(systemPrompt).toContain('Complexity Guidance');
+      expect(mockFormatStreakContext).toHaveBeenCalledWith(expect.anything(), 'ideator', undefined);
+      expect(mockFormatComplexityBias).toHaveBeenCalledWith(expect.anything());
+    });
+
+    it('appends a current stoker directive to the ideator prompt', async () => {
+      mockLoadStokerDirective.mockResolvedValueOnce({
+        generated_at: '2026-01-01T00:00:00Z',
+        generated_iteration: 4,
+        for_iteration: 5,
+        urgency: 'high',
+        streak_instruction: 'neutral',
+        ideator_hint: 'Take a sharper risk.',
+        rules_fired: ['running_cold'],
+      });
+      mockFormatStokerDirective.mockReturnValueOnce('## Stoker Directive\n\nTake a sharper risk.');
+      const ideatorYamlText = ideatorYaml({ title: 'Stoked', complexity: 'L' });
+      mockCallModel.mockResolvedValueOnce({ text: ideatorYamlText, usage: { input: 100, output: 50 } });
+
+      const { dispatchIdeator } = await import('../src/agents/dispatcher.js');
+      await dispatchIdeator(makeConfig(), makeModels(), 5);
+
+      const systemPrompt = mockCallModel.mock.calls[0][1];
+      expect(systemPrompt).toContain('Stoker Directive');
+      expect(systemPrompt).toContain('Take a sharper risk.');
+      expect(mockFormatStokerDirective).toHaveBeenCalledWith(expect.anything(), 5);
+    });
+
+    it('does not duplicate stoker directives when the prompt template has a placeholder', async () => {
+      writeFileSync(
+        path.join(tempDir, 'prompts', 'ideator.md'),
+        'Ideator: {shared_context}\n\n{stoker_directive}\n\n{domain_list}',
+        'utf-8',
+      );
+      mockLoadStokerDirective.mockResolvedValueOnce({
+        generated_at: '2026-01-01T00:00:00Z',
+        generated_iteration: 4,
+        for_iteration: 5,
+        urgency: 'high',
+        streak_instruction: 'neutral',
+        ideator_hint: 'Take a sharper risk.',
+        rules_fired: ['running_cold'],
+      });
+      mockFormatStokerDirective.mockReturnValueOnce('## Stoker Directive\n\nTake a sharper risk.');
+      const ideatorYamlText = ideatorYaml({ title: 'Stoked', complexity: 'L' });
+      mockCallModel.mockResolvedValueOnce({ text: ideatorYamlText, usage: { input: 100, output: 50 } });
+
+      const { dispatchIdeator } = await import('../src/agents/dispatcher.js');
+      await dispatchIdeator(makeConfig(), makeModels(), 5);
+
+      const systemPrompt = mockCallModel.mock.calls[0][1];
+      expect(systemPrompt.match(/Stoker Directive/g)).toHaveLength(1);
+    });
+
+    it('appends salvaged speculative ideas to the ideator prompt', async () => {
+      mockLoadSpeculativeIdeas.mockResolvedValueOnce([
+        {
+          proposal: {
+            title: 'Salvaged Clock',
+            domain: 'prose',
+            pitch: 'A clock that files complaints about time.',
+            complexity: 'M',
+            why: 'It sharpens a prior kernel.',
+            project_id: null,
+            stimulus_ref: null,
+          },
+          critic_evaluation: {
+            decision: 'revise',
+            reasons: 'Good kernel but too vague.',
+            sharpening_notes: 'Make the bureaucracy concrete.',
+          },
+          iteration: 4,
+          salvageable: true,
+        },
+      ]);
+      mockFormatSpeculativeIdeas.mockReturnValueOnce('## Salvaged Ideas from Last Iteration\n\nSalvaged Clock');
+      const ideatorYamlText = ideatorYaml({ title: 'From Salvage', complexity: 'L' });
+      mockCallModel.mockResolvedValueOnce({ text: ideatorYamlText, usage: { input: 100, output: 50 } });
+
+      const { dispatchIdeator } = await import('../src/agents/dispatcher.js');
+      await dispatchIdeator(makeConfig(), makeModels(), 5);
+
+      const systemPrompt = mockCallModel.mock.calls[0][1];
+      expect(systemPrompt).toContain('Salvaged Ideas from Last Iteration');
+      expect(systemPrompt).toContain('Salvaged Clock');
+      expect(mockFormatSpeculativeIdeas).toHaveBeenCalledWith(expect.any(Array), { last_outcome: undefined });
+    });
+
+    it('filters speculative ideas to the immediately previous iteration before formatting', async () => {
+      const staleIdea = {
+        proposal: {
+          title: 'Old Stale Clock',
+          domain: 'prose',
+          pitch: 'An old warmed option.',
+          complexity: 'S',
+          why: 'It used to be promising.',
+          project_id: null,
+          stimulus_ref: null,
+        },
+        critic_evaluation: {
+          decision: 'revise',
+          reasons: 'Old but salvageable.',
+          sharpening_notes: 'This should be stale now.',
+        },
+        iteration: 3,
+        salvageable: true,
+      };
+      const currentIdea = {
+        proposal: {
+          title: 'Fresh Clock',
+          domain: 'prose',
+          pitch: 'A current warmed option.',
+          complexity: 'M',
+          why: 'It was just considered.',
+          project_id: null,
+          stimulus_ref: null,
+        },
+        critic_evaluation: {
+          decision: 'revise',
+          reasons: 'Good kernel.',
+          sharpening_notes: 'Make it concrete.',
+        },
+        iteration: 4,
+        salvageable: true,
+      };
+      mockLoadSpeculativeIdeas.mockResolvedValueOnce([staleIdea, currentIdea]);
+      mockFormatSpeculativeIdeas.mockReturnValueOnce('## Salvaged Ideas from Last Iteration\n\nFresh Clock');
+      const ideatorYamlText = ideatorYaml({ title: 'Fresh Pick', complexity: 'M' });
+      mockCallModel.mockResolvedValueOnce({ text: ideatorYamlText, usage: { input: 100, output: 50 } });
+
+      const { dispatchIdeator } = await import('../src/agents/dispatcher.js');
+      await dispatchIdeator(makeConfig(), makeModels(), 5);
+
+      expect(mockFilterCurrentSpeculativeIdeas).toHaveBeenCalledWith([staleIdea, currentIdea], 5);
+      expect(mockFormatSpeculativeIdeas).toHaveBeenCalledWith([currentIdea], { last_outcome: undefined });
+    });
+
+    it('formats speculative ideas as fast-track options after a killed iteration', async () => {
+      mockReadJsonlEntries.mockResolvedValueOnce([{ iteration: 4, outcome: 'killed' }]);
+      mockLoadSpeculativeIdeas.mockResolvedValueOnce([
+        {
+          proposal: {
+            title: 'Fast Clock',
+            domain: 'prose',
+            pitch: 'A clock that files complaints about time.',
+            complexity: 'M',
+            why: 'It sharpens a prior kernel.',
+            project_id: null,
+            stimulus_ref: null,
+          },
+          critic_evaluation: {
+            decision: 'approve',
+            reasons: 'Approved but not selected.',
+            sharpening_notes: 'Build it next.',
+          },
+          iteration: 4,
+          salvageable: true,
+        },
+      ]);
+      mockFormatSpeculativeIdeas.mockReturnValueOnce('## Fast-Track Options\n\nFast Clock');
+      const ideatorYamlText = ideatorYaml({ title: 'Fast Pick', complexity: 'L' });
+      mockCallModel.mockResolvedValueOnce({ text: ideatorYamlText, usage: { input: 100, output: 50 } });
+
+      const { dispatchIdeator } = await import('../src/agents/dispatcher.js');
+      await dispatchIdeator(makeConfig(), makeModels(), 5);
+
+      const systemPrompt = mockCallModel.mock.calls[0][1];
+      expect(systemPrompt).toContain('Fast-Track Options');
+      expect(mockFormatSpeculativeIdeas).toHaveBeenCalledWith(expect.any(Array), { last_outcome: 'killed' });
+    });
+
     it('appends rejection context when provided', async () => {
-      const ideatorYaml = 'ideas:\n  - title: "Retry Idea"\n    domain: prose\n    pitch: "Retry"\n    complexity: M\n    why: "Retry"\n    project_id: null\n    stimulus_ref: null';
-      mockCallModel.mockResolvedValueOnce({ text: ideatorYaml, usage: { input: 100, output: 50 } });
+      const ideatorYamlText = ideatorYaml({ title: 'Retry Idea', pitch: 'Retry', complexity: 'M', why: 'Retry' });
+      mockCallModel.mockResolvedValueOnce({ text: ideatorYamlText, usage: { input: 100, output: 50 } });
 
       const { dispatchIdeator } = await import('../src/agents/dispatcher.js');
       await dispatchIdeator(makeConfig(), makeModels(), 2, 'previous rejection reason');
@@ -148,7 +423,7 @@ describe('agents/dispatcher', () => {
       mockCallModel
         .mockResolvedValueOnce({ text: 'not valid yaml {{{', usage: { input: 50, output: 20 } })
         .mockResolvedValueOnce({
-          text: 'ideas:\n  - title: "Recovered"\n    domain: prose\n    pitch: "OK"\n    complexity: S\n    why: "Fixed"\n    project_id: null\n    stimulus_ref: null',
+          text: ideatorYaml({ title: 'Recovered', pitch: 'OK', complexity: 'S', why: 'Fixed' }),
           usage: { input: 50, output: 30 },
         });
 
@@ -157,6 +432,72 @@ describe('agents/dispatcher', () => {
 
       expect(result.data.ideas[0].title).toBe('Recovered');
       expect(result.usage).toEqual({ input: 100, output: 50 });
+      expect(mockCallModel).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries when ideator proposals use domains outside domains.yml', async () => {
+      mockCallModel
+        .mockResolvedValueOnce({
+          text: ideatorYaml({ title: 'Bad Domain', domain: 'dance', pitch: 'Outside the configured list', complexity: 'S' }),
+          usage: { input: 50, output: 20 },
+        })
+        .mockResolvedValueOnce({
+          text: ideatorYaml({ title: 'Recovered Domain', pitch: 'Back inside the configured list', complexity: 'S', why: 'Fixed' }),
+          usage: { input: 50, output: 30 },
+        });
+
+      const { dispatchIdeator } = await import('../src/agents/dispatcher.js');
+      const result = await dispatchIdeator(makeConfig(), makeModels(), 1);
+
+      expect(result.data.ideas[0].title).toBe('Recovered Domain');
+      expect(result.data.ideas[0].domain).toBe('prose');
+      expect(result.usage).toEqual({ input: 100, output: 50 });
+      expect(mockCallModel).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries when project starter estimates exceed the configured project cap', async () => {
+      const tooLongProject = '\n      name: "Too Long"\n      description: "An oversized project"\n      estimated_iterations: 99\n      structure:\n        - part_1: "Opening"';
+      const cappedProject = '\n      name: "Right Sized"\n      description: "A capped project"\n      estimated_iterations: 4\n      structure:\n        - part_1: "Opening"';
+      mockCallModel
+        .mockResolvedValueOnce({
+          text: ideatorYaml({ title: 'Too Long Project', complexity: 'L', xl_mode: 'project', project: tooLongProject }),
+          usage: { input: 80, output: 30 },
+        })
+        .mockResolvedValueOnce({
+          text: ideatorYaml({ title: 'Right Sized Project', complexity: 'L', xl_mode: 'project', project: cappedProject }),
+          usage: { input: 90, output: 40 },
+        });
+
+      const config = makeConfig();
+      config.projects.max_iterations_per_project = 4;
+
+      const { dispatchIdeator } = await import('../src/agents/dispatcher.js');
+      const result = await dispatchIdeator(config, makeModels(), 1);
+
+      expect(result.data.ideas[0].title).toBe('Right Sized Project');
+      expect(result.data.ideas[0].project?.estimated_iterations).toBe(4);
+      expect(result.usage).toEqual({ input: 170, output: 70 });
+      expect(mockCallModel).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries when project continuations reference inactive projects', async () => {
+      mockGetActiveProjects.mockResolvedValueOnce([{ project_id: 'P001' }]);
+      mockCallModel
+        .mockResolvedValueOnce({
+          text: ideatorYaml({ title: 'Stale Continuation', complexity: 'S', project_id: 'P999' }),
+          usage: { input: 80, output: 30 },
+        })
+        .mockResolvedValueOnce({
+          text: ideatorYaml({ title: 'Active Continuation', complexity: 'S', project_id: 'P001' }),
+          usage: { input: 90, output: 40 },
+        });
+
+      const { dispatchIdeator } = await import('../src/agents/dispatcher.js');
+      const result = await dispatchIdeator(makeConfig(), makeModels(), 1);
+
+      expect(result.data.ideas[0].title).toBe('Active Continuation');
+      expect(result.data.ideas[0].project_id).toBe('P001');
+      expect(result.usage).toEqual({ input: 170, output: 70 });
       expect(mockCallModel).toHaveBeenCalledTimes(2);
     });
 
@@ -180,6 +521,90 @@ describe('agents/dispatcher', () => {
       expect(result.data.evaluations).toHaveLength(1);
       expect(result.data.evaluations[0].decision).toBe('approve');
       expect(mockLogDecision).toHaveBeenCalledOnce();
+    });
+
+    it('retries when Gate 1 evaluations approve titles outside the proposal slate', async () => {
+      mockCallModel
+        .mockResolvedValueOnce({
+          text: 'evaluations:\n  - title: "Ghost Idea"\n    decision: approve\n    sharpening_notes: "Build the ghost"\n    reasons: "Sounds good"\nselected: "Ghost Idea"',
+          usage: { input: 80, output: 40 },
+        })
+        .mockResolvedValueOnce({
+          text: 'evaluations:\n  - title: "Real Idea"\n    decision: approve\n    sharpening_notes: "Build the real one"\n    reasons: "Actually proposed"\nselected: "Real Idea"',
+          usage: { input: 85, output: 45 },
+        });
+
+      const proposalsYaml = 'ideas:\n  - title: "Real Idea"\n    domain: prose\n    pitch: "A real proposal"\n    complexity: S\n    why: "Because"\n    project_id: null\n    stimulus_ref: null';
+      const { dispatchCriticGate1 } = await import('../src/agents/dispatcher.js');
+      const result = await dispatchCriticGate1(makeConfig(), makeModels(), 1, proposalsYaml);
+
+      expect(result.data.evaluations[0].title).toBe('Real Idea');
+      expect(result.data.selected).toBe('Real Idea');
+      expect(result.usage).toEqual({ input: 165, output: 85 });
+      expect(mockCallModel).toHaveBeenCalledTimes(2);
+      expect(mockLogDecision).toHaveBeenCalledOnce();
+      expect(mockLogDecision).toHaveBeenCalledWith(expect.objectContaining({ proposal_title: 'Real Idea' }));
+    });
+
+    it('retries when Gate 1 evaluations omit proposals from the slate', async () => {
+      mockCallModel
+        .mockResolvedValueOnce({
+          text: 'evaluations:\n  - title: "First Idea"\n    decision: approve\n    sharpening_notes: "Build the first"\n    reasons: "Strongest option"\nselected: "First Idea"',
+          usage: { input: 80, output: 40 },
+        })
+        .mockResolvedValueOnce({
+          text: 'evaluations:\n  - title: "First Idea"\n    decision: approve\n    sharpening_notes: "Build the first"\n    reasons: "Strongest option"\n  - title: "Second Idea"\n    decision: reject\n    sharpening_notes: ""\n    reasons: "Less specific"\nselected: "First Idea"',
+          usage: { input: 85, output: 45 },
+        });
+
+      const proposalsYaml = [
+        'ideas:',
+        '  - title: "First Idea"',
+        '    domain: prose',
+        '    pitch: "A first proposal"',
+        '    complexity: M',
+        '    why: "Because"',
+        '    project_id: null',
+        '    stimulus_ref: null',
+        '  - title: "Second Idea"',
+        '    domain: poetry',
+        '    pitch: "A second proposal"',
+        '    complexity: L',
+        '    why: "Because"',
+        '    project_id: null',
+        '    stimulus_ref: null',
+      ].join('\n');
+      const { dispatchCriticGate1 } = await import('../src/agents/dispatcher.js');
+      const result = await dispatchCriticGate1(makeConfig(), makeModels(), 1, proposalsYaml);
+
+      expect(result.data.evaluations.map((evaluation) => evaluation.title)).toEqual(['First Idea', 'Second Idea']);
+      expect(result.data.selected).toBe('First Idea');
+      expect(result.usage).toEqual({ input: 165, output: 85 });
+      expect(mockCallModel).toHaveBeenCalledTimes(2);
+      expect(mockLogDecision).toHaveBeenCalledTimes(2);
+    });
+
+    it('logs human redirect source markers for redirect Gate 1 decisions', async () => {
+      const gate1Yaml = 'evaluations:\n  - title: "Operator Idea"\n    decision: approve\n    sharpening_notes: "Honor the operator constraint"\n    reasons: "Specific request"\nselected: "Operator Idea"';
+      mockCallModel.mockResolvedValueOnce({ text: gate1Yaml, usage: { input: 80, output: 40 } });
+
+      const proposalsYaml = [
+        'ideas:',
+        '  - title: "Operator Idea"',
+        '    domain: prose',
+        '    pitch: "A direct operator request"',
+        '    complexity: M',
+        '    why: "Human redirect"',
+        '    project_id: null',
+        '    stimulus_ref: null',
+      ].join('\n');
+      const { dispatchCriticGate1 } = await import('../src/agents/dispatcher.js');
+      await dispatchCriticGate1(makeConfig(), makeModels(), 1, proposalsYaml, 'human_redirect');
+
+      expect(mockLogDecision).toHaveBeenCalledWith(expect.objectContaining({
+        proposal_title: 'Operator Idea',
+        source: 'human_redirect',
+      }));
     });
   });
 
@@ -209,6 +634,35 @@ describe('agents/dispatcher', () => {
       expect(systemPrompt).toContain('Revision Required');
       expect(systemPrompt).toContain('fix the bugs');
     });
+
+    it('injects project context when continuing a project', async () => {
+      mockGetProjectContext.mockResolvedValueOnce('## Project Brief\n\nPrior chapter context');
+      const creatorYaml = 'title: "Project Piece"\nfiles:\n  - path: chapter.md\n    content: "next"';
+      mockCallModel.mockResolvedValueOnce({ text: creatorYaml, usage: { input: 200, output: 100 } });
+
+      const { dispatchCreator } = await import('../src/agents/dispatcher.js');
+      const proposal = { title: 'Project Piece', domain: 'prose', pitch: 'Continue it', complexity: 'S' as const, why: 'Next installment', project_id: 'P001', stimulus_ref: null };
+      await dispatchCreator(makeConfig(), makeModels(), 1, proposal, 'notes');
+
+      const systemPrompt = mockCallModel.mock.calls[0][1];
+      expect(mockGetProjectContext).toHaveBeenCalledWith('P001');
+      expect(systemPrompt).toContain('Prior chapter context');
+      expect(systemPrompt).not.toContain('No project context');
+    });
+
+    it('appends creator streak context when active', async () => {
+      mockFormatStreakContext.mockReturnValueOnce('## Streak Context\n\nMaintain the current code streak.');
+      const creatorYaml = 'title: "My Artifact"\nfiles:\n  - path: main.ts\n    content: "console.log(1)"';
+      mockCallModel.mockResolvedValueOnce({ text: creatorYaml, usage: { input: 200, output: 100 } });
+
+      const { dispatchCreator } = await import('../src/agents/dispatcher.js');
+      const proposal = { title: 'Test', domain: 'code-tool', pitch: 'A test', complexity: 'S' as const, why: 'Because', project_id: null, stimulus_ref: null };
+      await dispatchCreator(makeConfig(), makeModels(), 1, proposal, 'notes');
+
+      const systemPrompt = mockCallModel.mock.calls[0][1];
+      expect(systemPrompt).toContain('Streak Context');
+      expect(mockFormatStreakContext).toHaveBeenCalledWith(expect.anything(), 'creator', undefined);
+    });
   });
 
   describe('dispatchTesterTestPlan', () => {
@@ -227,7 +681,7 @@ describe('agents/dispatcher', () => {
 
   describe('dispatchTesterLightweight', () => {
     it('parses lightweight tester response', async () => {
-      const testerYaml = 'verdict: fail_fixable\nsummary: "Minor issues"\ntests_run: []\nissues:\n  - severity: minor\n    description: "typo"\n    location: "line 5"\npost_mortem: null';
+      const testerYaml = 'verdict: fail_fixable\nsummary: "Minor issues"\ntests_run: []\nissues:\n  - severity: minor\n    description: "typo"\n    location: "line 5"\n    suggested_fix: "Fix the typo."\npost_mortem: null';
       mockCallModel.mockResolvedValueOnce({ text: testerYaml, usage: { input: 100, output: 60 } });
 
       const { dispatchTesterLightweight } = await import('../src/agents/dispatcher.js');
@@ -309,7 +763,7 @@ describe('agents/dispatcher', () => {
         .mockResolvedValueOnce({ text: 'something: true\nother: false', usage: { input: 10, output: 5 } })
         .mockResolvedValueOnce({ text: 'wrong_key: []', usage: { input: 10, output: 5 } })
         .mockResolvedValueOnce({
-          text: 'ideas:\n  - title: "Recovered"\n    domain: prose\n    pitch: "OK"\n    complexity: S\n    why: "Fixed"\n    project_id: null\n    stimulus_ref: null',
+          text: ideatorYaml({ title: 'Recovered', pitch: 'OK', complexity: 'S', why: 'Fixed' }),
           usage: { input: 50, output: 30 },
         });
 
@@ -332,7 +786,7 @@ describe('agents/dispatcher', () => {
       mockCallModel
         .mockResolvedValueOnce({ text: 'not_ideas: true', usage: { input: 10, output: 5 } })
         .mockResolvedValueOnce({
-          text: 'ideas:\n  - title: "After Retry"\n    domain: prose\n    pitch: "OK"\n    complexity: S\n    why: "Fixed"\n    project_id: null\n    stimulus_ref: null',
+          text: ideatorYaml({ title: 'After Retry', pitch: 'OK', complexity: 'S', why: 'Fixed' }),
           usage: { input: 50, output: 30 },
         });
 
@@ -446,6 +900,71 @@ describe('agents/dispatcher', () => {
 
       expect(result.data.proposal.title).toBe('Human Request');
       expect(result.data.proposal.domain).toBe('code-tool');
+      expect(mockCallModel.mock.calls[0][1]).toContain('complexity: "S|M|L|XL"');
+    });
+
+    it('retries when curator redirect uses a domain outside domains.yml', async () => {
+      mockCallModel
+        .mockResolvedValueOnce({
+          text: 'proposal:\n  title: "Wrong Domain"\n  domain: dance\n  pitch: "Outside the configured list"\n  complexity: M\n  why: "Human redirect"\n  project_id: null\n  stimulus_ref: null',
+          usage: { input: 80, output: 30 },
+        })
+        .mockResolvedValueOnce({
+          text: 'proposal:\n  title: "Recovered Redirect"\n  domain: code-tool\n  pitch: "Back inside the configured list"\n  complexity: M\n  why: "Human redirect"\n  project_id: null\n  stimulus_ref: null',
+          usage: { input: 90, output: 40 },
+        });
+
+      const { dispatchCuratorRedirect } = await import('../src/agents/dispatcher.js');
+      const result = await dispatchCuratorRedirect(makeConfig(), makeModels(), 1, 'Build me a tool');
+
+      expect(result.data.proposal.title).toBe('Recovered Redirect');
+      expect(result.data.proposal.domain).toBe('code-tool');
+      expect(result.usage).toEqual({ input: 170, output: 70 });
+      expect(mockCallModel).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries when curator redirect project estimates exceed the configured project cap', async () => {
+      mockCallModel
+        .mockResolvedValueOnce({
+          text: 'proposal:\n  title: "Too Long Redirect"\n  domain: prose\n  pitch: "A project that is too long"\n  complexity: L\n  why: "Human redirect"\n  project_id: null\n  stimulus_ref: null\n  xl_mode: project\n  project:\n    name: "Too Long"\n    description: "Oversized"\n    estimated_iterations: 99\n    structure:\n      - part_1: "Opening"',
+          usage: { input: 80, output: 30 },
+        })
+        .mockResolvedValueOnce({
+          text: 'proposal:\n  title: "Right Sized Redirect"\n  domain: prose\n  pitch: "A capped project"\n  complexity: L\n  why: "Human redirect"\n  project_id: null\n  stimulus_ref: null\n  xl_mode: project\n  project:\n    name: "Right Sized"\n    description: "Within cap"\n    estimated_iterations: 4\n    structure:\n      - part_1: "Opening"',
+          usage: { input: 90, output: 40 },
+        });
+
+      const config = makeConfig();
+      config.projects.max_iterations_per_project = 4;
+
+      const { dispatchCuratorRedirect } = await import('../src/agents/dispatcher.js');
+      const result = await dispatchCuratorRedirect(config, makeModels(), 1, 'Start a project');
+
+      expect(result.data.proposal.title).toBe('Right Sized Redirect');
+      expect(result.data.proposal.project?.estimated_iterations).toBe(4);
+      expect(result.usage).toEqual({ input: 170, output: 70 });
+      expect(mockCallModel).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries when curator redirect continuations reference inactive projects', async () => {
+      mockGetActiveProjects.mockResolvedValueOnce([{ project_id: 'P001' }]);
+      mockCallModel
+        .mockResolvedValueOnce({
+          text: 'proposal:\n  title: "Stale Redirect"\n  domain: prose\n  pitch: "Continue a stale project"\n  complexity: S\n  why: "Human redirect"\n  project_id: "P999"\n  stimulus_ref: null\n  xl_mode: null\n  project: null',
+          usage: { input: 80, output: 30 },
+        })
+        .mockResolvedValueOnce({
+          text: 'proposal:\n  title: "Active Redirect"\n  domain: prose\n  pitch: "Continue an active project"\n  complexity: S\n  why: "Human redirect"\n  project_id: "P001"\n  stimulus_ref: null\n  xl_mode: null\n  project: null',
+          usage: { input: 90, output: 40 },
+        });
+
+      const { dispatchCuratorRedirect } = await import('../src/agents/dispatcher.js');
+      const result = await dispatchCuratorRedirect(makeConfig(), makeModels(), 1, 'Continue P001');
+
+      expect(result.data.proposal.title).toBe('Active Redirect');
+      expect(result.data.proposal.project_id).toBe('P001');
+      expect(result.usage).toEqual({ input: 170, output: 70 });
+      expect(mockCallModel).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -502,8 +1021,8 @@ describe('agents/dispatcher', () => {
         { gate: 'gate1', decision: 'reject', proposal_title: 'Old Idea 3' },
       ]);
 
-      const ideatorYaml = 'ideas:\n  - title: "Test"\n    domain: prose\n    pitch: "A test"\n    complexity: S\n    why: "Because"\n    project_id: null\n    stimulus_ref: null';
-      mockCallModel.mockResolvedValueOnce({ text: ideatorYaml, usage: { input: 100, output: 50 } });
+      const ideatorYamlText = ideatorYaml({ title: 'Test', complexity: 'S' });
+      mockCallModel.mockResolvedValueOnce({ text: ideatorYamlText, usage: { input: 100, output: 50 } });
 
       const { dispatchIdeator } = await import('../src/agents/dispatcher.js');
       const result = await dispatchIdeator(makeConfig(), makeModels(), 1);
@@ -539,7 +1058,7 @@ describe('agents/dispatcher', () => {
         .mockResolvedValueOnce({ text: '', usage: { input: 10, output: 5 } })
         .mockResolvedValueOnce({ text: '\x00\x01\x02', usage: { input: 10, output: 5 } })
         .mockResolvedValueOnce({
-          text: 'ideas:\n  - title: "Saved"\n    domain: prose\n    pitch: "OK"\n    complexity: S\n    why: "Y"\n    project_id: null\n    stimulus_ref: null',
+          text: ideatorYaml({ title: 'Saved', pitch: 'OK', complexity: 'S', why: 'Y' }),
           usage: { input: 50, output: 30 },
         });
 

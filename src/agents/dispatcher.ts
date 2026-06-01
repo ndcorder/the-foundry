@@ -9,6 +9,7 @@ import type {
   CriticGate2Response,
   CuratorRedirectResponse,
   IdeatorProposal,
+  DecisionLogEntry,
 } from "../types/index.js";
 import { callModel, type ModelCallResult } from "../model/index.js";
 import {
@@ -39,9 +40,15 @@ import {
   readLineageContext,
   readMoodContext,
   readDreamsContext,
+  readJsonlEntries,
 } from "../context/index.js";
 import { loadPrompt, loadCriticGate1Prompt, loadCriticGate2Prompt, injectVars } from "./prompt.js";
 import { resolve } from "../root.js";
+import { formatStreakContext, loadStreakHistory } from "../streaks/index.js";
+import { formatComplexityBias, loadComplexityBias } from "../complexity/index.js";
+import { formatStokerDirective, loadStokerDirective } from "../stoker/index.js";
+import { filterCurrentSpeculativeIdeas, formatSpeculativeIdeas, loadSpeculativeIdeas } from "../speculative/index.js";
+import { getActiveProjects, getProjectContext } from "../files/projects.js";
 
 interface DispatchResult<T> {
   data: T;
@@ -50,6 +57,98 @@ interface DispatchResult<T> {
 }
 
 const MAX_YAML_RETRIES = 2;
+
+function proposalDomainsAreAllowed(proposals: IdeatorProposal[], allowedDomains: ReadonlySet<string>): boolean {
+  return proposals.every((proposal) => allowedDomains.has(proposal.domain));
+}
+
+function proposalProjectEstimateFitsConfig(proposal: IdeatorProposal, config: FoundryConfig): boolean {
+  if (proposal.xl_mode !== "project" || !proposal.project) return true;
+  return proposal.project.estimated_iterations <= config.projects.max_iterations_per_project;
+}
+
+function proposalProjectEstimatesFitConfig(proposals: IdeatorProposal[], config: FoundryConfig): boolean {
+  return proposals.every((proposal) => proposalProjectEstimateFitsConfig(proposal, config));
+}
+
+function proposalProjectIdIsActive(proposal: IdeatorProposal, activeProjectIds: ReadonlySet<string>): boolean {
+  return proposal.project_id === undefined || proposal.project_id === null || activeProjectIds.has(proposal.project_id);
+}
+
+function proposalProjectIdsAreActive(proposals: IdeatorProposal[], activeProjectIds: ReadonlySet<string>): boolean {
+  return proposals.every((proposal) => proposalProjectIdIsActive(proposal, activeProjectIds));
+}
+
+function ideatorValidatorForConfig(
+  allowedDomains: ReadonlySet<string>,
+  config: FoundryConfig,
+  activeProjectIds: ReadonlySet<string>,
+): Validator<IdeatorResponse> {
+  return (data: unknown): data is IdeatorResponse =>
+    validateIdeator(data) &&
+    proposalDomainsAreAllowed(data.ideas, allowedDomains) &&
+    proposalProjectEstimatesFitConfig(data.ideas, config) &&
+    proposalProjectIdsAreActive(data.ideas, activeProjectIds);
+}
+
+function curatorRedirectValidatorForConfig(
+  allowedDomains: ReadonlySet<string>,
+  config: FoundryConfig,
+  activeProjectIds: ReadonlySet<string>,
+): Validator<CuratorRedirectResponse> {
+  return (data: unknown): data is CuratorRedirectResponse =>
+    validateCuratorRedirect(data) &&
+    proposalDomainsAreAllowed([data.proposal], allowedDomains) &&
+    proposalProjectEstimateFitsConfig(data.proposal, config) &&
+    proposalProjectIdIsActive(data.proposal, activeProjectIds);
+}
+
+function extractProposalTitles(proposalsYaml: string): ReadonlySet<string> {
+  try {
+    const data = parseYaml<unknown>(proposalsYaml);
+    if (!data || typeof data !== "object" || !Array.isArray((data as { ideas?: unknown }).ideas)) {
+      return new Set();
+    }
+
+    return new Set(
+      (data as { ideas: Array<{ title?: unknown }> }).ideas
+        .map((idea) => idea.title)
+        .filter((title): title is string => typeof title === "string" && title.trim().length > 0)
+        .map((title) => title.trim()),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+function criticGate1ReferencesProposalSlate(
+  data: CriticGate1Response,
+  proposalTitles: ReadonlySet<string>,
+): boolean {
+  if (proposalTitles.size === 0) return true;
+  if (data.evaluations.some((evaluation) => !proposalTitles.has(evaluation.title))) return false;
+  const evaluationTitles = new Set(data.evaluations.map((evaluation) => evaluation.title));
+  if (evaluationTitles.size !== proposalTitles.size) return false;
+  for (const title of proposalTitles) {
+    if (!evaluationTitles.has(title)) return false;
+  }
+
+  const selected = typeof data.selected === "string" ? data.selected.trim() : "";
+  if (!selected) return true;
+  return proposalTitles.has(selected)
+    && data.evaluations.some((evaluation) => evaluation.title === selected && evaluation.decision === "approve");
+}
+
+function criticGate1ValidatorForProposals(proposalTitles: ReadonlySet<string>): Validator<CriticGate1Response> {
+  return (data: unknown): data is CriticGate1Response =>
+    validateCriticGate1(data) && criticGate1ReferencesProposalSlate(data, proposalTitles);
+}
+
+async function loadProjectContextForProposal(proposal: IdeatorProposal): Promise<string> {
+  if (!proposal.project_id) return "*No project context (standalone artifact).*";
+  const projectContext = await getProjectContext(proposal.project_id);
+  return projectContext.trim() || `*Project context unavailable for ${proposal.project_id}; treat as a standalone artifact.*`;
+}
 
 async function dispatchWithRetry<T>(
   config: FoundryConfig,
@@ -110,19 +209,44 @@ export async function dispatchIdeator(
   rejectionContext?: string,
   additionalDirection?: string,
 ): Promise<DispatchResult<IdeatorResponse>> {
-  const shared = await buildSharedContext(config);
-  const domains = await loadDomainsConfig();
+  const [shared, domains, activeProjects] = await Promise.all([
+    buildSharedContext(config),
+    loadDomainsConfig(),
+    getActiveProjects(),
+  ]);
+  const activeProjectIds = new Set(activeProjects.map((project) => project.project_id));
   const decisions = await readDecisions();
   const gate1 = decisions
     .filter((d) => d.gate === "gate1")
     .slice(-config.context.critic_gate1_history);
-  const [liveStimuli, skills, lineageContext, moodContext, dreamsContext] = await Promise.all([
+  const [
+    liveStimuli,
+    skills,
+    lineageContext,
+    moodContext,
+    dreamsContext,
+    streakHistory,
+    complexityBias,
+    stokerDirective,
+    speculativeIdeas,
+    iterationEntries,
+  ] = await Promise.all([
     readLiveStimuli(),
     pickRandomSkills(config.stimuli.skills_per_context),
     readLineageContext(),
     readMoodContext(),
     readDreamsContext(3),
+    loadStreakHistory(),
+    loadComplexityBias(),
+    loadStokerDirective(),
+    loadSpeculativeIdeas(),
+    readJsonlEntries<{ outcome?: string }>(resolve("logs", "iterations.jsonl")),
   ]);
+  const streakContext = formatStreakContext(streakHistory, "ideator", config.streaks);
+  const complexityBiasContext = formatComplexityBias(complexityBias);
+  const stokerContext = formatStokerDirective(stokerDirective, iteration);
+  const currentSpeculativeIdeas = filterCurrentSpeculativeIdeas(speculativeIdeas, iteration);
+  const speculativeContext = formatSpeculativeIdeas(currentSpeculativeIdeas, { last_outcome: iterationEntries.at(-1)?.outcome });
 
   const template = await loadPrompt("ideator");
   const prompt = injectVars(template, {
@@ -132,13 +256,27 @@ export async function dispatchIdeator(
     lineage_context: lineageContext,
     mood_context: moodContext,
     dreams_context: dreamsContext,
+    streak_context: streakContext,
+    complexity_bias: complexityBiasContext,
+    stoker_directive: stokerContext,
+    speculative_ideas: speculativeContext,
     critic_gate1_history: formatDecisions(gate1),
     domain_list: domains.domains.map((d) => d.name).join(", "),
     domain_cooldown: String(config.iteration.domain_cooldown),
     novelty_window: String(config.iteration.novelty_window),
+    max_iterations_per_project: String(config.projects.max_iterations_per_project),
   });
 
   let systemPrompt = prompt;
+  const adaptiveGuidance = [stokerContext, speculativeContext, streakContext, complexityBiasContext]
+    .filter((section) => {
+      const trimmed = section.trim();
+      return trimmed && !prompt.includes(trimmed);
+    })
+    .join("\n\n");
+  if (adaptiveGuidance) {
+    systemPrompt += "\n\n" + adaptiveGuidance;
+  }
   if (rejectionContext) {
     systemPrompt += "\n\n## Previous Rejection\n\n" + rejectionContext;
   }
@@ -147,7 +285,12 @@ export async function dispatchIdeator(
   }
 
   return dispatchWithRetry<IdeatorResponse>(
-    config, models, "ideator", systemPrompt, iteration, validateIdeator,
+    config,
+    models,
+    "ideator",
+    systemPrompt,
+    iteration,
+    ideatorValidatorForConfig(new Set(domains.domains.map((domain) => domain.name)), config, activeProjectIds),
   );
 }
 
@@ -158,6 +301,7 @@ export async function dispatchCriticGate1(
   models: ModelsConfig,
   iteration: number,
   proposals: string,
+  source?: DecisionLogEntry["source"],
 ): Promise<DispatchResult<CriticGate1Response>> {
   const shared = await buildSharedContext(config);
   const decisions = await readDecisions();
@@ -178,7 +322,12 @@ export async function dispatchCriticGate1(
   });
 
   const result = await dispatchWithRetry<CriticGate1Response>(
-    config, models, "critic", prompt, iteration, validateCriticGate1,
+    config,
+    models,
+    "critic",
+    prompt,
+    iteration,
+    criticGate1ValidatorForProposals(extractProposalTitles(proposals)),
   );
 
   // Log each evaluation as a decision
@@ -190,6 +339,7 @@ export async function dispatchCriticGate1(
       agent: "critic",
       decision: ev.decision,
       proposal_title: ev.title,
+      ...(source ? { source } : {}),
       sharpening_notes: ev.sharpening_notes || undefined,
       reasons: ev.reasons || undefined,
       recommended_complexity: ev.recommended_complexity || undefined,
@@ -221,6 +371,8 @@ export async function dispatchCreator(
 
   const manifesto = await safeRead(resolve("identity", "manifesto.md"));
   const qualitySection = extractQualityStandards(manifesto);
+  const streakContext = formatStreakContext(await loadStreakHistory(), "creator", config.streaks);
+  const projectContext = await loadProjectContextForProposal(proposal);
 
   const proposalYaml = [
     `**${proposal.title}** [${proposal.domain}, ${proposal.complexity}]`,
@@ -236,13 +388,15 @@ export async function dispatchCreator(
     critic_review_history: formatDecisions(recentReviews),
     approved_proposal: proposalYaml,
     critic_sharpening_notes: criticNotes || "*No sharpening notes.*",
-    project_context: "*No project context (standalone artifact).*",
+    project_context: projectContext,
     manifesto_quality_standards: qualitySection,
+    streak_context: streakContext,
   });
 
+  const basePrompt = streakContext ? prompt + "\n\n" + streakContext : prompt;
   const systemPrompt = revisionNotes
-    ? prompt + "\n\n## Revision Required\n\n" + revisionNotes
-    : prompt;
+    ? basePrompt + "\n\n## Revision Required\n\n" + revisionNotes
+    : basePrompt;
 
   return dispatchWithRetry<CreatorResponse>(
     config, models, "creator", systemPrompt, iteration, validateCreator,
@@ -288,20 +442,20 @@ export async function dispatchTesterTestPlan(
 
 \`\`\`yaml
 test_plan:
-  language: "node|python|go|rust|..."
+  language: "non-empty runtime name, e.g. node|python|go|rust"
   setup_commands:
-    - "npm install"  # or equivalent
+    - "non-empty setup command, or use [] when no setup is needed"
   files:
     - path: "test_main.js"
       content: |
-        // test code here
+        // non-empty test code here
   run_command: "node test_main.js"
 verdict: "pass|fail_fixable|fail_catastrophic"
-summary: "..."
+summary: "non-empty 1-2 sentence overall assessment with evidence"
 tests_run:
-  - name: "..."
+  - name: "non-empty test/check name"
     result: "pass|fail"
-    details: "..."
+    details: "non-empty evidence: command output, observed behavior, or checked structure"
 issues: []
 post_mortem: null
 \`\`\`
@@ -368,16 +522,16 @@ Respond with ONLY valid YAML:
 
 \`\`\`yaml
 verdict: "pass|fail_fixable|fail_catastrophic"
-summary: "1-2 sentence overall assessment"
+summary: "non-empty 1-2 sentence overall assessment with evidence"
 tests_run:
-  - name: "..."
+  - name: "non-empty test/check name"
     result: "pass|fail"
-    details: "..."
+    details: "non-empty evidence: command output, observed behavior, or checked structure"
 issues:
   - severity: "critical|major|minor"
-    description: "..."
-    location: "..."
-    suggested_fix: "..."
+    description: "non-empty issue description"
+    location: "non-empty file:line or section reference"
+    suggested_fix: "non-empty fix guidance; required for fail_fixable, omit or null otherwise"
 post_mortem: null
 \`\`\`
 `;
@@ -441,8 +595,15 @@ export async function dispatchCuratorRedirect(
   iteration: number,
   humanRequest: string,
 ): Promise<DispatchResult<CuratorRedirectResponse>> {
-  const domains = await loadDomainsConfig();
+  const [domains, activeProjects] = await Promise.all([
+    loadDomainsConfig(),
+    getActiveProjects(),
+  ]);
+  const activeProjectIds = new Set(activeProjects.map((project) => project.project_id));
   const domainList = domains.domains.map((d) => d.name).join(", ");
+  const activeProjectList = activeProjects.length > 0
+    ? activeProjects.map((project) => `- ${project.project_id}: ${project.name}`).join("\n")
+    : "*No active projects.*";
 
   const prompt = `## Your Role
 
@@ -456,7 +617,14 @@ ${humanRequest}
 
 ${domainList}
 
+## Active Projects
+
+${activeProjectList}
+
 ## Output Format
+
+If this redirect should start a project, use \`xl_mode: project\` and keep \`project.estimated_iterations\` at or below ${config.projects.max_iterations_per_project}. Otherwise leave \`xl_mode\` and \`project\` null.
+If this redirect should continue a project, use only a \`project_id\` listed in Active Projects.
 
 Respond with ONLY valid YAML:
 
@@ -465,14 +633,21 @@ proposal:
   title: "..."
   domain: "..."
   pitch: "..."
-  complexity: "S|M|L"
+  complexity: "S|M|L|XL"
   why: "Responding to human redirect."
   project_id: null
   stimulus_ref: null
+  xl_mode: null
+  project: null
 \`\`\`
 `;
 
   return dispatchWithRetry<CuratorRedirectResponse>(
-    config, models, "curator", prompt, iteration, validateCuratorRedirect,
+    config,
+    models,
+    "curator",
+    prompt,
+    iteration,
+    curatorRedirectValidatorForConfig(new Set(domains.domains.map((domain) => domain.name)), config, activeProjectIds),
   );
 }

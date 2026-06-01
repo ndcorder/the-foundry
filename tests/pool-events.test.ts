@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setRootDir } from "../src/root.js";
@@ -114,5 +114,23 @@ describe("FoundryEventBus", () => {
     expect(lines).toHaveLength(2);
     expect(JSON.parse(lines[0]).iteration).toBe(1);
     expect(JSON.parse(lines[1]).iteration).toBe(2);
+  });
+
+  it("rotates large event logs before appending", async () => {
+    mkdirSync(path.join(tempDir, "logs"), { recursive: true });
+    const eventsFile = path.join(tempDir, "logs", "events.jsonl");
+    writeFileSync(eventsFile, "x".repeat(51 * 1024 * 1024), "utf-8");
+
+    const bus = new FoundryEventBus();
+    await bus.emit({ iteration: 3, slot: 0, phase: "pool", event: "rotated", data: {} });
+
+    const content = readFileSync(eventsFile, "utf-8");
+    expect(content).toContain('"event":"rotated"');
+    expect(content.length).toBeLessThan(1024);
+
+    const archived = readdirSync(path.join(tempDir, "logs")).filter(
+      (file) => file.startsWith("events.") && file !== "events.jsonl",
+    );
+    expect(archived.length).toBeGreaterThanOrEqual(1);
   });
 });

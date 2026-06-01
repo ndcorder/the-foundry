@@ -35,8 +35,26 @@ nav a.active{color:var(--text);border-bottom:1px solid var(--text-sec)}
 /* Main grid */
 .main{display:grid;grid-template-columns:1fr 1fr;gap:1rem;padding:0 2rem 2rem}
 .panel{background:var(--bg-card);border-radius:8px;padding:1.25rem;min-height:0}
+.panel-wide{grid-column:1/-1}
 .panel h2{font-size:0.7rem;font-weight:400;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-dim);margin-bottom:1rem}
 .panel canvas{width:100%;display:block}
+
+/* Furnace */
+.furnace-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--border);border-left:1px solid var(--border);margin-bottom:0.9rem}
+.furnace-cell{min-width:0;padding:0.75rem 0.85rem;border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.furnace-label{font-size:0.6rem;text-transform:uppercase;letter-spacing:0.09em;color:var(--text-dim);margin-bottom:0.28rem}
+.furnace-value{font-size:1.15rem;font-weight:300;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.furnace-sub{font-size:0.7rem;color:var(--text-sec);margin-top:0.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.furnace-urgency-high{color:var(--red)}
+.furnace-urgency-normal{color:var(--green)}
+.furnace-urgency-low{color:var(--yellow)}
+.furnace-line{display:grid;grid-template-columns:6rem 1fr;gap:1rem;padding:0.45rem 0;border-top:1px solid #151520;font-size:0.78rem}
+.furnace-line:first-of-type{border-top:0}
+.furnace-line span{color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;font-size:0.62rem}
+.furnace-muted{color:var(--text-sec)}
+.furnace-tags{display:flex;flex-wrap:wrap;gap:0.45rem;margin-top:0.35rem}
+.furnace-tag{font-size:0.68rem;color:var(--text-sec)}
+.furnace-tag:before{content:"/ ";color:var(--text-dim)}
 
 /* Timeline feed */
 .feed{max-height:600px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
@@ -65,6 +83,8 @@ nav a.active{color:var(--text);border-bottom:1px solid var(--text-sec)}
 /* Responsive */
 @media(max-width:768px){
   .main{grid-template-columns:1fr}
+  .furnace-grid{grid-template-columns:1fr 1fr}
+  .furnace-line{grid-template-columns:1fr;gap:0.2rem}
   .stats{flex-wrap:wrap}
   .stat{min-width:calc(50% - 0.5rem)}
   .header,.stats,.main,.footer{padding-left:1rem;padding-right:1rem}
@@ -95,6 +115,10 @@ nav a.active{color:var(--text);border-bottom:1px solid var(--text-sec)}
 </div>
 
 <div class="main">
+  <div class="panel panel-wide" id="p-furnace">
+    <h2>Furnace State</h2>
+    <div class="furnace" id="furnace"></div>
+  </div>
   <div class="panel" id="p-quality">
     <h2>Quality Trend</h2>
     <div style="position:relative"><canvas id="c-quality" height="260"></canvas><div class="chart-tooltip" id="tt-quality"></div></div>
@@ -146,18 +170,19 @@ function fmtDate(ts) {
 }
 
 // ── State ───────────────────────────────────────────────────────
-let DATA = { iterations:[], tokenUsage:[], decisions:[], testReports:[] };
+let DATA = { iterations:[], tokenUsage:[], decisions:[], testReports:[], furnace:null };
 let refreshTimer = null;
 
 // ── Fetch ───────────────────────────────────────────────────────
 async function fetchAll() {
-  const [iterations, tokenUsage, decisions, testReports] = await Promise.all([
+  const [iterations, tokenUsage, decisions, testReports, furnace] = await Promise.all([
     fetch('/api/iterations').then(r=>r.json()).catch(()=>[]),
     fetch('/api/token-usage').then(r=>r.json()).catch(()=>[]),
     fetch('/api/decisions').then(r=>r.json()).catch(()=>[]),
     fetch('/api/test-reports').then(r=>r.json()).catch(()=>[]),
+    fetch('/api/furnace').then(r=>r.json()).catch(()=>null),
   ]);
-  DATA = { iterations, tokenUsage, decisions, testReports };
+  DATA = { iterations, tokenUsage, decisions, testReports, furnace };
   render();
 }
 
@@ -223,11 +248,243 @@ function render() {
   renderDomainDonut(shipped);
   renderFeed(its);
   renderTokens();
+  renderFurnace(DATA.furnace);
 
   // Footer tokens
   let totalTokens = 0;
   DATA.tokenUsage.forEach(t => { totalTokens += (t.input_tokens||0) + (t.output_tokens||0); });
   document.getElementById('f-tokens').textContent = 'Total tokens: ' + fmt(totalTokens);
+}
+
+// ── Furnace State ────────────────────────────────────────────────
+function renderFurnace(furnace) {
+  const el = document.getElementById('furnace');
+  if (!furnace) {
+    el.innerHTML = '<div class="empty">Awaiting furnace telemetry...</div>';
+    return;
+  }
+
+  const stoker = furnace.stoker;
+  const cadence = furnace.stokerCadence || { enabled: false, runInterval: 5, nextRunIteration: null, iterationsUntilRun: null };
+  const heat = furnace.stokerHeat || {
+    window: 5,
+    threshold: 200000,
+    samples: 0,
+    averageTokens: 0,
+    totalTokens: 0,
+    peakTokens: 0,
+    thresholdPercent: 0,
+    remainingTokensToThreshold: 200000,
+    pressure: 'cool',
+    hot: false,
+  };
+  const critic = furnace.critic?.artifactRejection || {
+    samples: 0,
+    killed: 0,
+    shipped: 0,
+    rejectionRate: 0,
+    threshold: 0.4,
+    pressure: 'normal',
+  };
+  const complexity = furnace.complexity || {};
+  const streak = furnace.streak || {};
+  const speculative = furnace.speculative || { count: 0, staleCount: 0, ideas: [] };
+  const stimuli = furnace.stimuli || {
+    enabled: false,
+    sources: 0,
+    healthy: 0,
+    due: 0,
+    failing: 0,
+    disabled: 0,
+    entries: [],
+  };
+  const refinery = furnace.refinery || {
+    enabled: false,
+    minIterationsBetweenRuns: 5,
+    lastIteration: null,
+    nextEligibleIteration: null,
+    iterationsUntilEligible: null,
+  };
+  const refineryFuel = furnace.refineryFuel || {
+    enabled: false,
+    queueLimit: 0,
+    available: 0,
+    byType: { dream: 0, companion: 0, lowRated: 0 },
+    topTargets: [],
+  };
+  const refineryReadiness = furnace.refineryReadiness || {
+    state: 'disabled',
+    canQueue: false,
+    blockers: ['disabled'],
+    reason: 'Refinery telemetry is unavailable.',
+  };
+  const logs = furnace.logs || {
+    activeFiles: 0,
+    archiveCount: 0,
+    totalActiveBytes: 0,
+    totalArchiveBytes: 0,
+    totalLogBytes: 0,
+    rotationThresholdBytes: 50 * 1024 * 1024,
+    largestActivePercent: 0,
+    largestActiveBytesRemaining: 50 * 1024 * 1024,
+    rotationPressure: 'clear',
+    healthState: 'healthy',
+    malformedActiveLines: 0,
+    malformedActiveFiles: [],
+    malformedActiveFileDetails: [],
+    recommendedActions: [],
+    largestActive: null,
+    largestArchive: null,
+  };
+  const monitor = furnace.monitor || {
+    counts: { critical: 0, warning: 0, info: 0 },
+    activeCounts: { critical: 0, warning: 0, info: 0 },
+    activeWarnings: [],
+    activeWindow: null,
+    recentWarnings: [],
+    latestWarning: null,
+  };
+  const health = furnace.health || {
+    level: 'healthy',
+    reasons: [],
+    actions: [],
+  };
+  const activeStreak = streak.active && streak.domain
+    ? `${streak.domain} x${streak.length || 0}`
+    : streak.cooldownRemaining > 0
+      ? `cooldown ${streak.cooldownRemaining}`
+      : 'idle';
+  const avg = streak.avgRating != null ? `avg ${Number(streak.avgRating).toFixed(1)}` : 'no active streak';
+  const rules = stoker?.rules?.length
+    ? `<div class="furnace-tags">${stoker.rules.map(rule => `<span class="furnace-tag">${escHtml(rule)}</span>`).join('')}</div>`
+    : '';
+  const yields = (complexity.yields || []).slice(0, 3)
+    .map(entry => `${entry.tier} ${Number(entry.roi).toFixed(2)} ROI`)
+    .join(' / ');
+  const ideas = (speculative.ideas || []).slice(0, 2)
+    .map(idea => `${idea.title} (${idea.domain})`)
+    .join(' / ');
+  const nextStoke = cadence.enabled && cadence.nextRunIteration != null
+    ? `#${cadence.nextRunIteration} in ${cadence.iterationsUntilRun} ${cadence.iterationsUntilRun === 1 ? 'iteration' : 'iterations'}`
+    : 'disabled';
+  const refineryEligibility = refinery.enabled && refinery.nextEligibleIteration != null
+    ? `eligible #${refinery.nextEligibleIteration} in ${refinery.iterationsUntilEligible} ${refinery.iterationsUntilEligible === 1 ? 'iteration' : 'iterations'}`
+    : 'disabled';
+  const tokenHeat = `${Math.round(heat.averageTokens || 0)} avg / ${heat.threshold} threshold`;
+  const tokenPressure = `${heat.pressure || (heat.hot ? 'hot' : 'cool')} / ${heat.thresholdPercent || 0}% / peak ${Math.round(heat.peakTokens || 0)} / ${Math.round(heat.remainingTokensToThreshold || 0)} remaining`;
+  const criticPercent = Math.round((critic.rejectionRate || 0) * 100);
+  const criticThreshold = Math.round((critic.threshold || 0.4) * 100);
+  const criticPressure = critic.samples ? `${criticPercent}%` : '—';
+  const criticSub = critic.samples
+    ? `${critic.killed || 0} killed / ${critic.shipped || 0} shipped`
+    : 'no artifact decisions';
+  const criticDetail = critic.samples
+    ? `${criticPercent}% rejected across ${critic.samples} artifact decisions`
+    : 'No artifact decisions yet';
+  const criticClass = critic.pressure === 'high'
+    ? 'furnace-urgency-high'
+    : critic.samples
+      ? 'furnace-urgency-normal'
+      : '';
+  const stimuliState = stimuli.disabled
+    ? 'blocked'
+    : stimuli.failing
+      ? 'failing'
+      : stimuli.due
+        ? 'due'
+        : stimuli.enabled
+          ? 'healthy'
+          : 'idle';
+  const stimuliClass = stimuli.disabled || stimuli.failing
+    ? 'furnace-urgency-high'
+    : stimuli.due
+      ? 'furnace-urgency-low'
+      : stimuli.sources
+        ? 'furnace-urgency-normal'
+        : '';
+  const stimuliSummary = stimuli.sources
+    ? `${stimuli.sources} sources / ${stimuli.disabled || 0} disabled feeds`
+    : 'no source health';
+  const stimuliDetail = stimuli.sources
+    ? `${stimuli.healthy || 0} healthy / ${stimuli.failing || 0} failing / ${stimuli.disabled || 0} disabled feeds / ${stimuli.due || 0} due`
+    : 'No configured source health';
+  const stimuliEntries = (stimuli.entries || [])
+    .filter(entry => entry.disabled || entry.consecutiveFailures > 0 || entry.due)
+    .slice(0, 3)
+    .map(entry => `${entry.source} ${entry.state} last #${entry.lastRefreshIteration}`)
+    .join(' / ');
+  const fuelCounts = `dream ${refineryFuel.byType?.dream || 0}, companion ${refineryFuel.byType?.companion || 0}, low ${refineryFuel.byType?.lowRated || 0}`;
+  const fuelNext = refineryFuel.topTargets?.[0]?.title ? `next ${refineryFuel.topTargets[0].title}` : 'no target preview';
+  const largestLog = logs.largestActive
+    ? `largest ${logs.largestActive.name} ${logs.largestActive.bytes} bytes, ${logs.largestActivePercent || 0}% of rotation limit, ${logs.rotationPressure || 'clear'}`
+    : 'no active logs';
+  const archiveLog = logs.largestArchive
+    ? `largest archive ${logs.largestArchive.name} ${logs.largestArchive.bytes} bytes`
+    : 'no archives';
+  const totalLogBytes = logs.totalLogBytes ?? ((logs.totalActiveBytes || 0) + (logs.totalArchiveBytes || 0));
+  const logState = logs.healthState || 'healthy';
+  const malformedTargets = (logs.malformedActiveFileDetails || []).length
+    ? logs.malformedActiveFileDetails.map(detail => `${detail.name} first line ${detail.firstMalformedLine}`).join(', ')
+    : (logs.malformedActiveFiles || []).join(', ');
+  const malformedLogs = logs.malformedActiveLines > 0
+    ? `${logs.malformedActiveLines} malformed in ${malformedTargets}`
+    : '0 malformed';
+  const logActions = (logs.recommendedActions || []).length
+    ? logs.recommendedActions.join(' / ')
+    : '';
+  const latestMonitor = monitor.latestWarning
+    ? `${monitor.latestWarning.severity} ${monitor.latestWarning.detector}${monitor.latestWarning.iteration != null ? ` #${monitor.latestWarning.iteration}` : ''}: ${monitor.latestWarning.message}`
+    : 'no recent warnings';
+  const activeMonitorCounts = monitor.activeCounts || monitor.counts;
+  const totalMonitorCounts = monitor.activeCounts
+    ? ` / total ${monitor.counts.critical || 0} critical, ${monitor.counts.warning || 0} warnings, ${monitor.counts.info || 0} info`
+    : '';
+  const activeMonitorWindow = monitor.activeWindow
+    ? `active over ${monitor.activeWindow.iterations} iterations${totalMonitorCounts}`
+    : `active${totalMonitorCounts}`;
+  const furnaceHealthReasons = (health.reasons || []).length
+    ? health.reasons.join(' / ')
+    : 'no active alerts';
+  const furnaceHealthActions = (health.actions || []).length
+    ? health.actions.join(' / ')
+    : '';
+
+  el.innerHTML = [
+    '<div class="furnace-grid">',
+    furnaceMetric('Stoker', stoker ? stoker.urgency : 'idle', stoker ? `for #${stoker.forIteration}` : 'no directive', stoker ? `furnace-urgency-${stoker.urgency}` : ''),
+    furnaceMetric('Complexity', complexity.favor || 'balanced', complexity.confidence ? `${complexity.confidence} confidence` : 'no signal'),
+    furnaceMetric('Streak', activeStreak, avg),
+    furnaceMetric('Speculative', `${speculative.count || 0}`, ideas || 'no warmed ideas'),
+    furnaceMetric('Critic', criticPressure, criticSub, criticClass),
+    furnaceMetric('Stimuli', stimuliState, stimuliSummary, stimuliClass),
+    furnaceMetric('Refinery', refinery.lastIteration != null ? `#${refinery.lastIteration}` : 'none', stoker?.refineryQueue ? `${stoker.refineryQueue} queued` : 'no queued work'),
+    '</div>',
+    stoker?.hint ? `<div class="furnace-line"><span>Hint</span><div>${escHtml(stoker.hint)}${rules}</div></div>` : '',
+    `<div class="furnace-line"><span>Next stoke</span><div>${escHtml(nextStoke)} <span class="furnace-muted">every ${escHtml(cadence.runInterval)} iterations</span></div></div>`,
+    `<div class="furnace-line"><span>Token heat</span><div>${escHtml(tokenHeat)} <span class="furnace-muted">${escHtml(heat.samples)} samples / ${heat.hot ? 'hot' : 'cool'}</span></div></div>`,
+    `<div class="furnace-line"><span>Token pressure</span><div>${escHtml(tokenPressure)}</div></div>`,
+    `<div class="furnace-line"><span>Critic pressure</span><div>${escHtml(criticDetail)} <span class="furnace-muted">threshold ${escHtml(criticThreshold)}%</span></div></div>`,
+    `<div class="furnace-line"><span>Stimuli</span><div>${escHtml(stimuliDetail)} <span class="furnace-muted">source health${stimuliEntries ? ` / ${escHtml(stimuliEntries)}` : ''}</span></div></div>`,
+    `<div class="furnace-line"><span>Stale speculative</span><div>${escHtml(speculative.staleCount || 0)} ignored <span class="furnace-muted">older than the previous iteration</span></div></div>`,
+    `<div class="furnace-line"><span>Refinery</span><div>${escHtml(refineryEligibility)} <span class="furnace-muted">gap ${escHtml(refinery.minIterationsBetweenRuns)} iterations</span></div></div>`,
+    `<div class="furnace-line"><span>Refinery fuel</span><div>${escHtml(refineryFuel.available || 0)} available <span class="furnace-muted">queue ${escHtml(refineryFuel.queueLimit || 0)} / ${escHtml(fuelCounts)} / ${escHtml(fuelNext)}</span></div></div>`,
+    `<div class="furnace-line"><span>Refinery readiness</span><div>${escHtml(refineryReadiness.canQueue ? 'ready' : refineryReadiness.state)} <span class="furnace-muted">${escHtml(refineryReadiness.reason)}</span></div></div>`,
+    `<div class="furnace-line"><span>Furnace health</span><div>${escHtml(health.level || 'healthy')} <span class="furnace-muted">${escHtml(furnaceHealthReasons)}</span></div></div>`,
+    furnaceHealthActions ? `<div class="furnace-line"><span>Health actions</span><div>${escHtml(furnaceHealthActions)}</div></div>` : '',
+    `<div class="furnace-line"><span>Monitor</span><div>${escHtml(activeMonitorCounts.critical || 0)} critical / ${escHtml(activeMonitorCounts.warning || 0)} warnings / ${escHtml(activeMonitorCounts.info || 0)} info <span class="furnace-muted">${escHtml(activeMonitorWindow)} / ${escHtml(latestMonitor)}</span></div></div>`,
+    `<div class="furnace-line"><span>Log state</span><div>${escHtml(logState)} <span class="furnace-muted">${escHtml(logs.activeFiles || 0)} active / ${escHtml(logs.archiveCount || 0)} archives / ${escHtml(logs.totalActiveBytes || 0)} active bytes / ${escHtml(logs.totalArchiveBytes || 0)} archived bytes / ${escHtml(totalLogBytes)} total bytes / ${escHtml(largestLog)} / ${escHtml(archiveLog)} / ${escHtml(malformedLogs)}</span></div></div>`,
+    logActions ? `<div class="furnace-line"><span>Log actions</span><div>${escHtml(logActions)}</div></div>` : '',
+    complexity.reason ? `<div class="furnace-line"><span>ROI</span><div>${escHtml(complexity.reason)}${yields ? ` <span class="furnace-muted">${escHtml(yields)}</span>` : ''}</div></div>` : '',
+    streak.cooldownDomains?.length ? `<div class="furnace-line"><span>Cooldown</span><div>${escHtml(streak.cooldownDomains.join(', '))}</div></div>` : '',
+  ].join('');
+}
+
+function furnaceMetric(label, value, sub, className) {
+  return `<div class="furnace-cell">
+    <div class="furnace-label">${escHtml(label)}</div>
+    <div class="furnace-value ${className || ''}">${escHtml(value)}</div>
+    <div class="furnace-sub">${escHtml(sub || '')}</div>
+  </div>`;
 }
 
 // ── Sparkline ───────────────────────────────────────────────────
@@ -522,7 +779,7 @@ function renderFeed(iterations) {
 }
 
 function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function escAttr(s) {
   return escHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');

@@ -147,6 +147,16 @@ describe('StatsTracker', () => {
       expect(outcomes[1]).toEqual({ iteration: 2, outcome: 'killed', domain: undefined });
     });
 
+    it('preserves outcome source when provided', () => {
+      tracker.recordOutcome(1, 'shipped', 'prose', 'human_redirect');
+      expect(tracker.getSnapshot().recent_outcomes[0]).toEqual({
+        iteration: 1,
+        outcome: 'shipped',
+        domain: 'prose',
+        source: 'human_redirect',
+      });
+    });
+
     it('caps recentOutcomes at 50 by shifting oldest', () => {
       for (let i = 0; i < 55; i++) {
         tracker.recordOutcome(i, 'shipped', 'test');

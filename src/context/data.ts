@@ -37,6 +37,15 @@ function parseJsonlLines<T>(raw: string): T[] {
   return entries;
 }
 
+function rotatedJsonlSortKey(file: string, base: string): { timestamp: string; suffix: number; file: string } {
+  const prefix = `${base}.`;
+  const body = file.slice(prefix.length, -".jsonl".length);
+  const suffixMatch = body.match(/^(.*)\.(\d+)$/);
+  return suffixMatch
+    ? { timestamp: suffixMatch[1], suffix: Number.parseInt(suffixMatch[2], 10), file }
+    : { timestamp: body, suffix: 0, file };
+}
+
 export async function readJsonlEntries<T>(filePath: string): Promise<T[]> {
   const dir = path.dirname(filePath);
   const base = path.basename(filePath, ".jsonl");
@@ -46,7 +55,13 @@ export async function readJsonlEntries<T>(filePath: string): Promise<T[]> {
     const files = await readdir(dir);
     const rotated = files
       .filter((f) => f.startsWith(base + ".") && f.endsWith(".jsonl") && f !== path.basename(filePath))
-      .sort();
+      .sort((a, b) => {
+        const left = rotatedJsonlSortKey(a, base);
+        const right = rotatedJsonlSortKey(b, base);
+        return left.timestamp.localeCompare(right.timestamp)
+          || left.suffix - right.suffix
+          || left.file.localeCompare(right.file);
+      });
 
     const recentRotated = rotated.slice(-2);
 
@@ -77,12 +92,13 @@ export function formatDecisions(entries: DecisionLogEntry[]): string {
   return entries
     .map((d) => {
       const label = d.proposal_title || d.artifact_id || "unknown";
+      const sourceLabel = d.source === "human_redirect" ? " [human redirect]" : "";
       const detailParts = [
         d.review || d.reasons || d.sharpening_notes || "",
         d.recommended_complexity ? `recommended complexity: ${d.recommended_complexity}` : "",
       ].filter(Boolean);
       const detail = detailParts.join("; ");
-      return `- **${d.gate} / ${d.decision}** — ${label}${detail ? ": " + detail : ""}`;
+      return `- **${d.gate} / ${d.decision}**${sourceLabel} — ${label}${detail ? ": " + detail : ""}`;
     })
     .join("\n");
 }

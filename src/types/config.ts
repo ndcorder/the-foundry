@@ -3,6 +3,41 @@ export interface ComplexityProfileConfig {
   budget_warning_threshold: number;
 }
 
+export interface StreaksConfig {
+  min_length_for_amplify: number;
+  cooldown_after_break: number;
+  high_rating_threshold: number;
+  rating_break_threshold: number;
+}
+
+export interface ComplexityConfig {
+  yield_window: number;
+  min_samples_for_confidence: number;
+  high_confidence_samples: number;
+}
+
+export interface StokerConfig {
+  enabled: boolean;
+  run_interval: number;
+  refinery_token_heat_window: number;
+  refinery_token_heat_threshold: number;
+}
+
+export interface SpeculativeConfig {
+  enabled: boolean;
+  max_carried_ideas: number;
+}
+
+export interface RefineryConfig {
+  enabled: boolean;
+  min_iterations_between_runs: number;
+  max_refinery_queue: number;
+}
+
+export interface MonitorRuntimeConfig {
+  active_warning_window?: number;
+}
+
 export interface FoundryConfig {
   foundry: {
     name: string;
@@ -50,6 +85,12 @@ export interface FoundryConfig {
     checkpoint_every: number;
     resume_on_crash: boolean;
   };
+  streaks?: StreaksConfig;
+  complexity?: ComplexityConfig;
+  stoker?: StokerConfig;
+  speculative?: SpeculativeConfig;
+  refinery?: RefineryConfig;
+  monitor?: MonitorRuntimeConfig;
   loop: {
     cooldown_seconds: number;
     disk_space_min_gb: number;

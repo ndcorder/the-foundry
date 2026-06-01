@@ -12,11 +12,20 @@ import {
   readLiveStimuli,
   pickRandomSkills,
   selectDiverseReviews,
+  readJsonlEntries,
 } from "./data.js";
 import { getActiveProjects } from "../files/projects.js";
 import { loadLineageGraph } from "../lineage/index.js";
 import { getDreamsForIdeator } from "../dreams/index.js";
 import { loadMood } from "../mood/index.js";
+import { formatStreakContext, loadStreakHistory } from "../streaks/index.js";
+import { formatComplexityBias, loadComplexityBias } from "../complexity/index.js";
+import { formatStokerDirective, loadStokerDirective } from "../stoker/index.js";
+import {
+  filterCurrentSpeculativeIdeas,
+  formatSpeculativeIdeas,
+  loadSpeculativeIdeas,
+} from "../speculative/index.js";
 import { resolve } from "../root.js";
 
 function assembleBlock(shared: string, agentSpecific: string): ContextBlock {
@@ -43,11 +52,17 @@ export async function buildIdeatorContext(
     .filter((d) => d.gate === "gate1")
     .slice(-config.context.critic_gate1_history);
 
-  const projectSummary = activeProjects.length > 0
-    ? activeProjects.map((p) =>
-        `- **${p.project_id}** "${p.name}" — ${p.completed_iterations}/${p.estimated_iterations} iterations done`
-      ).join("\n")
-    : "*No active projects.*";
+  const projectSlotStatus = activeProjects.length >= config.projects.max_active
+    ? "At capacity; do not propose new project starters."
+    : "Starter slots available.";
+  const projectSummary = [
+    `Project slots: ${activeProjects.length}/${config.projects.max_active} active. ${projectSlotStatus}`,
+    activeProjects.length > 0
+      ? activeProjects.map((p) =>
+          `- **${p.project_id}** "${p.name}" — ${p.completed_iterations}/${p.estimated_iterations} iterations done`
+        ).join("\n")
+      : "*No active projects.*",
+  ].join("\n");
 
   const sections = [
     "## Critic's Recent Gate 1 Decisions\n",
@@ -103,6 +118,24 @@ export async function buildIdeatorContext(
     }
   } catch { /* mood not available */ }
 
+  let iterationEntries: Array<{ iteration?: number; outcome?: string }> = [];
+  let lastOutcome: string | undefined;
+  let nextIteration: number | undefined;
+  try {
+    iterationEntries = await readJsonlEntries<{ iteration?: number; outcome?: string }>(resolve("logs", "iterations.jsonl"));
+    lastOutcome = iterationEntries.at(-1)?.outcome;
+    const iterations = iterationEntries
+      .map((entry) => entry.iteration)
+      .filter((iteration): iteration is number => Number.isFinite(iteration));
+    if (iterations.length > 0) nextIteration = Math.max(...iterations) + 1;
+  } catch { /* iteration log not available yet */ }
+
+  const streakContext = formatStreakContext(await loadStreakHistory(), "ideator", config.streaks);
+  const complexityContext = formatComplexityBias(await loadComplexityBias());
+  const stokerContext = formatStokerDirective(await loadStokerDirective(), nextIteration);
+  const speculativeIdeas = filterCurrentSpeculativeIdeas(await loadSpeculativeIdeas(), nextIteration);
+  const speculativeContext = formatSpeculativeIdeas(speculativeIdeas, { last_outcome: lastOutcome });
+
   sections.push(
     "\n## Creative Lineage\n",
     constellationContext,
@@ -110,8 +143,16 @@ export async function buildIdeatorContext(
     moodContext,
     "\n## The Dream Journal (Fallen Artifacts Worth Revisiting)\n",
     dreamsContext,
+    speculativeContext ? "\n" : "",
+    speculativeContext,
     "\n## Active Projects\n",
     projectSummary,
+    stokerContext ? "\n" : "",
+    stokerContext,
+    streakContext ? "\n" : "",
+    streakContext,
+    complexityContext ? "\n" : "",
+    complexityContext,
     "\n## External Stimuli\n",
     "### Live\n",
     liveStimuli,
@@ -152,6 +193,11 @@ export async function buildCreatorContext(
 
   if (projectContext) {
     sections.push("\n## Project Context\n", projectContext);
+  }
+
+  const streakContext = formatStreakContext(await loadStreakHistory(), "creator", config.streaks);
+  if (streakContext) {
+    sections.push("\n", streakContext);
   }
 
   return assembleBlock(shared, sections.join("\n"));

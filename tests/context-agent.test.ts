@@ -111,6 +111,28 @@ describe('buildIdeatorContext', () => {
     const block = await buildIdeatorContext('shared', makeConfig());
     expect(block.agentSpecific).toContain('Test Project');
     expect(block.agentSpecific).toContain('2/5');
+    expect(block.agentSpecific).toContain('Project slots: 1/2 active');
+    expect(block.agentSpecific).toContain('Starter slots available');
+  });
+
+  it('warns ideator when active projects are at capacity', async () => {
+    for (const id of ['P001', 'P002']) {
+      const projDir = path.join(tempDir, 'portfolio', 'projects', `${id}-test-proj`);
+      mkdirSync(projDir, { recursive: true });
+      writeFileSync(path.join(projDir, 'status.yml'), yaml.stringify({
+        project_id: id,
+        name: `Test Project ${id}`,
+        status: 'active',
+        estimated_iterations: 5,
+        completed_iterations: 2,
+        last_iteration: 10,
+        created_at: '2026-01-01T00:00:00Z',
+      }));
+    }
+
+    const block = await buildIdeatorContext('shared', makeConfig());
+    expect(block.agentSpecific).toContain('Project slots: 2/2 active');
+    expect(block.agentSpecific).toContain('At capacity; do not propose new project starters');
   });
 
   it('includes curator recommendations when present', async () => {
@@ -130,6 +152,195 @@ describe('buildIdeatorContext', () => {
     writeFileSync(path.join(tempDir, 'stimuli', 'skills', 'writing.md'), 'Writing skill guide');
     const block = await buildIdeatorContext('shared', makeConfig());
     expect(block.agentSpecific).toContain('Writing skill guide');
+  });
+
+  it('includes hot streak guidance when streak state is active', async () => {
+    writeFileSync(path.join(tempDir, 'identity', 'streaks.yml'), yaml.stringify({
+      current: {
+        active: true,
+        length: 2,
+        domain: 'fiction',
+        avg_rating: 3.9,
+        start_iteration: 10,
+        last_iteration: 11,
+        artifact_ids: ['0010', '0011'],
+        project_id: null,
+      },
+      recent_breaks: [],
+      cooldown_domains: [],
+      cooldown_remaining: 0,
+    }));
+
+    const block = await buildIdeatorContext('shared', makeConfig());
+    expect(block.agentSpecific).toContain('Hot Streak');
+    expect(block.agentSpecific).toContain('2-iteration hot streak in fiction');
+  });
+
+  it('includes complexity guidance when yield bias is actionable', async () => {
+    writeFileSync(path.join(tempDir, 'identity', 'complexity-bias.yml'), yaml.stringify({
+      updated_at: '2026-01-01T00:00:00Z',
+      updated_iteration: 12,
+      yields: [
+        { tier: 'S', shipped_count: 3, mean_rating: 3.4, mean_token_cost: 4000, roi: 0.85 },
+        { tier: 'M', shipped_count: 3, mean_rating: 4.0, mean_token_cost: 12000, roi: 0.33 },
+      ],
+      recommendation: {
+        favor: 'S',
+        avoid: ['M'],
+        confidence: 'medium',
+        reason: 'S is currently more efficient.',
+      },
+    }));
+
+    const block = await buildIdeatorContext('shared', makeConfig());
+    expect(block.agentSpecific).toContain('Complexity Guidance');
+    expect(block.agentSpecific).toContain('Lean toward S-tier');
+    expect(block.agentSpecific).toContain('Avoid M-tier');
+  });
+
+  it('includes stoker directives when present', async () => {
+    writeFileSync(path.join(tempDir, 'identity', 'stoker-directive.yml'), yaml.stringify({
+      generated_at: '2026-01-01T00:00:00Z',
+      generated_iteration: 12,
+      for_iteration: 13,
+      urgency: 'high',
+      ideator_hint: 'Take a deliberate risk in fiction.',
+      complexity_override: 'L',
+      streak_instruction: 'neutral',
+      domain_pressure: { toward: ['fiction'], away_from: ['code-tool'] },
+      rules_fired: ['running_cold'],
+    }));
+
+    const block = await buildIdeatorContext('shared', makeConfig());
+    expect(block.agentSpecific).toContain('Stoker Directive');
+    expect(block.agentSpecific).toContain('Take a deliberate risk in fiction.');
+    expect(block.agentSpecific).toContain('Prefer L-tier');
+    expect(block.agentSpecific).toContain('Avoid code-tool');
+  });
+
+  it('suppresses consumed stoker directives based on the iteration log', async () => {
+    writeFileSync(path.join(tempDir, 'logs', 'iterations.jsonl'), JSON.stringify({
+      iteration: 13,
+      outcome: 'shipped',
+      title: 'Previous Work',
+    }) + '\n');
+    writeFileSync(path.join(tempDir, 'identity', 'stoker-directive.yml'), yaml.stringify({
+      generated_at: '2026-01-01T00:00:00Z',
+      generated_iteration: 12,
+      for_iteration: 13,
+      urgency: 'high',
+      ideator_hint: 'This directive has already been consumed.',
+      streak_instruction: 'neutral',
+      rules_fired: ['running_cold'],
+    }));
+
+    const block = await buildIdeatorContext('shared', makeConfig());
+    expect(block.agentSpecific).not.toContain('Stoker Directive');
+    expect(block.agentSpecific).not.toContain('already been consumed');
+  });
+
+  it('includes salvaged speculative ideas when present', async () => {
+    mkdirSync(path.join(tempDir, 'workspace'), { recursive: true });
+    writeFileSync(path.join(tempDir, 'workspace', 'speculative.yml'), yaml.stringify({
+      updated_at: '2026-01-01T00:00:00Z',
+      ideas: [
+        {
+          proposal: {
+            title: 'Salvaged Clock',
+            domain: 'prose',
+            pitch: 'A clock that files complaints about time.',
+            complexity: 'M',
+            why: 'It gives the portfolio a sharper surreal object.',
+            project_id: null,
+            stimulus_ref: null,
+          },
+          critic_evaluation: {
+            decision: 'revise',
+            reasons: 'Good kernel but too vague.',
+            sharpening_notes: 'Make the bureaucracy concrete.',
+          },
+          iteration: 12,
+          salvageable: true,
+        },
+      ],
+    }));
+
+    const block = await buildIdeatorContext('shared', makeConfig());
+    expect(block.agentSpecific).toContain('Salvaged Ideas from Last Iteration');
+    expect(block.agentSpecific).toContain('Salvaged Clock');
+    expect(block.agentSpecific).toContain('Make the bureaucracy concrete.');
+  });
+
+  it('labels speculative ideas as fast-track options after a killed iteration', async () => {
+    mkdirSync(path.join(tempDir, 'workspace'), { recursive: true });
+    writeFileSync(path.join(tempDir, 'logs', 'iterations.jsonl'), JSON.stringify({
+      iteration: 12,
+      outcome: 'killed',
+      title: 'Killed Work',
+    }) + '\n');
+    writeFileSync(path.join(tempDir, 'workspace', 'speculative.yml'), yaml.stringify({
+      updated_at: '2026-01-01T00:00:00Z',
+      ideas: [
+        {
+          proposal: {
+            title: 'Fast Clock',
+            domain: 'prose',
+            pitch: 'A clock that files complaints about time.',
+            complexity: 'M',
+            why: 'It gives the next run a pre-warmed option.',
+            project_id: null,
+            stimulus_ref: null,
+          },
+          critic_evaluation: {
+            decision: 'approve',
+            reasons: 'Approved but not selected.',
+            sharpening_notes: 'Build it next.',
+          },
+          iteration: 12,
+          salvageable: true,
+        },
+      ],
+    }));
+
+    const block = await buildIdeatorContext('shared', makeConfig());
+    expect(block.agentSpecific).toContain('Fast-Track Options');
+    expect(block.agentSpecific).toContain('Strongly consider refining');
+  });
+
+  it('suppresses speculative ideas older than the previous iteration', async () => {
+    mkdirSync(path.join(tempDir, 'workspace'), { recursive: true });
+    writeFileSync(path.join(tempDir, 'logs', 'iterations.jsonl'), JSON.stringify({
+      iteration: 14,
+      outcome: 'shipped',
+      title: 'Newer Work',
+    }) + '\n');
+    writeFileSync(path.join(tempDir, 'workspace', 'speculative.yml'), yaml.stringify({
+      updated_at: '2026-01-01T00:00:00Z',
+      ideas: [
+        {
+          proposal: {
+            title: 'Old Clock',
+            domain: 'prose',
+            pitch: 'A stale warmed option from two rounds back.',
+            complexity: 'M',
+            why: 'It should no longer be injected.',
+            project_id: null,
+            stimulus_ref: null,
+          },
+          critic_evaluation: {
+            decision: 'revise',
+            reasons: 'Good kernel but old.',
+            sharpening_notes: 'This note should be hidden.',
+          },
+          iteration: 12,
+          salvageable: true,
+        },
+      ],
+    }));
+
+    const block = await buildIdeatorContext('shared', makeConfig());
+    expect(block.agentSpecific).not.toContain('Old Clock');
+    expect(block.agentSpecific).not.toContain('This note should be hidden');
   });
 });
 
@@ -164,6 +375,28 @@ describe('buildCreatorContext', () => {
   it('omits project context section when not provided', async () => {
     const block = await buildCreatorContext('shared', makeConfig(), 'proposal');
     expect(block.agentSpecific).not.toContain('Project Context');
+  });
+
+  it('includes creator streak context when streak state is active', async () => {
+    writeFileSync(path.join(tempDir, 'identity', 'streaks.yml'), yaml.stringify({
+      current: {
+        active: true,
+        length: 3,
+        domain: 'code',
+        avg_rating: 4.1,
+        start_iteration: 7,
+        last_iteration: 9,
+        artifact_ids: ['0007', '0008', '0009'],
+        project_id: null,
+      },
+      recent_breaks: [],
+      cooldown_domains: [],
+      cooldown_remaining: 0,
+    }));
+
+    const block = await buildCreatorContext('shared', makeConfig(), 'proposal');
+    expect(block.agentSpecific).toContain('Streak Context');
+    expect(block.agentSpecific).toContain('4.1');
   });
 });
 

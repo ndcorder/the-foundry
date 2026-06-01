@@ -4,10 +4,13 @@ import {
   detectRepetition,
   detectManifestoDrift,
   detectDomainCollapse,
+  detectComplexityYield,
+  detectLogHealth,
   runAllDetectors,
   type IterationEntry,
 } from '../src/monitor/detectors.js';
 import { DEFAULT_MONITOR_CONFIG, type MonitorConfig } from '../src/monitor/types.js';
+import type { JsonlLogHealth } from '../src/logging/index.js';
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -19,6 +22,21 @@ function entry(overrides: Partial<IterationEntry> & { iteration: number }): Iter
     duration_ms: 1000,
     ...overrides,
   };
+}
+
+function complexityEntry(
+  iteration: number,
+  complexity: 'S' | 'M',
+  meanRating: string,
+  tokens: number,
+): IterationEntry {
+  return entry({
+    iteration,
+    outcome: 'shipped',
+    complexity,
+    mean_rating: meanRating,
+    token_usage: { input: Math.floor(tokens * 0.7), output: Math.ceil(tokens * 0.3) },
+  });
 }
 
 function shippedEntries(
@@ -38,6 +56,28 @@ function shippedEntries(
 }
 
 const cfg = DEFAULT_MONITOR_CONFIG;
+
+function logHealth(overrides: Partial<JsonlLogHealth> = {}): JsonlLogHealth {
+  return {
+    activeFiles: 1,
+    archiveCount: 0,
+    totalActiveBytes: 100,
+    totalArchiveBytes: 0,
+    totalLogBytes: 100,
+    rotationThresholdBytes: 50 * 1024 * 1024,
+    largestActivePercent: 0,
+    largestActiveBytesRemaining: 50 * 1024 * 1024 - 100,
+    rotationPressure: 'clear',
+    healthState: 'healthy',
+    malformedActiveLines: 0,
+    malformedActiveFiles: [],
+    malformedActiveFileDetails: [],
+    recommendedActions: [],
+    largestActive: { name: 'events.jsonl', bytes: 100 },
+    largestArchive: null,
+    ...overrides,
+  };
+}
 
 // ── detectSlop ───────────────────────────────────────────────────
 
@@ -317,6 +357,105 @@ describe('runAllDetectors', () => {
     // Empty iterations → only manifesto stagnation info
     expect(warnings.some(w => w.detector === 'manifesto_drift')).toBe(true);
   });
+
+  it('includes JSONL log health warnings when log health is supplied', () => {
+    const warnings = runAllDetectors([], '', 1, cfg, logHealth({
+      healthState: 'malformed',
+      malformedActiveLines: 1,
+      malformedActiveFiles: ['events.jsonl'],
+      malformedActiveFileDetails: [
+        { name: 'events.jsonl', malformedLines: 1, firstMalformedLine: 7 },
+      ],
+    }));
+
+    expect(warnings.some(w => w.detector === 'log_health' && w.severity === 'critical')).toBe(true);
+  });
+});
+
+// ── detectLogHealth ─────────────────────────────────────────────
+
+describe('detectLogHealth', () => {
+  it('returns no warnings for healthy logs', () => {
+    expect(detectLogHealth(logHealth(), 12)).toEqual([]);
+  });
+
+  it('returns a critical warning with first-line details for malformed active logs', () => {
+    const warnings = detectLogHealth(logHealth({
+      healthState: 'malformed',
+      malformedActiveLines: 2,
+      malformedActiveFiles: ['events.jsonl'],
+      malformedActiveFileDetails: [
+        { name: 'events.jsonl', malformedLines: 2, firstMalformedLine: 7 },
+      ],
+    }), 12);
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({
+      detector: 'log_health',
+      severity: 'critical',
+      iteration: 12,
+    });
+    expect(warnings[0].message).toContain('2 malformed');
+    expect(warnings[0].message).toContain('events.jsonl');
+    expect(warnings[0].message).toContain('first line 7');
+  });
+
+  it('returns a warning when the largest active log is near rotation', () => {
+    const warnings = detectLogHealth(logHealth({
+      healthState: 'rotate-soon',
+      rotationPressure: 'rotate-soon',
+      largestActivePercent: 97,
+      largestActiveBytesRemaining: 1024,
+      largestActive: { name: 'iterations.jsonl', bytes: 50 * 1024 * 1024 - 1024 },
+    }), 12);
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({
+      detector: 'log_health',
+      severity: 'warning',
+    });
+    expect(warnings[0].message).toContain('iterations.jsonl');
+    expect(warnings[0].message).toContain('97%');
+  });
+});
+
+// ── detectComplexityYield ───────────────────────────────────────
+
+describe('detectComplexityYield', () => {
+  it('returns a complexity bias update warning when ROI data is actionable', () => {
+    const entries = [
+      complexityEntry(1, 'S', '3.0', 3000),
+      complexityEntry(2, 'S', '3.0', 3000),
+      complexityEntry(3, 'S', '3.0', 3000),
+      complexityEntry(4, 'M', '4.0', 12000),
+      complexityEntry(5, 'M', '4.0', 12000),
+      complexityEntry(6, 'M', '4.0', 12000),
+    ];
+
+    const warnings = detectComplexityYield(entries, 7, {
+      yield_window: 20,
+      min_samples_for_confidence: 3,
+      high_confidence_samples: 5,
+    });
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].detector).toBe('complexity_yield');
+    expect(warnings[0].severity).toBe('info');
+    expect(warnings[0].action?.type).toBe('complexity_bias_update');
+    if (warnings[0].action?.type === 'complexity_bias_update') {
+      expect(warnings[0].action.bias.recommendation.favor).toBe('S');
+      expect(warnings[0].action.bias.recommendation.avoid).toEqual(['M']);
+    }
+  });
+
+  it('returns no warning when complexity yield confidence is low', () => {
+    const warnings = detectComplexityYield([
+      complexityEntry(1, 'S', '4.0', 1000),
+      complexityEntry(2, 'M', '4.0', 1000),
+    ], 3);
+
+    expect(warnings).toEqual([]);
+  });
 });
 
 // ── DEFAULT_MONITOR_CONFIG ───────────────────────────────────────
@@ -333,6 +472,10 @@ describe('DEFAULT_MONITOR_CONFIG', () => {
     expect(DEFAULT_MONITOR_CONFIG.domain_collapse_window).toBe(30);
     expect(DEFAULT_MONITOR_CONFIG.domain_collapse_threshold).toBe(0.6);
     expect(DEFAULT_MONITOR_CONFIG.domain_force_duration).toBe(5);
+    expect(DEFAULT_MONITOR_CONFIG.complexity_yield_window).toBe(20);
+    expect(DEFAULT_MONITOR_CONFIG.complexity_min_samples_for_confidence).toBe(3);
+    expect(DEFAULT_MONITOR_CONFIG.complexity_high_confidence_samples).toBe(5);
+    expect(DEFAULT_MONITOR_CONFIG.active_warning_window).toBe(10);
   });
 
   it('has all MonitorConfig keys', () => {
@@ -347,5 +490,9 @@ describe('DEFAULT_MONITOR_CONFIG', () => {
     expect(keys).toContain('domain_collapse_window');
     expect(keys).toContain('domain_collapse_threshold');
     expect(keys).toContain('domain_force_duration');
+    expect(keys).toContain('complexity_yield_window');
+    expect(keys).toContain('complexity_min_samples_for_confidence');
+    expect(keys).toContain('complexity_high_confidence_samples');
+    expect(keys).toContain('active_warning_window');
   });
 });

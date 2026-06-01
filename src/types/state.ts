@@ -1,12 +1,15 @@
 // ── Checkpoint ────────────────────────────────────────────────
 
+import type { StreakHistory } from "../streaks/index.js";
+
 export interface CheckpointState {
   iteration: number;
   active_project_ids: string[];
   domain_counts: Record<string, number>;
-  last_stimuli_refresh: Record<string, number>;
+  last_stimuli_refresh: StimuliRefreshCheckpointRecord;
   last_curator_run: number;
   stats: StatsSnapshot;
+  streak_state?: StreakHistory;
   saved_at: string;
 }
 
@@ -18,7 +21,12 @@ export interface StatsSnapshot {
   killed: number;
   skipped: number;
   domain_counts: Record<string, number>;
-  recent_outcomes: Array<{ iteration: number; outcome: string; domain?: string }>;
+  recent_outcomes: Array<{
+    iteration: number;
+    outcome: string;
+    domain?: string;
+    source?: "ideator" | "human_redirect";
+  }>;
   critic_rejection_window: Array<{ iteration: number; rejected: boolean }>;
   total_tokens: { input: number; output: number };
 }
@@ -67,3 +75,14 @@ export interface StimuliRefreshState {
   consecutive_failures: number;
   disabled: boolean;
 }
+
+export interface StimuliRefreshCheckpointEntry {
+  last_refresh_iteration: number;
+  consecutive_failures: number;
+  disabled: boolean;
+}
+
+export type StimuliRefreshCheckpointRecord = Record<
+  string,
+  number | StimuliRefreshCheckpointEntry
+>;

@@ -69,7 +69,7 @@ export interface TesterIssue {
   severity: "critical" | "major" | "minor";
   description: string;
   location: string;
-  suggested_fix?: string;
+  suggested_fix?: string | null;
 }
 
 export interface TesterResponse {
@@ -77,7 +77,7 @@ export interface TesterResponse {
   summary: string;
   tests_run: TesterTestResult[];
   issues: TesterIssue[];
-  post_mortem?: string;
+  post_mortem?: string | null;
   test_plan?: TesterTestPlan;
 }
 
@@ -143,10 +143,17 @@ export interface CuratorFullResponse {
 export interface IterationResult {
   iteration: number;
   outcome: "shipped" | "killed" | "skipped" | "halted";
+  source?: "ideator" | "human_redirect";
   artifact_id?: string;
   title?: string;
   domain?: string;
   ratings?: CriticRatings;
+  mean_rating?: string;
+  complexity?: "S" | "M" | "L" | "XL";
+  project_id?: string | null;
+  project_completed_iterations?: number;
+  project_estimated_iterations?: number;
+  project_milestone_reached?: boolean;
   reason?: string;
   token_usage: { input: number; output: number };
   duration_ms: number;

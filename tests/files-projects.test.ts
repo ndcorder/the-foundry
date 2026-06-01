@@ -88,6 +88,7 @@ describe('createProject', () => {
     expect(indexContent).toContain('P001');
     expect(indexContent).toContain('Test Project');
     expect(indexContent).toContain('active');
+    expect(indexContent.match(/\| P001 \| Test Project \|/g)).toHaveLength(1);
   });
 });
 
@@ -190,6 +191,15 @@ describe('updateProjectStatus', () => {
     expect(status.completed_iterations).toBe(3);
     expect(status.last_iteration).toBe(10);
     expect(status.name).toBe('Test Project'); // unchanged
+  });
+
+  it('refreshes the projects index after status updates', async () => {
+    const projectId = await createProject(sampleBrief, 1);
+    await updateProjectStatus(projectId, { completed_iterations: 3, last_iteration: 10 });
+
+    const indexContent = readFileSync(path.join(tempDir, 'portfolio', 'projects', 'index.md'), 'utf-8');
+    expect(indexContent).toContain('| P001 | Test Project | active | 3/5 |');
+    expect(indexContent).not.toContain('| P001 | Test Project | active | 0/5 |');
   });
 
   it('throws for nonexistent project', async () => {

@@ -44,16 +44,16 @@ Deliver the completed artifact as structured YAML. Every file must be complete a
 Respond with ONLY valid YAML:
 
 ```yaml
-title: "The title of your artifact"
+title: "Non-empty title of your artifact"
 files:
   - path: "main.py"  # or story.md, poem.txt, etc.
     content: |
-      # Full content of the file goes here
+      # Non-empty full content of the file goes here
       # For code: complete, runnable source
       # For prose: the finished text
   - path: "README.md"  # optional additional files
     content: |
-      ...
+      Non-empty supporting content.
 notes: |
   Brief notes on key creative/technical decisions.
 ```

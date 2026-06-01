@@ -99,6 +99,17 @@ describe('readJsonlEntries', () => {
     expect(entries.map(e => e.id)).toEqual([1, 2, 3]);
   });
 
+  it('orders same-timestamp rotated archives by suffix', async () => {
+    const dir = path.join(tempDir, 'logs');
+    writeFileSync(path.join(dir, 'events.jsonl'), '{"id":3}\n');
+    writeFileSync(path.join(dir, 'events.2026-01-01T00-00-00-000Z.jsonl'), '{"id":1}\n');
+    writeFileSync(path.join(dir, 'events.2026-01-01T00-00-00-000Z.1.jsonl'), '{"id":2}\n');
+
+    const entries = await readJsonlEntries<{ id: number }>(path.join(dir, 'events.jsonl'));
+
+    expect(entries.map(e => e.id)).toEqual([1, 2, 3]);
+  });
+
   it('reads at most 2 most recent rotated archives', async () => {
     const dir = path.join(tempDir, 'logs');
     writeFileSync(path.join(dir, 'data.jsonl'), '{"id":5}\n');
@@ -230,6 +241,23 @@ describe('formatDecisions', () => {
     }];
     const result = formatDecisions(entries);
     expect(result).toContain('recommended complexity: XL');
+  });
+
+  it('labels human redirect decisions in decision history', () => {
+    const entries: DecisionLogEntry[] = [{
+      timestamp: '2026-01-01T00:00:00Z',
+      iteration: 1,
+      gate: 'gate1',
+      agent: 'critic',
+      decision: 'approve',
+      source: 'human_redirect',
+      proposal_title: 'Operator Request',
+      sharpening_notes: 'Keep the operator constraint visible',
+    }];
+    const result = formatDecisions(entries);
+    expect(result).toContain('[human redirect]');
+    expect(result).toContain('Operator Request');
+    expect(result).toContain('Keep the operator constraint visible');
   });
 
   it('handles missing label gracefully', () => {

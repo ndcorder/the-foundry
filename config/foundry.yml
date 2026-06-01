@@ -1,6 +1,6 @@
 foundry:
   name: "The Foundry"
-  version: "1.1.2"
+  version: "1.2.0"
 
 iteration:
   max_idea_retries: 10
@@ -29,6 +29,35 @@ projects:
   max_iterations_per_project: 30
   allow_standalone_interrupts: true
   kickstart_after: 15
+
+streaks:
+  min_length_for_amplify: 2
+  cooldown_after_break: 2
+  high_rating_threshold: 3.5
+  rating_break_threshold: 3.0
+
+complexity:
+  yield_window: 20
+  min_samples_for_confidence: 3
+  high_confidence_samples: 5
+
+stoker:
+  enabled: true
+  run_interval: 5
+  refinery_token_heat_window: 5
+  refinery_token_heat_threshold: 200000
+
+speculative:
+  enabled: true
+  max_carried_ideas: 2
+
+refinery:
+  enabled: true
+  min_iterations_between_runs: 5
+  max_refinery_queue: 1
+
+monitor:
+  active_warning_window: 10
 
 stimuli:
   enabled: true

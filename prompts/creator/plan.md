@@ -35,7 +35,7 @@ Scale targets:
 - L: 6-12 meaningful files or major sections, with 4 build-order batches
 - XL: 12-24 meaningful files or major sections, with 8 build-order batches
 
-Keep build_order granular. Each batch should contain one or two tightly related files so each build pass has real work to do.
+Keep build_order granular. Each batch must contain one or two tightly related files so each build pass has real work to do. List each file at most once across the entire build_order.
 
 ## Output Format
 
@@ -43,16 +43,16 @@ Respond with ONLY valid YAML:
 
 ```yaml
 plan:
-  approach: "High-level description of your approach"
+  approach: "Non-empty high-level description of your approach"
   file_manifest:
     - path: "filename.ext"
-      purpose: "What this file does"
+      purpose: "Non-empty description of what this file does"
       estimated_lines: 100
   key_decisions:
-    - "Decision 1 and why"
-    - "Decision 2 and why"
+    - "Non-empty decision 1 and why"
+    - "Non-empty decision 2 and why"
   challenges:
-    - "Challenge and mitigation"
+    - "Non-empty challenge and mitigation"
   build_order:
     - ["file1.ext", "file2.ext"]
     - ["file3.ext"]

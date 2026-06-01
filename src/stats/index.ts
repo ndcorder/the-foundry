@@ -2,6 +2,7 @@ import type { StatsSnapshot } from "../types/index.js";
 
 const OUTCOME_CAP = 50;
 const REJECTION_CAP = 20;
+type OutcomeSource = "ideator" | "human_redirect";
 
 export class StatsTracker {
   private iteration = 0;
@@ -9,7 +10,7 @@ export class StatsTracker {
   private killed = 0;
   private skipped = 0;
   private domainCounts: Record<string, number> = {};
-  private recentOutcomes: Array<{ iteration: number; outcome: string; domain?: string }> = [];
+  private recentOutcomes: Array<{ iteration: number; outcome: string; domain?: string; source?: OutcomeSource }> = [];
   private criticWindow: Array<{ iteration: number; rejected: boolean }> = [];
   private tokens = { input: 0, output: 0 };
 
@@ -36,12 +37,13 @@ export class StatsTracker {
     iteration: number,
     outcome: "shipped" | "killed" | "skipped",
     domain?: string,
+    source?: OutcomeSource,
   ): void {
     this[outcome]++;
     if (outcome === "shipped" && domain) {
       this.domainCounts[domain] = (this.domainCounts[domain] ?? 0) + 1;
     }
-    this.recentOutcomes.push({ iteration, outcome, domain });
+    this.recentOutcomes.push({ iteration, outcome, domain, ...(source ? { source } : {}) });
     if (this.recentOutcomes.length > OUTCOME_CAP) {
       this.recentOutcomes.shift();
     }

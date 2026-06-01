@@ -12,7 +12,7 @@ describe("furnace defaults", () => {
   ) as ModelsConfig;
   const pkg = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf-8"),
-  ) as { version: string; files: string[] };
+  ) as { version: string; files: string[]; exports: Record<string, string> };
 
   it("keeps the default config version aligned with the package", () => {
     expect(foundry.foundry.version).toBe(pkg.version);
@@ -25,6 +25,28 @@ describe("furnace defaults", () => {
 
   it("runs multiple ideation bursts per attempt", () => {
     expect(foundry.iteration.ideation_burst_count ?? 1).toBeGreaterThanOrEqual(3);
+  });
+
+  it("enables the stoker directive loop", () => {
+    expect(foundry.stoker?.enabled).toBe(true);
+    expect(foundry.stoker?.run_interval).toBeGreaterThanOrEqual(1);
+    expect(foundry.stoker?.refinery_token_heat_window).toBeGreaterThanOrEqual(1);
+    expect(foundry.stoker?.refinery_token_heat_threshold).toBeGreaterThan(0);
+  });
+
+  it("enables speculative idea carry-forward", () => {
+    expect(foundry.speculative?.enabled).toBe(true);
+    expect(foundry.speculative?.max_carried_ideas).toBe(2);
+  });
+
+  it("enables refinery target discovery", () => {
+    expect(foundry.refinery?.enabled).toBe(true);
+    expect(foundry.refinery?.min_iterations_between_runs).toBeGreaterThanOrEqual(5);
+    expect(foundry.refinery?.max_refinery_queue).toBeGreaterThanOrEqual(1);
+  });
+
+  it("configures the active monitor warning window for health gates", () => {
+    expect(foundry.monitor?.active_warning_window).toBe(10);
   });
 
   it("feeds large contexts to every ideation and review call", () => {
@@ -43,5 +65,9 @@ describe("furnace defaults", () => {
 
   it("ships dashboard sources in the npm package", () => {
     expect(pkg.files).toContain("dashboard/");
+  });
+
+  it("exports Critic rating helpers as a package subpath", () => {
+    expect(pkg.exports["./critic"]).toBe("./dist/critic/index.js");
   });
 });

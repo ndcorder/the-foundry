@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { CriticRatings, CreatorFile } from "../types/index.js";
 import { resolve } from "../root.js";
+import { assertShippableCriticRatings, formatMeanCriticRating } from "../critic/ratings.js";
 
 const CODE_DOMAINS = new Set(["code-tool", "code-game", "code-art"]);
 
@@ -72,9 +73,18 @@ export interface WriteArtifactOpts {
   ratings: CriticRatings;
   testerReport: string;
   proposal: string;
+  refinery?: {
+    source_type: string;
+    source_id: string;
+    source_title: string;
+    refinement_type: string;
+    original_rating?: number;
+  };
 }
 
 export async function writeArtifact(opts: WriteArtifactOpts): Promise<string> {
+  assertShippableCriticRatings(opts.ratings);
+
   const slug = slugify(opts.title);
   const dirName = `${opts.id}-${slug}`;
   const base = domainDir(opts.domain);
@@ -100,9 +110,20 @@ export async function writeArtifact(opts: WriteArtifactOpts): Promise<string> {
     ...ratingEntries,
   ].join("\n");
 
-  const mean = ratingEntries.length > 0
-    ? (Object.values(opts.ratings).filter((v): v is number => v !== undefined).reduce((a, b) => a + b, 0) / ratingEntries.length).toFixed(1)
-    : "N/A";
+  const mean = formatMeanCriticRating(opts.ratings);
+
+  const refinerySection = opts.refinery
+    ? [
+        "## Refinery Lineage",
+        "",
+        `Refined from ${opts.refinery.source_type} #${opts.refinery.source_id}: ${opts.refinery.source_title}.`,
+        `Refinement type: ${opts.refinery.refinement_type}.`,
+        opts.refinery.original_rating !== undefined
+          ? `Original rating: ${opts.refinery.original_rating}.`
+          : "",
+        "",
+      ].filter(Boolean)
+    : [];
 
   // Write README.md
   const readme = [
@@ -120,6 +141,7 @@ export async function writeArtifact(opts: WriteArtifactOpts): Promise<string> {
     "",
     opts.review,
     "",
+    ...refinerySection,
     "## Ratings",
     "",
     ratingsTable,
@@ -135,12 +157,41 @@ export async function writeArtifact(opts: WriteArtifactOpts): Promise<string> {
   return artifactDir;
 }
 
+export interface PortfolioIndexMetadata {
+  refined_from?: string;
+}
+
+function ensureRefinedFromColumn(content: string): string {
+  if (content.includes("| Refined From |")) return content;
+
+  const lines = content.split("\n");
+  const headerIndex = lines.findIndex((line) => line.includes("| ID |") && line.includes("| Project |"));
+  if (headerIndex < 0) return content;
+
+  lines[headerIndex] = lines[headerIndex].replace(/\|\s*$/, "| Refined From |");
+  if (lines[headerIndex + 1]?.includes("---")) {
+    lines[headerIndex + 1] = lines[headerIndex + 1].replace(/\|\s*$/, "|---|");
+  }
+
+  for (let i = headerIndex + 2; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim().startsWith("|") || line.includes("---")) continue;
+    const cells = line.split("|").slice(1, -1);
+    if (cells.length === 6) {
+      lines[i] = line.replace(/\|\s*$/, "| — |");
+    }
+  }
+
+  return lines.join("\n");
+}
+
 export async function updatePortfolioIndex(
   id: string,
   title: string,
   domain: string,
   meanRating: string,
   projectId?: string,
+  metadata?: PortfolioIndexMetadata,
 ): Promise<void> {
   const indexPath = resolve("portfolio", "index.md");
   let content: string;
@@ -152,9 +203,16 @@ export async function updatePortfolioIndex(
 
   // Remove the "No artifacts yet" placeholder
   content = content.replace(/\n\*No artifacts yet\.\*\n?/, "\n");
+  if (metadata?.refined_from) {
+    content = ensureRefinedFromColumn(content);
+  }
 
   const date = new Date().toISOString().slice(0, 10);
-  const row = `| ${id} | ${title} | ${domain} | ${meanRating} | ${date} | ${projectId ?? "—"} |`;
+  const refinedFrom = metadata?.refined_from ? `#${metadata.refined_from}` : "—";
+  const hasRefinedColumn = content.includes("| Refined From |");
+  const row = hasRefinedColumn
+    ? `| ${id} | ${title} | ${domain} | ${meanRating} | ${date} | ${projectId ?? "—"} | ${refinedFrom} |`
+    : `| ${id} | ${title} | ${domain} | ${meanRating} | ${date} | ${projectId ?? "—"} |`;
   content = content.trimEnd() + "\n" + row + "\n";
 
   await writeFile(indexPath, content, "utf-8");

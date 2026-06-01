@@ -14,9 +14,13 @@
 
 {mood_context}
 
+{stoker_directive}
+
 ## The Dream Journal
 
 {dreams_context}
+
+{speculative_ideas}
 
 ## Critic's Recent Decisions
 
@@ -38,26 +42,32 @@ You may propose standalone ideas or continuations of active projects. Not every 
 ## Rules
 
 - Propose exactly 5 ideas, ranked by your excitement
+- Every `title` must be non-empty and unique across the 5 ideas
 - Each idea must include:
   - title: a specific, evocative name
-  - domain: one of {domain_list}
-  - pitch: 3-5 sentences — what is it, how should it unfold, and why is it interesting?
+  - domain: one of {domain_list}; must be non-empty
+  - pitch: 3-5 non-empty sentences — what is it, how should it unfold, and why is it interesting?
   - complexity: S (single file, quick piece) / M (multi-file or substantial single file, 3 creation phases) / L (ambitious multi-file, 7 creation phases) / XL (massive multi-file or project starter, 12 creation phases)
-  - why: one sentence on what this adds to the portfolio
-  - project_id: (optional) if continuing an active project
+  - why: one non-empty sentence on what this adds to the portfolio
+  - project_id: (optional) if continuing an active project; use only IDs listed in Active Projects, and do not include it on new project starters
   - stimulus_ref: (optional) what external input inspired this, if any
-  - xl_mode: (required for XL) "single" for massive standalone artifacts, "project" for multi-iteration projects
-  - project: (required for xl_mode: "project") project definition block
+  - xl_mode: (required for XL) "single" for massive standalone artifacts, "project" for L/XL multi-iteration project starters
+  - project: (required for xl_mode: "project"; otherwise null) project definition block with non-empty name, description, positive integer estimated_iterations no greater than {max_iterations_per_project}, and non-empty structure entries with non-blank descriptions
 - At least one idea must be in a domain we haven't touched in the last {domain_cooldown} iterations
 - At least four ideas must be complexity M or higher
 - At least three ideas must be complexity L or XL
 - S is reserved for forms where brevity is the point; code artifacts, games, substantial essays, and multi-file creative works should be L or XL by default
+- If a Stoker Directive appears in context, treat it as the furnace operator's current steering pressure: honor urgency, domain pressure, mood amplifier, and complexity preference unless a stronger creative reason overrides it.
+- If a Complexity Guidance section appears in context, use it as pressure when choosing tiers. It is not a hard rule, but if two ideas are equally strong, prefer the tier with better recent rating-per-token yield.
 - At least two ideas must be something you're not sure we can pull off
 - No idea may be structurally identical to a portfolio entry from the last {novelty_window} iterations
 - If referencing a stimulus, you must TRANSFORM it — not just summarize
 - Consider the constellation map: you can intentionally create within an existing constellation (deepening a thread), bridge between two constellations (cross-pollination), or break into unexplored territory (novelty)
 - Check the Dream Journal: fallen artifacts sometimes contain ideas worth resurrecting with a different approach, structure, or domain
+- If Salvaged Ideas or Fast-Track Options appear in context, treat them as warmed-up fuel from the last Gate 1 slate. You may refine one, combine two, or deliberately ignore them if a stronger idea emerges.
 - If no multi-iteration projects are currently active (check the Active Projects section above), at least one of your 5 proposals should be a project starter (complexity L or XL with `xl_mode: "project"`). Multi-iteration projects produce richer, more cohesive work.
+- If the Active Projects section says project slots are at capacity, do not propose a new project starter; propose standalone work or a continuation of an existing project instead.
+- Project continuations must reference an exact `project_id` from Active Projects; never invent or reuse old project IDs.
 - For XL proposals, include `xl_mode: "single"` for massive standalone artifacts or `xl_mode: "project"` to start a multi-iteration project.
 
 ## Output Format

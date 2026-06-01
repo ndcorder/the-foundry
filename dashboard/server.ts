@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import yaml from "yaml";
 import { resolve } from "../src/root.js";
+import { readFurnaceTelemetry } from "../src/observatory/furnace.js";
 
 const PORT = parseInt(process.env.PORT || "3333", 10);
 const PUBLIC_DIR = resolve("dashboard", "public");
@@ -143,6 +144,81 @@ const server = http.createServer((req, res) => {
     } catch {
       return sendJson(res, { dreams: [], updated_at: null });
     }
+  }
+  if (pathname === "/api/furnace") {
+    readFurnaceTelemetry()
+      .then((telemetry) => sendJson(res, telemetry))
+      .catch(() => sendJson(res, {
+        stoker: null,
+        stokerCadence: { enabled: false, runInterval: 5, nextRunIteration: null, iterationsUntilRun: null },
+        stokerHeat: {
+          window: 5,
+          threshold: 200000,
+          samples: 0,
+          averageTokens: 0,
+          totalTokens: 0,
+          peakTokens: 0,
+          thresholdPercent: 0,
+          remainingTokensToThreshold: 200000,
+          pressure: "cool",
+          hot: false,
+        },
+        complexity: null,
+        streak: null,
+        speculative: { count: 0, staleCount: 0, ideas: [] },
+        refinery: {
+          enabled: false,
+          minIterationsBetweenRuns: 5,
+          lastIteration: null,
+          nextEligibleIteration: null,
+          iterationsUntilEligible: null,
+        },
+        refineryFuel: {
+          enabled: false,
+          queueLimit: 0,
+          available: 0,
+          byType: { dream: 0, companion: 0, lowRated: 0 },
+          topTargets: [],
+        },
+        refineryReadiness: {
+          state: "disabled",
+          canQueue: false,
+          blockers: ["disabled"],
+          reason: "Refinery telemetry is unavailable.",
+        },
+        logs: {
+          activeFiles: 0,
+          archiveCount: 0,
+          totalActiveBytes: 0,
+          totalArchiveBytes: 0,
+          totalLogBytes: 0,
+          rotationThresholdBytes: 50 * 1024 * 1024,
+          largestActivePercent: 0,
+          largestActiveBytesRemaining: 50 * 1024 * 1024,
+          rotationPressure: "clear",
+          healthState: "healthy",
+          malformedActiveLines: 0,
+          malformedActiveFiles: [],
+          malformedActiveFileDetails: [],
+          recommendedActions: [],
+          largestActive: null,
+          largestArchive: null,
+        },
+        monitor: {
+          counts: { critical: 0, warning: 0, info: 0 },
+          activeCounts: { critical: 0, warning: 0, info: 0 },
+          activeWarnings: [],
+          activeWindow: null,
+          recentWarnings: [],
+          latestWarning: null,
+        },
+        health: {
+          level: "healthy",
+          reasons: [],
+          actions: [],
+        },
+      }));
+    return;
   }
 
   // Static files

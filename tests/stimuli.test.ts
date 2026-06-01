@@ -62,6 +62,73 @@ describe('loadStimuliConfig', () => {
   it('throws when file is missing', async () => {
     await expect(loadStimuliConfig()).rejects.toThrow();
   });
+
+  it('throws with clear message when an MCP source name is unsafe', async () => {
+    writeFileSync(path.join(tempDir, 'stimuli', 'stimuli.yml'), `
+mcp:
+  ../outside:
+    server: tavily
+    query_template: "interesting news"
+    max_items: 5
+    refresh_interval: 15
+stimuli_ttl: 30
+skills_per_context: 2
+`, 'utf-8');
+
+    await expect(loadStimuliConfig()).rejects.toThrow(
+      "Invalid 'stimuli.mcp' source name '../outside': expected safe slug",
+    );
+  });
+
+  it('throws with clear message when an MCP source server is unsupported', async () => {
+    writeFileSync(path.join(tempDir, 'stimuli', 'stimuli.yml'), `
+mcp:
+  news:
+    server: mystery
+    max_items: 5
+    refresh_interval: 15
+stimuli_ttl: 30
+skills_per_context: 2
+`, 'utf-8');
+
+    await expect(loadStimuliConfig()).rejects.toThrow(
+      "Invalid 'stimuli.mcp.news.server': expected tavily or context7",
+    );
+  });
+
+  it('throws with clear message when MCP source numeric settings are invalid', async () => {
+    writeFileSync(path.join(tempDir, 'stimuli', 'stimuli.yml'), `
+mcp:
+  news:
+    server: tavily
+    query_template: "interesting news"
+    max_items: 0
+    refresh_interval: 15
+stimuli_ttl: 30
+skills_per_context: 2
+`, 'utf-8');
+
+    await expect(loadStimuliConfig()).rejects.toThrow(
+      "Invalid 'stimuli.mcp.news.max_items': expected number >= 1",
+    );
+  });
+
+  it('throws with clear message when MCP source count settings are fractional', async () => {
+    writeFileSync(path.join(tempDir, 'stimuli', 'stimuli.yml'), `
+mcp:
+  news:
+    server: tavily
+    query_template: "interesting news"
+    max_items: 5.5
+    refresh_interval: 15
+stimuli_ttl: 30
+skills_per_context: 2
+`, 'utf-8');
+
+    await expect(loadStimuliConfig()).rejects.toThrow(
+      "Invalid 'stimuli.mcp.news.max_items': expected integer >= 1",
+    );
+  });
 });
 
 describe('initRefreshStates', () => {
@@ -89,13 +156,30 @@ describe('initRefreshStates', () => {
 });
 
 describe('refreshStatesToRecord', () => {
-  it('converts states map to record of last_refresh_iteration', () => {
+  it('converts states map to full checkpoint records', () => {
     const states = new Map<string, StimuliRefreshState>([
       ['news', { source: 'news', last_refresh_iteration: 5, consecutive_failures: 0, disabled: false }],
       ['knowledge', { source: 'knowledge', last_refresh_iteration: 12, consecutive_failures: 1, disabled: false }],
+      ['cultural', { source: 'cultural', last_refresh_iteration: 20, consecutive_failures: 3, disabled: true }],
     ]);
     const record = refreshStatesToRecord(states);
-    expect(record).toEqual({ news: 5, knowledge: 12 });
+    expect(record).toEqual({
+      news: {
+        last_refresh_iteration: 5,
+        consecutive_failures: 0,
+        disabled: false,
+      },
+      knowledge: {
+        last_refresh_iteration: 12,
+        consecutive_failures: 1,
+        disabled: false,
+      },
+      cultural: {
+        last_refresh_iteration: 20,
+        consecutive_failures: 3,
+        disabled: true,
+      },
+    });
   });
 
   it('returns empty object for empty map', () => {
@@ -104,15 +188,42 @@ describe('refreshStatesToRecord', () => {
 });
 
 describe('recordToRefreshStates', () => {
-  it('converts record back to states map', () => {
-    const record = { news: 5, knowledge: 10 };
+  it('converts full checkpoint records back to states map', () => {
+    const record = {
+      news: {
+        last_refresh_iteration: 5,
+        consecutive_failures: 2,
+        disabled: false,
+      },
+      knowledge: {
+        last_refresh_iteration: 10,
+        consecutive_failures: 3,
+        disabled: true,
+      },
+    };
     const states = recordToRefreshStates(record, sampleConfig);
     expect(states.size).toBe(2);
+    expect(states.get('news')).toEqual({
+      source: 'news',
+      last_refresh_iteration: 5,
+      consecutive_failures: 2,
+      disabled: false,
+    });
+    expect(states.get('knowledge')).toEqual({
+      source: 'knowledge',
+      last_refresh_iteration: 10,
+      consecutive_failures: 3,
+      disabled: true,
+    });
+  });
+
+  it('reads legacy numeric checkpoint records as last refresh iterations', () => {
+    const record = { news: 5, knowledge: 10 };
+    const states = recordToRefreshStates(record, sampleConfig);
     expect(states.get('news')!.last_refresh_iteration).toBe(5);
-    expect(states.get('knowledge')!.last_refresh_iteration).toBe(10);
-    // consecutive_failures and disabled should be reset
     expect(states.get('news')!.consecutive_failures).toBe(0);
     expect(states.get('news')!.disabled).toBe(false);
+    expect(states.get('knowledge')!.last_refresh_iteration).toBe(10);
   });
 
   it('defaults to 0 for missing record entries', () => {

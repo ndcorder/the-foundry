@@ -12,8 +12,9 @@ export interface PoolCallbacks {
   runIteration: (config: FoundryConfig, models: ModelsConfig, iteration: number, slot: number) => Promise<IterationResult>;
   onIterationComplete: (result: IterationResult, slot: number) => Promise<void>;
   shouldStop: () => boolean | Promise<boolean>;
-  shouldRunCurator: (iteration: number) => boolean;
-  runCurator: (iteration: number) => Promise<void>;
+  maxConcurrentIterations?: () => number | Promise<number>;
+  shouldRunCurator: (iteration: number, result: IterationResult) => boolean;
+  runCurator: (iteration: number, result: IterationResult) => Promise<void>;
 }
 
 export class IterationPool {
@@ -106,6 +107,16 @@ export class IterationPool {
     await callbacks.onIterationComplete(completed.result, completed.slot);
   }
 
+  private async currentConcurrencyLimit(
+    callbacks: Pick<PoolCallbacks, "maxConcurrentIterations">,
+  ): Promise<number> {
+    if (!callbacks.maxConcurrentIterations) return this.concurrency;
+
+    const requestedLimit = await callbacks.maxConcurrentIterations();
+    if (!Number.isFinite(requestedLimit)) return this.concurrency;
+    return Math.max(1, Math.min(this.concurrency, Math.floor(requestedLimit)));
+  }
+
   private async drainInFlight(callbacks?: Pick<PoolCallbacks, "onIterationComplete">): Promise<number> {
     if (this.inFlight.size === 0) return 0;
 
@@ -143,8 +154,11 @@ export class IterationPool {
       }
 
       // Fill slots
-      while (this.inFlight.size < this.concurrency && !this.shuttingDown) {
+      while (!this.shuttingDown) {
         if (await callbacks.shouldStop()) break;
+        const concurrencyLimit = await this.currentConcurrencyLimit(callbacks);
+        if (this.inFlight.size >= concurrencyLimit) break;
+
         const iter = this.reserveIteration();
         const slot = this.takeSlot();
         if (slot === undefined) break;
@@ -165,12 +179,12 @@ export class IterationPool {
       await this.handleCompletion(completed, callbacks);
 
       // Curator check (drains pool first)
-      if (callbacks.shouldRunCurator(completed.iter)) {
+      if (!this.shuttingDown && callbacks.shouldRunCurator(completed.iter, completed.result)) {
         lastCompletedIteration = Math.max(
           lastCompletedIteration,
           await this.drainInFlight(callbacks),
         );
-        await callbacks.runCurator(completed.iter);
+        await callbacks.runCurator(completed.iter, completed.result);
       }
     }
 

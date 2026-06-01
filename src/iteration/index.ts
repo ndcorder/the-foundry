@@ -1,1 +1,1 @@
-export { runIteration } from "./runner.js";
+export { runIteration, type RunIterationOptions } from "./runner.js";

@@ -31,15 +31,15 @@ Your response must be ONLY valid YAML. Do NOT write any analysis, explanation, o
 
 ```yaml
 verdict: "pass|fail_fixable|fail_catastrophic"
-summary: "1-2 sentence overall assessment"
+summary: "non-empty 1-2 sentence overall assessment with evidence"
 tests_run:
-  - name: "..."
+  - name: "non-empty test/check name"
     result: "pass|fail"
-    details: "..."
+    details: "non-empty evidence: command output, observed behavior, or checked structure"
 issues:
   - severity: "critical|major|minor"
-    description: "..."
-    location: "file:line or section reference"
-    suggested_fix: "..."
+    description: "non-empty issue description"
+    location: "non-empty file:line or section reference"
+    suggested_fix: "non-empty fix guidance; required for fail_fixable, omit or null otherwise"
 post_mortem: null
 ```

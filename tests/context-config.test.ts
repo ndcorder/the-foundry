@@ -132,6 +132,115 @@ iteration:
       writeFileSync(path.join(tempDir, 'config', 'foundry.yml'), incomplete, 'utf-8');
       await expect(loadConfig()).rejects.toThrow("Missing 'context' section");
     });
+
+    it('throws with clear message when projects section is missing', async () => {
+      const missingProjects = FOUNDRY_YML.replace(`
+projects:
+  max_active: 2
+  max_iterations_per_project: 12
+  allow_standalone_interrupts: true
+`, '');
+      writeFileSync(path.join(tempDir, 'config', 'foundry.yml'), missingProjects, 'utf-8');
+
+      await expect(loadConfig()).rejects.toThrow("Missing 'projects' section");
+    });
+
+    it('throws with clear message when an iteration limit is invalid', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'foundry.yml'), FOUNDRY_YML.replace(
+        'max_idea_retries: 3',
+        'max_idea_retries: 0',
+      ), 'utf-8');
+
+      await expect(loadConfig()).rejects.toThrow(
+        "Invalid 'iteration.max_idea_retries': expected number >= 1",
+      );
+    });
+
+    it('throws with clear message when an iteration count is fractional', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'foundry.yml'), FOUNDRY_YML.replace(
+        'max_idea_retries: 3',
+        'max_idea_retries: 2.5',
+      ), 'utf-8');
+
+      await expect(loadConfig()).rejects.toThrow(
+        "Invalid 'iteration.max_idea_retries': expected integer >= 1",
+      );
+    });
+
+    it('throws with clear message when a context history window is invalid', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'foundry.yml'), FOUNDRY_YML.replace(
+        'critic_gate1_history: 5',
+        'critic_gate1_history: 0',
+      ), 'utf-8');
+
+      await expect(loadConfig()).rejects.toThrow(
+        "Invalid 'context.critic_gate1_history': expected number >= 1",
+      );
+    });
+
+    it('throws with clear message when a logging flag is invalid', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'foundry.yml'), FOUNDRY_YML.replace(
+        'log_token_usage: true',
+        'log_token_usage: sometimes',
+      ), 'utf-8');
+
+      await expect(loadConfig()).rejects.toThrow(
+        "Invalid 'logging.log_token_usage': expected boolean",
+      );
+    });
+
+    it('throws with clear message when a complexity profile token ceiling is invalid', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'foundry.yml'), FOUNDRY_YML.replace(
+        '  novelty_window: 20',
+        `  novelty_window: 20
+  complexity_profiles:
+    XL:
+      max_tokens_per_phase: 0
+      budget_warning_threshold: 800000`,
+      ), 'utf-8');
+
+      await expect(loadConfig()).rejects.toThrow(
+        "Invalid 'iteration.complexity_profiles.XL.max_tokens_per_phase': expected number >= 1",
+      );
+    });
+
+    it('throws with clear message when a refinery queue size is fractional', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'foundry.yml'), `${FOUNDRY_YML}
+refinery:
+  enabled: true
+  min_iterations_between_runs: 5
+  max_refinery_queue: 1.5
+`, 'utf-8');
+
+      await expect(loadConfig()).rejects.toThrow(
+        "Invalid 'refinery.max_refinery_queue': expected integer >= 0",
+      );
+    });
+
+    it('throws with clear message when stoker token heat window is invalid', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'foundry.yml'), `${FOUNDRY_YML}
+stoker:
+  enabled: true
+  run_interval: 5
+  refinery_token_heat_window: 0
+  refinery_token_heat_threshold: 200000
+`, 'utf-8');
+
+      await expect(loadConfig()).rejects.toThrow(
+        "Invalid 'stoker.refinery_token_heat_window': expected number >= 1",
+      );
+    });
+
+    it('throws with clear message when monitor active warning window is invalid', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'foundry.yml'), `${FOUNDRY_YML}
+monitor:
+  active_warning_window: soon
+`, 'utf-8');
+
+      await expect(loadConfig()).rejects.toThrow(
+        "Invalid 'monitor.active_warning_window': expected number >= 0",
+      );
+    });
   });
 
   describe('loadModelsConfig', () => {
@@ -147,6 +256,85 @@ iteration:
     it('throws when models.yml does not exist', async () => {
       await expect(loadModelsConfig()).rejects.toThrow();
     });
+
+    it('throws with clear message when a required model agent is missing', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'models.yml'), `
+agents:
+  ideator:
+    model: "glm-5.1"
+    temperature: 0.9
+    max_tokens: 4096
+`, 'utf-8');
+
+      await expect(loadModelsConfig()).rejects.toThrow("Missing 'models.agents.creator' section");
+    });
+
+    it('throws with clear message when model max_tokens is invalid', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'models.yml'), MODELS_YML.replace(
+        'max_tokens: 16384',
+        'max_tokens: 0',
+      ), 'utf-8');
+
+      await expect(loadModelsConfig()).rejects.toThrow(
+        "Invalid 'models.agents.creator.max_tokens': expected number >= 1",
+      );
+    });
+
+    it('throws with clear message when model max_tokens is fractional', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'models.yml'), MODELS_YML.replace(
+        'max_tokens: 16384',
+        'max_tokens: 16384.5',
+      ), 'utf-8');
+
+      await expect(loadModelsConfig()).rejects.toThrow(
+        "Invalid 'models.agents.creator.max_tokens': expected integer >= 1",
+      );
+    });
+
+    it('throws with clear message when a model override targets an unknown agent', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'models.yml'), `${MODELS_YML}
+overrides:
+  - agent: creatr
+    model: "glm-4.5"
+    start_iteration: 5
+    end_iteration: 10
+    label: "creator-typo"
+`, 'utf-8');
+
+      await expect(loadModelsConfig()).rejects.toThrow(
+        "Invalid 'models.overrides[0].agent': expected one of ideator, creator, tester, critic, curator",
+      );
+    });
+
+    it('throws with clear message when a model override window is inverted', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'models.yml'), `${MODELS_YML}
+overrides:
+  - agent: ideator
+    model: "glm-4.5"
+    start_iteration: 10
+    end_iteration: 5
+    label: "bad-window"
+`, 'utf-8');
+
+      await expect(loadModelsConfig()).rejects.toThrow(
+        "Invalid 'models.overrides[0]': start_iteration must be <= end_iteration",
+      );
+    });
+
+    it('throws with clear message when a model override window is fractional', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'models.yml'), `${MODELS_YML}
+overrides:
+  - agent: ideator
+    model: "glm-4.5"
+    start_iteration: 1.5
+    end_iteration: 5
+    label: "bad-window"
+`, 'utf-8');
+
+      await expect(loadModelsConfig()).rejects.toThrow(
+        "Invalid 'models.overrides[0].start_iteration': expected integer >= 0",
+      );
+    });
   });
 
   describe('loadDomainsConfig', () => {
@@ -161,6 +349,59 @@ iteration:
 
     it('throws when domains.yml does not exist', async () => {
       await expect(loadDomainsConfig()).rejects.toThrow();
+    });
+
+    it('throws with clear message when domains is not a list', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'domains.yml'), `
+domains:
+  fiction:
+    description: "Short stories"
+    weight: 1.0
+`, 'utf-8');
+
+      await expect(loadDomainsConfig()).rejects.toThrow("Invalid 'domains': expected array");
+    });
+
+    it('throws with clear message when a domain weight is invalid', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'domains.yml'), `
+domains:
+  - name: fiction
+    description: "Short stories"
+    weight: 0
+`, 'utf-8');
+
+      await expect(loadDomainsConfig()).rejects.toThrow(
+        "Invalid 'domains[0].weight': expected number > 0",
+      );
+    });
+
+    it('throws with clear message when a domain name is not a safe slug', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'domains.yml'), `
+domains:
+  - name: ../outside
+    description: "Path escape"
+    weight: 1
+`, 'utf-8');
+
+      await expect(loadDomainsConfig()).rejects.toThrow(
+        "Invalid 'domains[0].name': expected safe slug",
+      );
+    });
+
+    it('throws with clear message when domain names are duplicated', async () => {
+      writeFileSync(path.join(tempDir, 'config', 'domains.yml'), `
+domains:
+  - name: fiction
+    description: "Short stories"
+    weight: 1
+  - name: fiction
+    description: "Duplicate fiction"
+    weight: 1
+`, 'utf-8');
+
+      await expect(loadDomainsConfig()).rejects.toThrow(
+        "Invalid 'domains[1].name': duplicate domain 'fiction'",
+      );
     });
   });
 });

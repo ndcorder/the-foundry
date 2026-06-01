@@ -1,4 +1,7 @@
 import { MonitorConfig, MonitorWarning, DEFAULT_MONITOR_CONFIG } from "./types.js";
+import { analyzeComplexityYield } from "../complexity/index.js";
+import type { ComplexityAnalysisOptions, ComplexityTier } from "../complexity/index.js";
+import type { JsonlLogHealth } from "../logging/index.js";
 
 // Local interface for iteration log entries consumed by detectors.
 // Kept separate from the main IterationResult type to avoid coupling
@@ -10,6 +13,7 @@ export interface IterationEntry {
   artifact_id?: string;
   title?: string;
   domain?: string;
+  complexity?: ComplexityTier;
   ratings?: Record<string, number>;
   mean_rating?: string;
   review?: string;
@@ -276,6 +280,86 @@ export function detectDomainCollapse(
   return warnings;
 }
 
+// ── 5. Complexity Yield Detector ────────────────────────────────
+
+export function detectComplexityYield(
+  iterations: IterationEntry[],
+  currentIteration: number,
+  config: Partial<ComplexityAnalysisOptions> & Partial<Pick<MonitorConfig,
+    "complexity_yield_window" | "complexity_min_samples_for_confidence" | "complexity_high_confidence_samples"
+  >> = {},
+): MonitorWarning[] {
+  const bias = analyzeComplexityYield(iterations, currentIteration, {
+    window: config.window ?? config.complexity_yield_window ?? DEFAULT_MONITOR_CONFIG.complexity_yield_window,
+    min_samples_for_confidence: config.min_samples_for_confidence
+      ?? config.complexity_min_samples_for_confidence
+      ?? DEFAULT_MONITOR_CONFIG.complexity_min_samples_for_confidence,
+    high_confidence_samples: config.high_confidence_samples
+      ?? config.complexity_high_confidence_samples
+      ?? DEFAULT_MONITOR_CONFIG.complexity_high_confidence_samples,
+  });
+
+  if (bias.recommendation.confidence === "low") return [];
+
+  return [{
+    detector: "complexity_yield",
+    severity: "info",
+    message: `Complexity yield updated: favor ${bias.recommendation.favor} (${bias.recommendation.confidence} confidence)`,
+    action: {
+      type: "complexity_bias_update",
+      bias,
+    },
+    iteration: currentIteration,
+    timestamp: now(),
+  }];
+}
+
+// ── 6. JSONL Log Health Detector ────────────────────────────────
+
+export function detectLogHealth(
+  logHealth: JsonlLogHealth | null | undefined,
+  currentIteration: number,
+): MonitorWarning[] {
+  if (!logHealth) return [];
+
+  const warnings: MonitorWarning[] = [];
+
+  if (logHealth.malformedActiveLines > 0) {
+    const targets = logHealth.malformedActiveFileDetails.length > 0
+      ? logHealth.malformedActiveFileDetails
+        .map((detail) => `${detail.name} first line ${detail.firstMalformedLine}`)
+        .join(", ")
+      : logHealth.malformedActiveFiles.join(", ");
+    warnings.push({
+      detector: "log_health",
+      severity: "critical",
+      message: `JSONL log health critical: ${logHealth.malformedActiveLines} malformed active lines in ${targets}`,
+      iteration: currentIteration,
+      timestamp: now(),
+    });
+  }
+
+  if (logHealth.rotationPressure === "rotate-soon" && logHealth.largestActive) {
+    warnings.push({
+      detector: "log_health",
+      severity: "warning",
+      message: `JSONL rotation pressure: ${logHealth.largestActive.name} is ${logHealth.largestActivePercent}% of rotation limit (${logHealth.largestActiveBytesRemaining} bytes remaining)`,
+      iteration: currentIteration,
+      timestamp: now(),
+    });
+  } else if (logHealth.rotationPressure === "watch" && logHealth.largestActive) {
+    warnings.push({
+      detector: "log_health",
+      severity: "info",
+      message: `JSONL rotation watch: ${logHealth.largestActive.name} is ${logHealth.largestActivePercent}% of rotation limit`,
+      iteration: currentIteration,
+      timestamp: now(),
+    });
+  }
+
+  return warnings;
+}
+
 // ── Convenience: run all detectors ───────────────────────────────
 
 export function runAllDetectors(
@@ -283,11 +367,14 @@ export function runAllDetectors(
   journalContent: string,
   currentIteration: number,
   config: MonitorConfig = DEFAULT_MONITOR_CONFIG,
+  logHealth?: JsonlLogHealth | null,
 ): MonitorWarning[] {
   return [
     ...detectSlop(iterations, currentIteration, config),
     ...detectRepetition(iterations, currentIteration, config),
     ...detectManifestoDrift(journalContent, currentIteration, config),
     ...detectDomainCollapse(iterations, currentIteration, config),
+    ...detectComplexityYield(iterations, currentIteration, config),
+    ...detectLogHealth(logHealth, currentIteration),
   ];
 }

@@ -1,4 +1,5 @@
-import { readFile, writeFile, access } from "node:fs/promises";
+import { mkdir, readFile, writeFile, access } from "node:fs/promises";
+import path from "node:path";
 import type { FoundryConfig } from "../types/index.js";
 import { resolve } from "../root.js";
 
@@ -21,5 +22,14 @@ export async function readRequests(config: FoundryConfig): Promise<string> {
 }
 
 export async function clearRequests(config: FoundryConfig): Promise<void> {
-  await writeFile(resolve(config.intervention.requests_file), "", "utf-8");
+  const requestPath = resolve(config.intervention.requests_file);
+  await mkdir(path.dirname(requestPath), { recursive: true });
+  await writeFile(requestPath, "", "utf-8");
+}
+
+export async function writeRequests(config: FoundryConfig, content: string): Promise<void> {
+  const requestPath = resolve(config.intervention.requests_file);
+  const trimmed = content.trim();
+  await mkdir(path.dirname(requestPath), { recursive: true });
+  await writeFile(requestPath, trimmed ? `${trimmed}\n` : "", "utf-8");
 }

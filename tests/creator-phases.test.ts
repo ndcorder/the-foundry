@@ -22,6 +22,18 @@ vi.mock("../src/context/data.js", () => ({
   safeRead: (...args: any[]) => mockSafeRead(...args),
 }));
 
+const mockGetProjectContext = vi.fn().mockResolvedValue("");
+vi.mock("../src/files/projects.js", () => ({
+  getProjectContext: (...args: any[]) => mockGetProjectContext(...args),
+}));
+
+const mockLoadStreakHistory = vi.fn().mockResolvedValue({});
+const mockFormatStreakContext = vi.fn().mockReturnValue("");
+vi.mock("../src/streaks/index.js", () => ({
+  loadStreakHistory: (...args: any[]) => mockLoadStreakHistory(...args),
+  formatStreakContext: (...args: any[]) => mockFormatStreakContext(...args),
+}));
+
 import { dispatchPlan, dispatchBuild, dispatchRevise, dispatchPolish, dispatchAssemble } from "../src/creator/phases.js";
 
 let tempDir: string;
@@ -29,6 +41,8 @@ beforeEach(() => {
   tempDir = mkdtempSync(path.join(tmpdir(), "foundry-phases-"));
   setRootDir(tempDir);
   vi.clearAllMocks();
+  mockGetProjectContext.mockReset();
+  mockGetProjectContext.mockResolvedValue("");
 
   // Create prompt templates
   const creatorDir = path.join(tempDir, "prompts", "creator");
@@ -112,6 +126,47 @@ describe("creator/phases", () => {
 
       const result = await dispatchPlan(makeCtx(), makeProposal(), "notes", 32768);
       expect(result.plan.build_order).toEqual([["a.ts", "b.ts"]]);
+    });
+
+    it("includes creator streak context in the plan prompt when active", async () => {
+      mockFormatStreakContext.mockReturnValueOnce("## Streak Context\n\nKeep the code run sharp.");
+      const planYaml = `plan:
+  approach: "Build it"
+  file_manifest:
+    - path: a.ts
+      purpose: A
+  key_decisions: []
+  challenges: []
+  build_order:
+    - ["a.ts"]`;
+      mockCallModel.mockResolvedValueOnce({ text: planYaml, usage: { input: 100, output: 50 } });
+
+      await dispatchPlan(makeCtx(), makeProposal(), "notes", 32768);
+
+      const systemPrompt = mockCallModel.mock.calls[0][1];
+      expect(systemPrompt).toContain("Streak Context");
+      expect(mockFormatStreakContext).toHaveBeenCalledWith(expect.anything(), "creator", undefined);
+    });
+
+    it("injects project context for project continuation plans", async () => {
+      mockGetProjectContext.mockResolvedValueOnce("## Project Brief\n\nPrior project context");
+      const planYaml = `plan:
+  approach: "Continue the project"
+  file_manifest:
+    - path: next.md
+      purpose: Next installment
+  key_decisions: []
+  challenges: []
+  build_order:
+    - ["next.md"]`;
+      mockCallModel.mockResolvedValueOnce({ text: planYaml, usage: { input: 100, output: 50 } });
+
+      await dispatchPlan(makeCtx(), { ...makeProposal(), project_id: "P001" }, "notes", 32768);
+
+      const systemPrompt = mockCallModel.mock.calls[0][1];
+      expect(mockGetProjectContext).toHaveBeenCalledWith("P001");
+      expect(systemPrompt).toContain("Prior project context");
+      expect(systemPrompt).not.toContain("No project context");
     });
   });
 

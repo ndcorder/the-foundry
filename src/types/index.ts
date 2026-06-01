@@ -9,6 +9,11 @@ export type {
   DomainEntry,
   DomainsConfig,
   ComplexityProfileConfig,
+  StreaksConfig,
+  ComplexityConfig,
+  StokerConfig,
+  SpeculativeConfig,
+  RefineryConfig,
 } from "./config.js";
 
 export type AgentRole = "ideator" | "creator" | "tester" | "critic" | "curator";
@@ -24,6 +29,7 @@ export interface DecisionLogEntry {
   iteration: number;
   gate: "gate1" | "gate2";
   agent: "critic";
+  source?: "ideator" | "human_redirect";
   decision: "approve" | "reject" | "revise" | "ship" | "kill";
   proposal_title?: string;
   artifact_id?: string;
